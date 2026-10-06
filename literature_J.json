@@ -1,0 +1,48 @@
+{
+  "_comment": "已知二维蜂窝磁体的文献交换常数 (流水线约定 H = -J * S_i.S_j, J>0=铁磁, meV)。",
+  "_convention": "H = -J1*sum_<ij>S.S - J2*sum_<<ij>>S.S - J3*sum_<<<ij>>>S.S ; S 为自旋大小; J 为裸交换 (引擎会乘 S^2)",
+  "MnPS3": {
+    "formula": "MnPS3",
+    "element": "Mn",
+    "nonmag": ["P", "S"],
+    "S": 2.5,
+    "moment": 5.0,
+    "U": 5.0,
+    "J1": -0.79,
+    "J2": -0.04,
+    "J3": -0.23,
+    "MAE": 0.0,
+    "ground_state": "neel",
+    "source": "Sivadas et al., Phys. Rev. B 91, 235425 (2015), 表 I (单层 DFT); 原文 H=+J S.S 约定 J1=0.79/J2=0.04/J3=0.23 已转号"
+  },
+  "CrI3": {
+    "_note": "本表仅收录已核实的文献值; CrI3/CrBr3 在旧流水线里用的是假设/PPT demo 值, 未核实, 待补文献后启用",
+    "formula": "CrI3",
+    "element": "Cr",
+    "nonmag": ["I"],
+    "S": 1.5,
+    "moment": 3.0,
+    "U": 3.0,
+    "J1": null,
+    "J2": null,
+    "J3": null,
+    "MAE": 0.6,
+    "ground_state": "fm",
+    "source": "待补: 文献 J1~+2.4, J2~+0.6 meV (S=3/2) 需核实后填写"
+  },
+  "CrBr3": {
+    "_note": "同上, 未核实",
+    "formula": "CrBr3",
+    "element": "Cr",
+    "nonmag": ["Br"],
+    "S": 1.5,
+    "moment": 3.0,
+    "U": 3.0,
+    "J1": null,
+    "J2": null,
+    "J3": null,
+    "MAE": 0.2,
+    "ground_state": "fm",
+    "source": "待补"
+  }
+}

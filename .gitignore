@@ -1,0 +1,12 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# 临时下载 (driver 运行时生成)
+_fetch_tmp/
+
+# 运行产出 (各 <formula>_pipeline/ 项目目录, 不在本仓库内)
+
+# 演示/汇报产物 (可再生成)
+*.pptx
