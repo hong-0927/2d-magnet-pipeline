@@ -44,5 +44,20 @@
     "MAE": 0.2,
     "ground_state": "fm",
     "source": "待补"
+  },
+  "Fe3GeTe2": {
+    "_note": "⚠ 用前必读。(a) 分类会误判: 单层胞 3 个 Fe (不等价位 Fe I@2c / Fe II@4e), 层内 Fe-Fe 2.46-2.63 A < cutoff 3.3 -> detect_lattice 判成 'cluster'(1 簇) -> 走分子簇分支、整胞塌成 1 个有效磁位。FGT 是巡游铁磁金属, 不是 Nb3I8 式分子簇: 簇内 J_intra 无物理意义, 簇间 J/T_N 只能当等效近似 (driver 有 stderr 警告 + workflow.md 局限第 8 条)。(b) 下面 J1/J3/MAE 取自 Pushkarev 2023 单层「统一 S=1」映射(把双亚晶格折算成一个有效自旋), 已按其约定 H=+J S.S 转号到本表约定 H=-J S.S。(c) 另两篇给出完全不同量级, 禁止与本条混用: Kim 2026 (与本研究同约定 H=-J S.S, 双亚晶格) J1=+78.84 / J2=+24.61 / J3=-2.46 meV, E_MCA=3.15 meV/f.u.; Shen 2020 (H=+J S.S) 单层 J(Fe1-Fe2)=-23.82 / J(Fe1-Fe5)=-15.52 / J(Fe5-Fe5)=+2.50 meV。(d) J2 该文未印出(只暗示约为 J1/3) -> 留 null, 由流水线落到默认 0.0, 结论必须声明。(e) U=4.0 只是 DFT 卡片假设, 不影响 MC。(f) 该文自承 Tc 高估实验: 其单层 MC 341 K vs 单层实验约 130 K。",
+    "formula": "Fe3GeTe2",
+    "element": "Fe",
+    "nonmag": ["Ge", "Te"],
+    "S": 1.0,
+    "moment": 2.0,
+    "U": 4.0,
+    "J1": 113.0,
+    "J2": null,
+    "J3": -10.9,
+    "MAE": 0.35,
+    "ground_state": "fm",
+    "source": "J/MAE: Pushkarev et al., J. Magn. Magn. Mater. 588, 171456 (2023), arXiv:2303.01888 (单层; 原文 H=+J S.S 且 J<0=FM: J1=-113 meV, J3^I=+10.9 meV, A=0.35 meV/Fe -> 已转号为本表 J1=+113, J3=-10.9, MAE=+0.35; 原文亚晶格磁矩 m_I=2.43 / m_II=1.48 muB 被其折算为统一 S=1)。结构: P6_3/mmc (No.194) — 注意不是 R-3m; a=3.991 A / c=16.33 A (XRD 293K, Deiseroth et al. 2006), 单层 DFT a=4.010 A; 每层胞 3 Fe。Tc 参考: 单层实验约 130 K (Fei et al., Nat. Mater. 17, 778 (2018)); 体相实验约 200-230 K; 双亚晶格 MC 单层 152 K / 体相 205 K (arXiv:2009.05701)"
   }
 }

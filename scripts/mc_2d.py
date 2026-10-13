@@ -256,10 +256,15 @@ def main():
     ap.add_argument("--therm", type=int, default=2500)
     ap.add_argument("--meas", type=int, default=6000)
     ap.add_argument("--cool", action="store_true")
+    ap.add_argument("--seed", type=int, default=0,
+                    help="MC 随机数种子; 0 = 默认 (可复现)。改种子可估计统计误差")
     ap.add_argument("--out", default=None)
     args = ap.parse_args()
 
-    with open(args.model) as f:
+    # 必须显式 utf-8: Windows 默认用区域编码 (GBK), 模型 JSON 里若含非 ASCII
+    # (例如中文路径的 source_poscar, 或手改过的注释) 会被误解码而报
+    # "Invalid \escape"。
+    with open(args.model, encoding="utf-8") as f:
         model = json.load(f)
     meta = model["meta"]
 
@@ -270,7 +275,13 @@ def main():
     else:
         use_cv = False
         if args.order == "auto":
-            order = 1 if meta["J1_meV"] < 0 else 0
+            # 单壳层模型给 J1_meV; 多壳层模型 (FGT 双亚晶格) 没有这个键 ->
+            # 用各壳层 J 之和的符号判断铁磁/反铁磁, 不能硬取 meta["J1_meV"]
+            if "J1_meV" in meta:
+                jsum = float(meta["J1_meV"])
+            else:
+                jsum = sum(-float(it["J"][0][0]) for it in model.get("interactions", []))
+            order = 1 if jsum < 0 else 0
             kind = "交错 (反铁磁, T_N)" if order == 1 else "总磁化 (铁磁, T_C)"
         else:
             order = 1 if args.order == "staggered" else 0
@@ -280,36 +291,58 @@ def main():
     prefix = args.out or os.path.splitext(os.path.basename(args.model))[0]
     spins, neighbors, J, onsite, num_basis = build_arrays(model, args.size)
     N = spins.shape[0]
+    # 单壳层模型 (poscar_to_mc3.py) 有 J1_meV/J2_meV; 多壳层模型 (如 FGT 双亚晶格)
+    # 只给 shells_summary 或什么都没有 -> 不能硬取, 否则 KeyError。
+    if "J1_meV" in meta:
+        jinfo = (f"J1={meta['J1_meV']} J2={meta['J2_meV']} J3={meta.get('J3_meV', 0.0)}")
+    elif meta.get("shells_summary"):
+        jinfo = str(meta["shells_summary"])
+    else:
+        jinfo = f"{len(model.get('interactions', []))} 根键/胞 (多壳层)"
     print(f"格点: {N} (basis {num_basis} x {tuple(args.size)}) | "
-          f"J1={meta['J1_meV']} J2={meta['J2_meV']} J3={meta.get('J3_meV', 0.0)} "
-          f"MAE={meta['MAE_meV']} meV | S={meta['S']}")
+          f"{jinfo} | MAE={meta.get('MAE_meV', 0.0)} meV | S={meta.get('S', 1.0)}")
 
     T_list = np.linspace(args.tmin, args.tmax, args.nt)
     if args.cool:
         T_list = T_list[::-1]
     if use_cv:
-        res = run_sweep_cv(spins, neighbors, J, onsite, T_list, args.therm, args.meas)
+        res = run_sweep_cv(spins, neighbors, J, onsite, T_list, args.therm, args.meas,
+                           seed=args.seed)
     else:
         res = run_sweep(spins, neighbors, J, onsite, T_list, args.therm, args.meas,
-                        num_basis, order)
+                        num_basis, order, seed=args.seed)
     res = res[np.argsort(res[:, 0])]
 
     if use_cv:
         fn = f"{prefix}_mt.csv"
         np.savetxt(fn, res, delimiter=",", header="T_Kelvin,E_per_site,Cv", comments="")
         print(f"\n>>> 数据存至 {fn}")
-        cv_peak = res[np.argmax(res[:, 2]), 0]
-        print(f">>> 比热 Cv 峰处 T_N ≈ {cv_peak:.1f} K")
+        i_cv = int(np.argmax(res[:, 2]))
+        cv_peak = res[i_cv, 0]
+        cv_edge = i_cv in (0, len(res) - 1)
+        if cv_edge:
+            print(f">>> [warn] 比热 Cv 峰落在温度窗口边界 T={cv_peak:.2f} K → T_N **未分辨**; "
+                  f"这是窗口截断/网格跨过窄峰的假象, 请收窄 --tmin/--tmax、加密 --nt "
+                  f"(低于 T_N 启动时再加 --cool)")
+        else:
+            print(f">>> 比热 Cv 峰处 T_N ≈ {cv_peak:.2f} K")
     else:
         fn = f"{prefix}_mt.csv"
         np.savetxt(fn, res, delimiter=",", header="T_Kelvin,order_param,Susceptibility",
                    comments="")
         print(f"\n>>> 数据存至 {fn}")
-        chi_peak = res[np.argmax(res[:, 2]), 0]
+        i_chi = int(np.argmax(res[:, 2]))
         dm = -np.gradient(res[:, 1], res[:, 0])
-        tn_dm = res[np.argmax(dm), 0]
-        print(f">>> 磁化率峰处 T ≈ {chi_peak:.1f} K")
-        print(f">>> |dm/dT| 最大处 T ≈ {tn_dm:.1f} K")
+        i_dm = int(np.argmax(dm))
+        chi_peak, tn_dm = res[i_chi, 0], res[i_dm, 0]
+        chi_edge, dm_edge = i_chi in (0, len(res) - 1), i_dm in (0, len(res) - 1)
+        print(f">>> 磁化率峰处 T ≈ {chi_peak:.2f} K"
+              + (" [warn] 落在窗口边界 → 未分辨" if chi_edge else ""))
+        print(f">>> |dm/dT| 最大处 T ≈ {tn_dm:.2f} K"
+              + (" [warn] 落在窗口边界 → 未分辨" if dm_edge else ""))
+        if chi_edge or dm_edge:
+            print(">>> [warn] 峰判据落在温度窗口边界: 请收窄 --tmin/--tmax、加密 --nt "
+                  "(低温侧加 --cool); 该值不能当作 T_C/T_N")
 
     try:
         import matplotlib
@@ -325,7 +358,10 @@ def main():
             ax2.plot(res[:, 0], res[:, 2], "s--", color="tab:red", alpha=0.7, label="Cv")
             ax2.set_ylabel("specific heat $C_v$", color="tab:red")
             ax2.tick_params(axis="y", labelcolor="tab:red")
-            ax1.set_title(f"{meta['element']} MC (Cv)  ($T_N\\approx${res[np.argmax(res[:, 2]), 0]:.0f} K)")
+            # 标题保持 ASCII: matplotlib 默认字体 (DejaVu Sans) 没有 CJK 字形, 中文会变豆腐块
+            t_lbl = "T_N unresolved (peak at window edge)" if cv_edge \
+                else f"$T_N\\approx${cv_peak:.0f} K"
+            ax1.set_title(f"{meta['element']} MC (Cv)  ({t_lbl})")
         else:
             ylab = "staggered $m_{stag}$" if order == 1 else "magnetization $M$"
             tc_label = "T_N" if order == 1 else "T_C"
@@ -338,8 +374,9 @@ def main():
                      label="susceptibility")
             ax2.set_ylabel("susceptibility $\\chi$", color="tab:red")
             ax2.tick_params(axis="y", labelcolor="tab:red")
-            chi_peak = res[np.argmax(res[:, 2]), 0]
-            ax1.set_title(f"{meta['element']} honeycomb MC  (${{{tc_label}}}\\approx${chi_peak:.0f} K)")
+            t_lbl = (f"{tc_label} unresolved (peak at window edge)" if chi_edge
+                     else f"${{{tc_label}}}\\approx${chi_peak:.0f} K")
+            ax1.set_title(f"{meta['element']} honeycomb MC  ({t_lbl})")
         ax1.grid(alpha=0.3)
         png = f"{prefix}_mt.png"
         fig.savefig(png, dpi=150, bbox_inches="tight")

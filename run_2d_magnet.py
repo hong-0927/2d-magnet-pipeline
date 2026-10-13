@@ -5,11 +5,15 @@
 流程 (每一步调用 scripts/ 下对应脚本):
   1. fetch      : Materials Project 下载单层结构 (--formula / --mp-id), 或跳过 (--poscar)
   2. reorient   : 层法线对齐 z + 加真空
-  3. supercell  : 2x2x1 超胞 + 四磁态 (FM/Neel/zigzag/stripy) + J1/J2/J3 系数
-  4. dft        : 组装 INCAR/KPOINTS/POTCAR.spec + runs/<order>/
+  3. supercell  : 蜂窝 2x2x1 超胞 + 四磁态 (FM/Neel/zigzag/stripy) + J1/J2/J3 系数
+                 (簇磁体: build_cluster_cases.py 枚举 fm+波矢态 + J_intra/J1/J2/J3)
+                 (三角: build_magnetic_cases_tri.py 枚举 fm+120°非共线+stripy/uud + J1/J2/J3)
+  4. dft        : 组装 INCAR/KPOINTS/POTCAR.spec + runs/<order>/ (三角用非共线 INCAR)
   5. mc         : POSCAR -> MC 模型 (含 J3) -> Heisenberg MC -> T_C/T_N
-  6. render     : 四磁序俯视图
+  6. render     : 磁序俯视图 (蜂窝四磁序 / 簇磁体簇心视图 / 三角 120° 矢量箭头)
   7. workflow   : 写出 <outdir>/workflow.md
+  8. ship-mc    : 复制 mc_2d.py + poscar_to_mc3.py + write_hamiltonian.py (簇/三角再加对应枚举+反解脚本) 到 <outdir>/05_mc/
+  9. hamiltonian: 生成 <outdir>/hamiltonian.md (Heisenberg 哈密顿卡片)
 
 用法 (最简: 用文献 J 表 + MP 下载):
   python run_2d_magnet.py --formula MnPS3 --literature MnPS3
@@ -33,14 +37,148 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 SCRIPTS = os.path.join(HERE, "scripts")
 LIT = os.path.join(HERE, "literature_J.json")
 
+QUIET = False
+
+
+def log(*a, **k):
+    if not QUIET:
+        print(*a, **k)
+
 
 def run(pyfile, args, cwd=None):
+    """跑 scripts/ 下的脚本。QUIET 时捕获 stdout/stderr, 只在失败或警告时回显。"""
     cmd = [sys.executable, os.path.join(SCRIPTS, pyfile)] + args
-    print("\n$", " ".join(cmd), flush=True)
-    r = subprocess.run(cmd, cwd=cwd)
-    if r.returncode != 0:
-        print(f"[FAIL] {pyfile} 退出码 {r.returncode}", file=sys.stderr)
-        sys.exit(r.returncode)
+    log("\n$", " ".join(cmd))
+    if QUIET:
+        r = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True)
+        if r.returncode != 0:
+            print(f"[FAIL] {pyfile} 退出码 {r.returncode}\n"
+                  f"$ {' '.join(cmd)}\n{r.stdout}{r.stderr}", file=sys.stderr)
+            sys.exit(r.returncode)
+        if r.stderr and r.stderr.strip():
+            print(r.stderr.rstrip(), file=sys.stderr)
+    else:
+        r = subprocess.run(cmd, cwd=cwd)
+        if r.returncode != 0:
+            print(f"[FAIL] {pyfile} 退出码 {r.returncode}", file=sys.stderr)
+            sys.exit(r.returncode)
+
+
+def peak_report(csv):
+    """定位峰判据 (Cv 或 χ, 即第 3 列) 在温度网格上的位置。
+
+    返回 dict(T_peak, y_peak, i, n, at_low, at_high, dT, T_lo, T_hi); 读不到返回 None。
+    **峰落在首/末格点 = 窗口截断, 不能当作 T_C/T_N 报出** (见 summarize_mc / refine_mc_peak)。
+    """
+    if not os.path.exists(csv):
+        return None
+    try:
+        d = np.loadtxt(csv, delimiter=",", skiprows=1)
+        if d.ndim != 2 or d.shape[1] < 3 or len(d) < 3:
+            return None
+        T, y = d[:, 0], d[:, 2]
+        i = int(np.argmax(y))
+        dT = float(np.median(np.abs(np.diff(T))))
+        return {"T_peak": float(T[i]), "y_peak": float(y[i]), "i": i, "n": len(T),
+                "at_low": i == 0, "at_high": i == len(T) - 1,
+                "dT": dT, "T_lo": float(T[0]), "T_hi": float(T[-1])}
+    except Exception:
+        return None
+
+
+def zoom_window(pk, floor=0.1):
+    """峰落在窗口边界 -> 给出下一轮「向该侧外扩 + 自适应加密」的温度窗口。
+
+    注意低侧情形: 真峰可能只是在 [T_lo, T_lo+dT] 之间被粗网格**跨过**了 (不是位于 T_lo 之下),
+    所以外扩的同时必须保留窗口上方 4 个旧格距, 否则又会把真峰排除在新窗口之外。
+    """
+    T_lo, T_hi, dT = pk["T_lo"], pk["T_hi"], pk["dT"]
+    if dT <= 0:
+        return None
+    if pk["at_low"]:
+        lo = max(floor, T_lo / 4.0)
+        hi = min(T_hi, T_lo + 4.0 * dT)
+    else:
+        lo = max(floor, T_hi - 4.0 * dT)
+        hi = min(T_hi * 4.0, T_hi + 40.0 * dT)
+    if hi - lo <= 0:
+        return None
+    return lo, hi
+
+
+def refine_mc_peak(outdir, model, mc_order, size, nt, max_rounds, enabled=True):
+    """峰判据落在温度窗口边界时自动缩放窗口 + 加密重扫 (退火), 直到峰落进窗口内部。
+
+    这是修一个真实缺陷: 默认窗口 5–150 K / nt=30 → 格距 5 K, 会**整个跨过**只有几 K 宽的
+    Cv 峰; 取 argmax 就落到窗口边界, 被当成 T_C/T_N 报出 (MnI2 曾因此把 7.4 K 报成 5.0 K)。
+    首轮结果保留为 `mc_mt_survey.csv/.png` 作溯源, 规范文件名 `mc_mt.csv/.png` 留给重扫结果。
+    返回 dict(survey, final, rounds, resolved) 或 None。
+    """
+    csv = os.path.join(outdir, "05_mc", "mc_mt.csv")
+    survey = peak_report(csv)
+    if survey is None:
+        return None
+    if not (survey["at_low"] or survey["at_high"]):
+        return {"survey": survey, "final": survey, "rounds": [], "resolved": True}
+    if not enabled or max_rounds <= 0:
+        return {"survey": survey, "final": survey, "rounds": [], "resolved": False}
+
+    keep = os.path.join(outdir, "05_mc", "mc_mt_survey.csv")
+    if not os.path.exists(keep):
+        shutil.copyfile(csv, keep)
+        png = os.path.splitext(csv)[0] + ".png"
+        if os.path.exists(png):
+            shutil.copyfile(png, os.path.splitext(keep)[0] + ".png")
+
+    rounds, pk = [], survey
+    for r in range(1, max_rounds + 1):
+        w = zoom_window(pk)
+        if w is None:
+            break
+        lo, hi = w
+        if rounds and lo == rounds[-1]["window"][0] and hi == rounds[-1]["window"][1]:
+            break  # 窗口不再变化, 再跑也不会改善
+        side = "下限" if pk["at_low"] else "上限"
+        log(f"[mc] 峰判据落在窗口{side} {pk['T_peak']:.2f} K (格距 {pk['dT']:.2f} K) -> "
+            f"第 {r} 轮缩放重扫 [{lo:.2f}, {hi:.2f}] K, nt={nt}, 退火")
+        run("mc_2d.py", [model, "--order", mc_order, "--size"] + [str(x) for x in size] +
+            ["--tmin", f"{lo:.4f}", "--tmax", f"{hi:.4f}", "--nt", str(nt),
+             "--cool", "--out", os.path.join(outdir, "05_mc", "mc")], cwd=outdir)
+        pk2 = peak_report(csv)
+        if pk2 is None:
+            break
+        rounds.append({"round": r, "window": [lo, hi], "nt": nt, "peak": pk2})
+        pk = pk2
+        if not (pk2["at_low"] or pk2["at_high"]):
+            return {"survey": survey, "final": pk2, "rounds": rounds, "resolved": True}
+    return {"survey": survey, "final": pk, "rounds": rounds, "resolved": False}
+
+
+def summarize_mc(outdir, mc_order):
+    """从 05_mc/mc_mt.csv 读 T_C/T_N (用于结尾摘要, QUIET 下也能看到结论)。
+
+    峰判据落在温度窗口边界时**不报该边界值** —— 那是窗口截断/网格太粗的假象, 显式声明未分辨。
+    """
+    csv = os.path.join(outdir, "05_mc", "mc_mt.csv")
+    pk = peak_report(csv)
+    if pk is None:
+        return None
+    side = "下限" if pk["at_low"] else "上限"
+    win = f"窗口 [{pk['T_lo']:.1f},{pk['T_hi']:.1f}] K, 格距 {pk['dT']:.2f} K"
+    if mc_order == "cv":
+        if pk["at_low"] or pk["at_high"]:
+            return (f"比热 Cv 峰落在窗口{side} {pk['T_peak']:.1f} K → T_N **未分辨** ({win})")
+        return f"比热 Cv 峰 T_N ≈ {pk['T_peak']:.2f} K ({win})"
+    try:
+        d = np.loadtxt(csv, delimiter=",", skiprows=1)
+        T = d[:, 0]
+        i_chi = int(np.argmax(d[:, 2]))
+        i_dm = int(np.argmax(-np.gradient(d[:, 1], T)))
+        edge = lambda i: " (落在窗口边界, 未分辨)" if i in (0, len(T) - 1) else ""
+        return (f"χ 峰 T ≈ {T[i_chi]:.2f} K{edge(i_chi)}, "
+                f"|dm/dT| 最大 T ≈ {T[i_dm]:.2f} K{edge(i_dm)} ({win})")
+    except Exception:
+        return None
 
 
 def load_literature(key):
@@ -57,16 +195,20 @@ def pick_structure(struct_dir, formula, mp_id=None):
     csv_path = os.path.join(os.path.dirname(struct_dir), "candidates.csv")
     rows = list(csv.DictReader(open(csv_path, encoding="utf-8-sig")))
     if not rows:
-        raise SystemExit("candidates.csv 为空")
+        raise SystemExit(
+            "candidates.csv 为空: MP 没有返回任何候选结构。\n"
+            "  最常见原因: **当前 MP 数据库里没有这个化学式** (2026-10 实测: Fe3GeTe2 在 MP 中"
+            "不存在, 连整个 Fe-Ge-Te 三元空间都是 0 条; 对照 CrI3 / Li-Fe-O 正常返回)。\n"
+            "  办法: 用 --poscar 自带单层 POSCAR (含真空), 或用 --mp-id 指定 MP 里已有的条目。")
     if mp_id:
         rows = [r for r in rows if r["material_id"] == mp_id] or rows
     rows = sorted(rows, key=lambda r: (r.get("hull") or 9.0))
     best = rows[0]
-    print(f"[pick] 选 {best['material_id']} ({best['formula']}) hull={best.get('hull')}")
+    log(f"[pick] 选 {best['material_id']} ({best['formula']}) hull={best.get('hull')}")
     if len(rows) > 1:
-        print(f"[pick] 共 {len(rows)} 个候选, 其余: "
-              + ", ".join(r['material_id'] for r in rows[1:])
-              + " (可用 --mp-id 指定)")
+        log(f"[pick] 共 {len(rows)} 个候选, 其余: "
+            + ", ".join(r['material_id'] for r in rows[1:])
+            + " (可用 --mp-id 指定)")
     return os.path.join(struct_dir, best["poscar"])
 
 
@@ -127,6 +269,26 @@ def detect_lattice(poscar_path, element, cutoff=3.3):
     return "other", n_clusters, n_mag
 
 
+def multi_sublattice_warning(lattice, n_clusters, n_mag, element):
+    """「分子簇磁体」与「多亚晶格铁磁网络」几何上无法区分 -> 返回警告文本或 None。
+
+    Nb3I8 型分子簇 (Nb3 三聚体, 簇内强键合 / 簇间弱) 与 Fe3GeTe2 型巡游铁磁金属
+    都有「磁性近邻 < cutoff」的特征: FGT 的 3d 金属层内 Fe-Fe ~2.6-3.0 A, 同样会被
+    并成 1 簇, 于是整胞塌成 1 个有效磁位、套用「分子簇/单重态」模型 —— 对铁磁金属
+    没有物理意义 (簇内 J 不是可测量, T_N 也不可信)。
+    这里**只警告不改路由**: 体系是不是分子簇是化学事实, 几何判据判不出来。
+    """
+    if lattice == "cluster" and n_clusters == 1 and n_mag >= 3:
+        return (f"{element} {n_mag} 个/胞 被并成 1 簇 → 走「分子簇磁体」模型。"
+                f"注意几何判据**分不出**下面两种体系 (签名会完全相同: Nb3I8 与 Fe3GeTe2 "
+                f"都是 cluster / 1 簇 / 3 个磁性原子): "
+                f"(a) 真分子簇 (Nb3I8 型: 簇内强键合、簇间弱) → 本分支适用; "
+                f"(b) 多亚晶格铁磁网络 (Fe3GeTe2/Fe3GaTe2 型: 连通的金属网络) → 本分支**不适用**: "
+                f"超胞里会连成一整个簇, build_cluster_cases.py 会直接报错退出, "
+                f"簇内 J 无物理意义、T_N 不可信, 需另建双亚晶格模型 (见 SKILL.md「多亚晶格铁磁网络」)")
+    return None
+
+
 def main():
     ap = argparse.ArgumentParser(description="二维磁体 结构->J->MC 通用流水线")
     # 结构来源
@@ -154,22 +316,46 @@ def main():
                     default="auto", help="磁性格点类型 (默认自动判别)")
     ap.add_argument("--cluster-cutoff", type=float, default=3.3,
                     help="簇识别成键阈值 A (簇磁体用)")
+    ap.add_argument("--cluster-nbr-shells", type=int, default=3,
+                    help="簇间壳数 (1=只 J1; 3=J1/J2/J3, 簇磁体用)")
+    ap.add_argument("--cluster-supercell", type=int, nargs=3, default=[5, 5, 1],
+                    help="簇磁体能量映射超胞 (默认 5 5 1)")
+    ap.add_argument("--tri-supercell", type=int, nargs=3, default=[5, 5, 1],
+                    help="三角磁体能量映射超胞 (默认 5 5 1, J3=2a 需 smax>=2)")
     ap.add_argument("--mc-size", type=int, nargs=2, default=[30, 30])
     ap.add_argument("--mc-tmin", type=float, default=5.0)
     ap.add_argument("--mc-tmax", type=float, default=150.0)
     ap.add_argument("--mc-nt", type=int, default=30)
+    ap.add_argument("--mc-refine-nt", type=int, default=60,
+                    help="峰判据落在窗口边界时, 缩放重扫的格点数 (默认 60)")
+    ap.add_argument("--mc-refine-max", type=int, default=3,
+                    help="峰判据落在窗口边界时, 最多自动缩放重扫轮数 (默认 3)")
+    ap.add_argument("--no-mc-refine", action="store_true",
+                    help="关闭「峰落边界自动缩放重扫」(只声明未分辨, 不重跑)")
     ap.add_argument("--skip-dft", action="store_true")
     ap.add_argument("--skip-mc", action="store_true")
+    ap.add_argument("--quiet", action="store_true",
+                    help="静默模式: 抑制子进程输出, 只回显错误/警告 + 结尾摘要")
     args = ap.parse_args()
+
+    global QUIET
+    QUIET = args.quiet
 
     # ---- 解析参数 (文献表 < 显式 CLI) ----
     lit = None
     if args.literature:
         lit = load_literature(args.literature)
-        print(f"[lit] 使用文献值 ({args.literature}): {lit.get('source')}")
+        log(f"[lit] 使用文献值 ({args.literature}): {lit.get('source')}")
 
     def pick(a, b, d=None):
-        return a if a is not None else (lit.get(b) if lit else d)
+        """解析优先级: 显式 CLI > 文献表里**非 null** 的值 > 默认 d。
+
+        注意: 文献条目里的 `null` 表示「未核实/未给出」, 必须落回默认值 —— 不能把它
+        当字符串传下去 (FGT 条就只核实了 J1, J2/J3 是 null; 旧写法会让 J2 变成 'None'
+        再喂给 mc_2d.py)。J1 的默认是 None, 所以 null 的 J1 仍会触发「缺少必要参数」。
+        """
+        v = a if a is not None else (lit.get(b) if lit else None)
+        return d if v is None else v
 
     formula = args.formula or (lit.get("formula") if lit else None)
     element = pick(args.element, "element")
@@ -195,13 +381,13 @@ def main():
     else:
         outdir = os.path.abspath((formula or "material") + "_pipeline")
     os.makedirs(outdir, exist_ok=True)
-    print(f"[run] 项目目录: {outdir}")
+    log(f"[run] 项目目录: {outdir}")
 
     # ---- 1. fetch ----
     os.makedirs(os.path.join(outdir, "01_structure"), exist_ok=True)
     if args.poscar:
         src_poscar = os.path.abspath(args.poscar)
-        print(f"[fetch] 跳过下载, 用 {src_poscar}")
+        log(f"[fetch] 跳过下载, 用 {src_poscar}")
     else:
         if args.mp_key:
             os.environ["MP_API_KEY"] = args.mp_key
@@ -216,10 +402,18 @@ def main():
             fa += ["fetch", "--ids", args.mp_id]
         else:
             fa += ["fetch", "--formula", formula]
-        print("\n$", " ".join([sys.executable] + fa), flush=True)
-        r = subprocess.run([sys.executable] + fa, cwd=fetch_dir)
-        if r.returncode != 0:
-            sys.exit(r.returncode)
+        log("\n$", " ".join([sys.executable] + fa))
+        if QUIET:
+            r = subprocess.run([sys.executable] + fa, cwd=fetch_dir, capture_output=True, text=True)
+            if r.returncode != 0:
+                print(f"[FAIL] mp_fetch_2d.py 退出码 {r.returncode}\n{r.stdout}{r.stderr}", file=sys.stderr)
+                sys.exit(r.returncode)
+            if r.stderr and r.stderr.strip():
+                print(r.stderr.rstrip(), file=sys.stderr)
+        else:
+            r = subprocess.run([sys.executable] + fa, cwd=fetch_dir)
+            if r.returncode != 0:
+                sys.exit(r.returncode)
         struct_dir = os.path.join(fetch_dir, "structures")
         src_poscar = pick_structure(struct_dir, formula, args.mp_id)
     shutil.copy(src_poscar, os.path.join(outdir, "01_structure", "POSCAR.mp"))
@@ -234,24 +428,47 @@ def main():
     lattice, n_clusters, n_mag = detect_lattice(poscar_re, element, args.cluster_cutoff)
     if args.lattice != "auto":
         lattice = args.lattice
-    print(f"[lattice] {lattice} (磁性原子 {n_mag}/胞, 簇 {n_clusters})")
+    log(f"[lattice] {lattice} (磁性原子 {n_mag}/胞, 簇 {n_clusters})")
+    lat_warn = multi_sublattice_warning(lattice, n_clusters, n_mag, element)
+    if lat_warn:
+        # 走 stderr: --quiet 下 log() 被抑制, 但这条必须让用户看见
+        print(f"[warn] {lat_warn}", file=sys.stderr)
 
     mc_poscar = poscar_re
     mc_order = "auto"
     do_dft = False
     do_render = False
+    render_kind = None
 
     if lattice == "cluster":
-        # 簇磁体: 磁性簇 -> 有效位, 三角/非二分晶格用比热 Cv 定 T_N
+        # 簇磁体: 磁序枚举 + 能量映射 (J_intra/J1/J2/J3) -> 02_supercell/cases + 03_dft/runs
+        run("build_cluster_cases.py",
+            [poscar_re, "--element", element, "--nonmag"] + nonmag +
+            ["--cutoff", str(args.cluster_cutoff),
+             "--nbr-shells", str(args.cluster_nbr_shells),
+             "--supercell"] + [str(x) for x in args.cluster_supercell] +
+            ["--outdir", os.path.join(outdir, "02_supercell", "cases"),
+             "--root", outdir, "--U", str(U), "--moment", str(moment)], cwd=outdir)
+        # 磁性簇 -> 有效位 (供 MC)
         poscar_clusters = os.path.join(outdir, "01_structure", "POSCAR.clusters.vasp")
         run("cluster_sites.py", [poscar_re, "--element", element,
                                  "--cutoff", str(args.cluster_cutoff),
                                  "-o", poscar_clusters], cwd=outdir)
         mc_poscar = poscar_clusters
         mc_order = "cv"
+        do_render = True
+        render_kind = "cluster"
     elif lattice == "triangular":
-        # 三角单离子: 1 位/胞, 用比热 Cv
+        # 三角单离子: 磁序枚举 (含 120° 非共线) + J1/J2/J3 映射 -> 02_supercell/cases + 03_dft/runs
+        run("build_magnetic_cases_tri.py",
+            [poscar_re, "--supercell"] + [str(x) for x in args.tri_supercell] +
+            ["--outdir", os.path.join(outdir, "02_supercell", "cases"),
+             "--element", element, "--nonmag"] + nonmag +
+            ["--moment", str(moment), "--spin", str(S)], cwd=outdir)
         mc_order = "cv"
+        do_dft = True
+        do_render = True
+        render_kind = "triangular"
     elif lattice == "honeycomb":
         # 紧凑胞标准化 + 四磁态 + 系数
         run("standardize_cell.py", [poscar_re, "--element", element,
@@ -267,18 +484,25 @@ def main():
         mc_order = "auto"
         do_dft = True
         do_render = True
+        render_kind = "honeycomb"
     else:
         raise SystemExit(f"无法处理晶格类型 {lattice!r} ({n_mag} 磁性原子/胞, {n_clusters} 簇); "
                          f"用 --lattice 指定或路由到 comp-chem-workflow 人工处理")
 
-    # ---- DFT 输入 (仅蜂窝有完整四磁态反解) ----
+    # ---- DFT 输入 ----
     if do_dft and not args.skip_dft:
-        run("assemble_dft.py",
-            ["--root", outdir, "--element", element, "--nonmag"] + nonmag +
-            ["--species"] + ([element] + nonmag) +
-            ["--U", str(U), "--moment", str(moment)], cwd=outdir)
+        if render_kind == "triangular":
+            run("assemble_dft_tri.py",
+                ["--root", outdir, "--element", element, "--nonmag"] + nonmag +
+                ["--U", str(U), "--moment", str(moment)], cwd=outdir)
+        else:
+            run("assemble_dft.py",
+                ["--root", outdir, "--element", element, "--nonmag"] + nonmag +
+                ["--species"] + ([element] + nonmag) +
+                ["--U", str(U), "--moment", str(moment)], cwd=outdir)
 
     # ---- MC ----
+    mc_refine = None
     if not args.skip_mc:
         os.makedirs(os.path.join(outdir, "05_mc"), exist_ok=True)
         model = os.path.join(outdir, "05_mc", "mc_model.json")
@@ -291,27 +515,83 @@ def main():
                          "--size"] + [str(x) for x in args.mc_size] +
             ["--tmin", str(args.mc_tmin), "--tmax", str(args.mc_tmax), "--nt", str(args.mc_nt),
              "--cool", "--out", os.path.join(outdir, "05_mc", "mc")], cwd=outdir)
+        # 峰判据落窗口边界 (网格跨过窄峰) -> 自动缩放 + 加密重扫, 免得把边界值当 T_C/T_N
+        mc_refine = refine_mc_peak(outdir, model, mc_order, args.mc_size,
+                                   args.mc_refine_nt, args.mc_refine_max,
+                                   enabled=not args.no_mc_refine)
+        # 附带 MC 脚本到 05_mc/, 使每条流水线可脱离主仓独立重跑 MC
+        ship = ["mc_2d.py", "poscar_to_mc3.py", "write_hamiltonian.py"]
+        if lattice == "cluster":
+            ship += ["build_cluster_cases.py", "solve_cluster_J.py"]
+        elif lattice == "triangular":
+            ship += ["build_magnetic_cases_tri.py", "solve_J_tri.py"]
+        for name in ship:
+            shutil.copy(os.path.join(SCRIPTS, name), os.path.join(outdir, "05_mc", name))
+        log("[run] 附带 MC 脚本 -> " + ", ".join(f"05_mc/{n}" for n in ship))
+        # 生成海森堡哈密顿卡片 (顶层, 与 workflow.md 并列)
+        run("write_hamiltonian.py", [model, "--label", formula or element,
+                                     "-o", os.path.join(outdir, "hamiltonian.md")], cwd=outdir)
 
-    # ---- render 超胞图 (仅蜂窝) ----
+    # ---- render 超胞/磁序图 (蜂窝 / 簇磁体 / 三角) ----
     if do_render:
-        run("render_supercell.py",
-            ["--root", outdir, "--element", element, "--nonmag"] + nonmag +
-            ["--label", formula or element,
-             "-o", os.path.join(outdir, "figures", "supercell_orders.png")],
-            cwd=outdir)
+        if render_kind == "cluster":
+            run("render_cluster_orders.py",
+                ["--root", outdir, "--element", element, "--nonmag"] + nonmag +
+                ["--cutoff", str(args.cluster_cutoff), "--label", formula or element,
+                 "-o", os.path.join(outdir, "figures", "supercell_orders.png")], cwd=outdir)
+        elif render_kind == "triangular":
+            run("render_tri_orders.py",
+                ["--root", outdir, "--element", element, "--nonmag"] + nonmag +
+                ["--label", formula or element,
+                 "-o", os.path.join(outdir, "figures", "supercell_orders.png")], cwd=outdir)
+        else:
+            run("render_supercell.py",
+                ["--root", outdir, "--element", element, "--nonmag"] + nonmag +
+                ["--label", formula or element,
+                 "-o", os.path.join(outdir, "figures", "supercell_orders.png")],
+                cwd=outdir)
 
     # ---- 7. workflow.md ----
     write_workflow(outdir, formula, element, nonmag, S, moment, U, J1, J2, J3, MAE,
-                   args, lit, lattice)
+                   args, lit, lattice, mc_refine, lat_warn)
 
     print("\n[run] 完成。项目目录:", outdir)
-    print(f"      workflow.md, 01_structure/, 02_supercell/, 03_dft/, 05_mc/, figures/")
+    print(f"      lattice={lattice} | J1={J1} J2={J2} J3={J3} MAE={MAE} meV | S={S}")
+    s = summarize_mc(outdir, mc_order)
+    if s:
+        if mc_refine and mc_refine["rounds"]:
+            s += f" [峰落边界, 已自动缩放重扫 {len(mc_refine['rounds'])} 轮]"
+        print(f"      MC: {s}")
+    print(f"      产出: workflow.md, hamiltonian.md, 01_structure/, 02_supercell/, 03_dft/, 05_mc/, figures/")
 
 
 def write_workflow(outdir, formula, element, nonmag, S, moment, U, J1, J2, J3, MAE,
-                   args, lit, lattice):
-    gs = "Néel 反铁磁" if J1 < 0 else "铁磁"
+                   args, lit, lattice, mc_refine=None, lat_warn=None):
+    if lattice == "triangular":
+        gs = "120°/螺旋 (三角受挫)" if J1 < 0 else "铁磁"
+    else:
+        gs = "Néel 反铁磁" if J1 < 0 else "铁磁"
     src = lit.get("source") if lit else "手动给定 (未核实文献)"
+    # MC 峰分辨记录 (窗口/格距/是否自动缩放重扫) —— 防止把窗口边界值当成 T_C/T_N
+    peak_lbl = "Cv 峰" if lattice in ("triangular", "cluster") else "χ 峰"
+    if mc_refine is None:
+        mc_note = "- MC 峰分辨: 未跑 MC (`--skip-mc`)"
+    elif not mc_refine["rounds"]:
+        s = mc_refine["final"]
+        mc_note = (f"- MC 峰分辨: 峰在首轮窗口内部 (窗口 [{s['T_lo']:.1f}, {s['T_hi']:.1f}] K, "
+                   f"格距 {s['dT']:.2f} K), {peak_lbl} T ≈ {s['T_peak']:.2f} K")
+    elif mc_refine["resolved"]:
+        s0, sn = mc_refine["survey"], mc_refine["final"]
+        win = " -> ".join(f"[{r['window'][0]:.2f}, {r['window'][1]:.2f}]" for r in mc_refine["rounds"])
+        mc_note = (f"- MC 峰分辨: 首轮窗口 [{s0['T_lo']:.1f}, {s0['T_hi']:.1f}] K "
+                   f"(格距 {s0['dT']:.2f} K) 的峰值落在 {s0['T_peak']:.2f} K 边界 → 自动缩放重扫 "
+                   f"{len(mc_refine['rounds'])} 轮 {win} K (nt={args.mc_refine_nt}), "
+                   f"{peak_lbl} T ≈ {sn['T_peak']:.2f} K; 首轮存 `05_mc/mc_mt_survey.csv/.png`")
+    else:
+        s = mc_refine["final"]
+        mc_note = (f"- MC 峰分辨: ⚠ {peak_lbl}仍落在窗口边界 {s['T_peak']:.2f} K → "
+                   f"T_C/T_N **未分辨** (已重扫 {len(mc_refine['rounds'])} 轮); "
+                   f"请手动收窄 `--mc-tmin/--mc-tmax` 或加密 `--mc-nt`")
     if lattice == "honeycomb":
         model_desc = ("蜂窝 Heisenberg 模型 H = -J1 Σ_<ij> S·S - J2 Σ_<<ij>> S·S "
                       "- J3 Σ_<<<ij>>> S·S (J>0 铁磁)")
@@ -323,11 +603,24 @@ def write_workflow(outdir, formula, element, nonmag, S, moment, U, J1, J2, J3, M
                       "三角/非二分晶格; 低能可能是单重态, 经典 Heisenberg 为近似")
         mc_desc = "序参量 比热 Cv (受挫/非二分晶格)"
         struct_desc = ("- 簇识别: `01_structure/POSCAR.clusters.vasp` (磁性簇 → 有效位)\n"
-                       "- 注: DFT 反解 J 的三角/簇磁序枚举未实现, J 需文献/给定")
+                       "- 磁序枚举: `02_supercell/cases/` (fm + 波矢态) + `magnetic_orders.json`"
+                       " (模型 E = E0 + J_intra*C_intra + Σ Jk*Ck)\n"
+                       "- DFT 输入: `03_dft/` + `runs/<order>/` (未运行, 待 POTCAR)\n"
+                       "- 反解: `05_mc/solve_cluster_J.py` (OUTCAR -> E0/J_intra/J1..Jk)\n"
+                       "- 图: `figures/supercell_orders.png` (簇心磁序视图)")
     else:  # triangular
-        model_desc = "三角晶格单离子 Heisenberg 模型 (1 磁性原子/胞)"
+        model_desc = "三角晶格单离子 Heisenberg 模型 (1 磁性原子/胞), 含非共线 120°"
         mc_desc = "序参量 比热 Cv (受挫/非二分晶格)"
-        struct_desc = ("- 注: DFT 反解 J 的三角磁序枚举未实现, J 需文献/给定")
+        struct_desc = ("- 磁序枚举: `02_supercell/cases/` (fm + 120° 非共线 + 共线 stripy/uud) "
+                       "+ `magnetic_orders.json`\n"
+                       "- DFT 输入 (非共线): `03_dft/` + `runs/<order>/` (未运行, 待 POTCAR)\n"
+                       "- 反解: `05_mc/solve_J_tri.py` (OUTCAR -> J1/J2/J3)\n"
+                       "- 图: `figures/supercell_orders.png` (含 120° 矢量箭头)")
+
+    lat_note = ""
+    if lat_warn:
+        lat_note = ("8. **本体系被判为「分子簇磁体」, 但可能是多亚晶格铁磁网络**: "
+                    + lat_warn + "\n")
 
     lines = f"""# {formula} 单层 磁耦合 (J) → Monte Carlo 通用流水线
 
@@ -351,19 +644,23 @@ J 值来源: {src}
 - 结构: `01_structure/POSCAR` (reorient 后, 真空 {args.vacuum} Å)
 {struct_desc}
 - MC: `05_mc/mc_mt.csv/.png`, {mc_desc}
+{mc_note}
+- 哈密顿卡片: `hamiltonian.md` (顶层, 符号式 H + 壳摘要 + 逐键明细)
+- MC 脚本 (自包含, 可独立重跑): `05_mc/mc_2d.py` (引擎) + `05_mc/poscar_to_mc3.py` (POSCAR -> 模型) + `05_mc/write_hamiltonian.py`
 
 ## 局限 (通用)
 
-1. 磁性格点类型 {lattice}; 非蜂窝/簇磁体的 DFT 反解 J 未实现, J 用文献/给定。
+1. 磁性格点类型 {lattice}; 蜂窝/簇/三角均已支持磁序枚举 + DFT 输入 + 反解脚本 (三角用非共线 120°); J 用文献/给定, 未跑 DFT 前非本项目计算值。
 2. J 取自文献/给定; 未跑 DFT 前非本项目计算值。
 3. 纯 Heisenberg MAE 默认为 0 → 二维无真正相变 (Mermin-Wagner), 临界温度为有限尺寸估计。
-4. 簇磁体可能是单重态 (非磁有序), 经典 Heisenberg-MC 结果需谨慎解读。
+4. 簇磁体可能是单重态 (非磁有序), 经典 Heisenberg-MC 的 T_N **无物理意义**, 仅作机制演示 (exploratory)。
 5. mp_fetch_2d.py 的 exfoliate 对菱面体层状/已存成紧胞的材料有已知缺口。
 6. k 网格 3x3x1、U 值为可调假设。
-"""
+7. 峰判据 (Cv/χ) 只有落在温度窗口**内部**才算分辨: 峰落在首/末格点 = 窗口截断或网格跨过窄峰, 该边界值**不是** T_C/T_N。driver 检测到这种情形会自动缩放窗口 + 加密重扫 (可调 `--mc-refine-nt`/`--mc-refine-max`, `--no-mc-refine` 关闭); 仍落在边界则结论显式标「未分辨」。
+{lat_note}"""
     with open(os.path.join(outdir, "workflow.md"), "w", encoding="utf-8") as f:
         f.write(lines)
-    print("[run] 写出 workflow.md")
+    log("[run] 写出 workflow.md")
 
 
 if __name__ == "__main__":

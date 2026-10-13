@@ -6,6 +6,9 @@ __pycache__/
 # 临时下载 (driver 运行时生成)
 _fetch_tmp/
 
+# 回归测试的临时目录 (tests/smoke_test.py 的 mktmp() 建在仓库内)
+_tmp_*/
+
 # 运行产出 (各 <formula>_pipeline/ 项目目录, 不在本仓库内)
 
 # 演示/汇报产物 (可再生成)
