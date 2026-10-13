@@ -11,9 +11,8 @@
   4. build_magnetic_cases3 蜂窝系数 = 教科书值
   5. peak_report/zoom_window/summarize_mc: 峰落温度窗口边界时不报边界值, 并自动缩放窗口
 
-依赖已验证结构:
-  C:/Users/吴/Desktop/项目/MnPS3_pipeline/01_structure/POSCAR
-  C:/Users/吴/Desktop/项目/Nb3I8_pipeline/01_structure/POSCAR
+依赖 fixture (仓库自带 tests/fixtures/, 或设 MAGNET_FIXTURES 指向):
+  MnPS3_POSCAR / Nb3I8_POSCAR
 """
 import json
 import os
@@ -101,10 +100,8 @@ lat, atoms, coords = CS.parse_poscar(NB3I8)
 groups = CS.find_clusters(atoms, coords, lat, "Nb", 3.3)
 check("Nb3I8: 3 Nb -> 1 cluster", len(groups) == 1 and len(groups[0]) == 3)
 
-# ---- 3. solve_J3 --demo ----
-r = run(sys.executable, os.path.join(SCRIPTS, "solve_J3.py"),
-        r"C:\Users\吴\Desktop\项目\MnPS3_pipeline\02_supercell\cases", "--demo")
-check("solve_J3 --demo PASS", r.returncode == 0 and "PASS" in r.stdout)
+# ---- 3. solve_J3 --demo 精确还原文献 J ----
+#      与下面 section 4 共用同一个 build_magnetic_cases3 生成的 cases 目录 (无硬编码路径)
 
 # ---- 4. build_magnetic_cases3 蜂窝系数 ----
 td = mktmp("_tmp_cases_")
@@ -125,6 +122,13 @@ try:
         check("neel coeff (+12,-24,+12)", np.allclose(c["neel"], [12, -24, 12]))
         check("zigzag coeff (+4,+8,-12)", np.allclose(c["zigzag"], [4, 8, -12]))
         check("stripy coeff (-4,+8,+12)", np.allclose(c["stripy"], [-4, 8, 12]))
+
+        # solve_J3 --demo 反解自检: 读同一份 magnetic_orders.json (硬编码旧目录已移除)
+        rd = run(sys.executable, os.path.join(SCRIPTS, "solve_J3.py"),
+                 os.path.join(td, "cases"), "--demo")
+        check("solve_J3 --demo PASS", rd.returncode == 0 and "PASS" in rd.stdout)
+        if rd.returncode != 0:
+            print(rd.stdout[-1000:], rd.stderr[-1000:])
 finally:
     shutil.rmtree(td, ignore_errors=True)
 

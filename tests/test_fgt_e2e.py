@@ -12,8 +12,8 @@
 运行:
   python tests/test_fgt_e2e.py
 
-依赖已验证产物:
-  C:/Users/吴/Desktop/项目/Fe3GeTe2_pipeline/02_supercell/cases  (magnetic_orders.json + 5 态)
+依赖 fixture (仓库自带, 或设 MAGNET_FGT_CASES 指向):
+  tests/fixtures/fgt_cases  (magnetic_orders.json + 5 态)
 """
 import json
 import os
