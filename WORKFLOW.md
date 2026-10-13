@@ -68,6 +68,7 @@ dft        assemble_dft.py / assemble_dft_tri.py  生成 INCAR/KPOINTS/POTCAR.sp
 mc         poscar_to_mc3.py + mc_2d.py  建模型 + Heisenberg MC（自写 fast kernel）
            之后 driver 自己再判一次峰位: 峰落在温度窗口首/末格点 (= 窗口截断或网格跨过窄峰)
            → 自动缩放窗口 + 加密退火重扫, 首轮留 `mc_mt_survey.csv` (避免把边界值当 T_C/T_N)
+fss        mc_fss.py (--fss 时)  多尺寸 U₄(T) 有限尺寸标度: 两两交点 + collapse 交叉验证 → T_C/T_N
 render     render_supercell.py / render_cluster_orders.py / render_tri_orders.py  磁序俯视图
 ship-mc    (复制) mc_2d.py + poscar_to_mc3.py + write_hamiltonian.py (簇/三角再加对应枚举+反解脚本) -> <outdir>/05_mc/
 hamiltonian write_hamiltonian.py    生成 <outdir>/hamiltonian.md (Heisenberg 哈密顿卡片, 顶层)

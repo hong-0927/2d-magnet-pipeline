@@ -224,5 +224,27 @@ try:
 finally:
     shutil.rmtree(td, ignore_errors=True)
 
+# ---- 8. mc_fss.py 多尺寸有限尺寸标度 (Binder U4 交点定 T_C/T_N) ----
+td = mktmp("_tmp_fss_")
+try:
+    model = os.path.join(td, "model.json")
+    r = run(sys.executable, os.path.join(SCRIPTS, "poscar_to_mc3.py"), MNPS3,
+            "--element", "Mn", "--S", "2.5", "--J1", "-0.79", "--J2", "-0.04",
+            "--J3", "-0.23", "--MAE", "0.0", "-o", model)
+    check("mc_fss: 生成 MC 模型", r.returncode == 0)
+    r = run(sys.executable, os.path.join(SCRIPTS, "mc_fss.py"), model,
+            "--sizes", "6", "8", "10", "--order", "auto", "--tmin", "5", "--tmax", "60",
+            "--nt", "12", "--therm", "60", "--meas", "100", "--seeds", "1",
+            "--out", os.path.join(td, "fss"))
+    check("mc_fss: 退出 0", r.returncode == 0)
+    rj = os.path.join(td, "fss_fss.json")
+    check("mc_fss: 写出 fss_fss.json", os.path.exists(rj))
+    if os.path.exists(rj):
+        d = json.load(open(rj, encoding="utf-8"))
+        check("mc_fss: json 含 tc (float)", "tc" in d and isinstance(d["tc"], float))
+    check("mc_fss: 写出 fss_fss.csv", os.path.exists(os.path.join(td, "fss_fss.csv")))
+finally:
+    shutil.rmtree(td, ignore_errors=True)
+
 print("\n全部通过" if not fails else f"\n{len(fails)} 个失败: {fails}")
 sys.exit(1 if fails else 0)

@@ -43,7 +43,7 @@ python scripts/build_fgt_cases.py <monolayer_POSCAR> --outdir Fe3GeTe2_pipeline
 | 材料 | `--element` `--nonmag P S` `--S` `--moment` `--U` |
 | J 值 | `--literature <key>` `--J1` `--J2` `--J3` `--MAE` |
 | 磁性格点 | `--lattice {auto,honeycomb,triangular,cluster}` `--cluster-cutoff` |
-| Monte Carlo | `--mc-size` `--mc-tmin` `--mc-tmax` `--mc-nt` `--mc-refine-nt` `--mc-refine-max` `--no-mc-refine` `--mc-seeds` |
+| Monte Carlo | `--mc-size` `--mc-tmin` `--mc-tmax` `--mc-nt` `--mc-refine-nt` `--mc-refine-max` `--no-mc-refine` `--mc-seeds` `--fss` `--fss-sizes` |
 | 开关 | `--skip-dft` `--skip-mc` `--quiet` `--outdir` `--doctor` |
 
 ### 元素参数表
@@ -54,6 +54,15 @@ python scripts/build_fgt_cases.py <monolayer_POSCAR> --outdir Fe3GeTe2_pipeline
 
 - 序参量路径（蜂窝铁磁/Néel 反铁磁）的 `05_mc/mc_mt.csv` 多一列 **Binder 累积量 U₄**（`U₄ = 1 − ⟨M⁴⟩/((1+2/3)⟨M²⟩²)`）：有序 → 0.4、高温无序 → 0。跑多个 `--mc-size`，U₄(T) 的交点即有限尺寸标度定出的 T_C（比单一 χ 峰更稳健）。
 - `--mc-seeds N`（默认 1）跑 N 个独立种子并平均，峰位报 `± 种子间标准差`（误差棒）。
+
+### 有限尺寸标度（`--fss`）
+
+`--fss` 会在 MC 阶段之后自动跑 `scripts/mc_fss.py`：对 `--fss-sizes`（默认 `12 18 24 30`）逐尺寸算 U₄(T)，取
+
+1. **两两交点**：相邻尺寸的 U₄(T) 在过渡带（U₄∈[0.02,0.38]）内取斜率最陡的符号变化点插值；
+2. **交叉验证**：使各尺寸 U₄ 之间方差最小的温度（collapse）。
+
+两者均值即临界温度 `T_C/T_N`，报告 `± 交点间标准差`；结果写 `05_mc/fss_fss.{csv,json,png}`。独立用法：`python scripts/mc_fss.py <model.json> --sizes 12 18 24`。提示：二维无真正相变（Mermin-Wagner），交点 T_C 本质是有限尺寸伪相变估计，且随种子噪声波动，须 `--mc-seeds > 1` 收敛。
 
 ## 目录结构
 
@@ -94,9 +103,9 @@ python tests/test_fgt_e2e.py      # FGT 双亚晶格反解链路端到端（mock
 - [x] `doctor` 环境自检（`--doctor`）
 - [x] 元素参数表（Mn/Cr/Ni/Co/V 兜底 S/moment/U）+ `--lattice` 显式化
 - [x] Binder U₄ 累积量 + `--mc-seeds` 误差棒
+- [x] 自动多尺寸有限尺寸标度（U₄ 交点定位 T_C）
 - [ ] 子命令化（`fetch/build/dft/mc/solve/render/report`）
 - [ ] 结构 provider 链（COD/OQMD/AFLOW/JARVIS）
-- [ ] 自动多尺寸有限尺寸标度（U₄ 交点定位 T_C）
 - [ ] `scripts/` 包化，支持非可编辑 `pip install .`
 
 ## License

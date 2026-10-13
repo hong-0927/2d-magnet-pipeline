@@ -412,6 +412,10 @@ def main():
                     help="关闭「峰落边界自动缩放重扫」(只声明未分辨, 不重跑)")
     ap.add_argument("--mc-seeds", type=int, default=1,
                     help="MC 独立种子数 (误差棒): 峰位 ± 种子间标准差 (默认 1 = 关闭)")
+    ap.add_argument("--fss", action="store_true",
+                    help="额外跑多尺寸有限尺寸标度 (Binder U4 交点自动定 T_C/T_N)")
+    ap.add_argument("--fss-sizes", type=int, nargs="+", default=[12, 18, 24, 30],
+                    help="FSS 的线性尺寸列表 (默认 12 18 24 30)")
     ap.add_argument("--skip-dft", action="store_true")
     ap.add_argument("--skip-mc", action="store_true")
     ap.add_argument("--quiet", action="store_true",
@@ -621,8 +625,16 @@ def main():
         mc_refine = refine_mc_peak(outdir, model, mc_order, args.mc_size,
                                    args.mc_refine_nt, args.mc_refine_max,
                                    enabled=not args.no_mc_refine, seeds=args.mc_seeds)
+        # 可选: 多尺寸有限尺寸标度 (Binder U4 交点) 自动定 T_C/T_N, 比单一尺寸峰判据更稳
+        if args.fss:
+            fss_out = os.path.join(outdir, "05_mc", "fss")
+            run("mc_fss.py", [model, "--order", mc_order,
+                              "--sizes"] + [str(x) for x in args.fss_sizes] +
+                ["--tmin", str(args.mc_tmin), "--tmax", str(args.mc_tmax),
+                 "--nt", str(args.mc_nt), "--seeds", str(args.mc_seeds),
+                 "--cool", "--out", fss_out], cwd=outdir)
         # 附带 MC 脚本到 05_mc/, 使每条流水线可脱离主仓独立重跑 MC
-        ship = ["mc_2d.py", "poscar_to_mc3.py", "write_hamiltonian.py"]
+        ship = ["mc_2d.py", "mc_fss.py", "poscar_to_mc3.py", "write_hamiltonian.py"]
         if lattice == "cluster":
             ship += ["build_cluster_cases.py", "solve_cluster_J.py"]
         elif lattice == "triangular":
@@ -664,6 +676,21 @@ def main():
         if mc_refine and mc_refine["rounds"]:
             s += f" [峰落边界, 已自动缩放重扫 {len(mc_refine['rounds'])} 轮]"
         print(f"      MC: {s}")
+    if args.fss:
+        _fj = os.path.join(outdir, "05_mc", "fss_fss.json")
+        if os.path.exists(_fj):
+            try:
+                _r = json.load(open(_fj, encoding="utf-8"))
+                if _r.get("tc") is not None:
+                    print(f"      FSS: Binder U4 交点 T_C/T_N ≈ {_r['tc']:.2f} K ± {_r['sd']:.2f} K "
+                          f"(尺寸 {_r['sizes']}, {_r['n_crossings']} 个交点)"
+                          + (f"; collapse {_r['tc_collapse']:.2f} K" if _r.get("tc_collapse") else ""))
+                else:
+                    print("      FSS: 未分辨 (无干净交点, 见 05_mc/fss_fss.csv/.png)")
+            except Exception as e:
+                print(f"      FSS: 读取结果失败 ({e})", file=sys.stderr)
+        else:
+            print("      FSS: 未产生结果文件 (见 05_mc/fss_fss.csv / .png)", file=sys.stderr)
     print(f"      产出: workflow.md, hamiltonian.md, 01_structure/, 02_supercell/, 03_dft/, 05_mc/, figures/")
 
 
