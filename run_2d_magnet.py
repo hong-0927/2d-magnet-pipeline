@@ -125,35 +125,97 @@ def try_mp_fetch(outdir, formula, mp_id):
         return None
 
 
-def doctor():
-    """环境自检 (--doctor): python 版本 / 依赖包 / 脚本 / 文献表 / MP key / CWD 写权限。
+# ---- error catalog: 已知失败签名 -> 症状 -> 修复 (doctor 联动 + KNOWN_ISSUES.md) ----
+# static=True 是「运行时才出现、环境自检探不到」的条目, doctor 作为静态参考列出;
+# static=False 是可被环境自检命中的条目, 由 doctor 的检查项按 key 联动。
+ERROR_CATALOG = [
+    {"key": "py39", "static": False,
+     "symptom": "语法/类型报错, 或 numpy/numba 版本不兼容",
+     "fix": "升级到 Python >= 3.9 (如 py -3.12 或 conda)"},
+    {"key": "missing_dep", "static": False,
+     "symptom": "ImportError: No module named 'xxx'",
+     "fix": "pip install -r requirements.txt"},
+    {"key": "packaging", "static": False,
+     "symptom": "render 阶段: ModuleNotFoundError: No module named 'packaging' "
+               "(matplotlib 顶层 import 连带需要它)",
+     "fix": "pip install packaging"},
+    {"key": "scripts_missing", "static": False,
+     "symptom": "driver 报缺脚本 / 子阶段找不到脚本",
+     "fix": "确认 scripts/ 目录完整 (重新 git clone 或解压分发包)"},
+    {"key": "lit_missing", "static": False,
+     "symptom": "--literature <key> 报找不到文献条目 / literature_J.json 缺失",
+     "fix": "确认 scripts/literature_J.json 存在且键名正确"},
+    {"key": "mp_key", "static": False,
+     "symptom": "fetch 阶段 (--formula 下载) 报 401/403 或空结果",
+     "fix": "设 MP_API_KEY; 或 --poscar 用本地结构, 或 --provider cod 走公开库"},
+    {"key": "cwd_ro", "static": False,
+     "symptom": "PermissionError: 建 --outdir / 写文件失败",
+     "fix": "cd 到可写目录, 或 --outdir 指到可写路径 (如系统临时目录)"},
 
-    返回 True 表示全部通过; 任何缺依赖/缺脚本/不可写都返回 False (exit 1), 便于 CI 里 `&&` 短路。
+    {"key": "static_incar", "static": True,
+     "symptom": "runs/<order>/INCAR 无 IBRION/NSW -> 静默假弛豫, OUTCAR 其实是静态总能",
+     "fix": "用 03_dft/INCAR.relax 做弛豫; 或 relax_backfill 回填后用位移检查核对"},
+    {"key": "atom_mismatch", "static": True,
+     "symptom": "relax_backfill 报「原子数/物种不符」并拒绝",
+     "fix": "核对 CONTCAR 与 POSCAR.pristine 的物种与原子数一致后再回填"},
+    {"key": "gbk", "static": True,
+     "symptom": "子进程输出 UnicodeDecodeError (GBK 编码)",
+     "fix": "设 PYTHONIOENCODING=utf-8 再跑 (driver 子进程已内置; 手动跑脚本需自设)"},
+    {"key": "solve_no_outcar", "static": True,
+     "symptom": "solve_J3 报「需要 fm/neel/zigzag/stripy 四态 OUTCAR」",
+     "fix": "先跑 DFT 生成各磁态 OUTCAR; 或加 --demo 自检反解"},
+    {"key": "fss_no_cross", "static": True,
+     "symptom": "FSS 报「未分辨」/ fss_fss.json 里 tc=null (尺寸间 U4 无干净交点)",
+     "fix": "加大 --fss-sizes (默认 12 18 24 30) 或 --mc-seeds 压噪"},
+    {"key": "peak_boundary", "static": True,
+     "symptom": "T_C/T_N 标「未分辨」(峰落在温度窗口首/末格点)",
+     "fix": "已内置自动缩放重扫; 或调 --mc-tmax / --mc-nt 覆盖真峰"},
+]
+
+
+def doctor():
+    """环境自检 (doctor 子命令): python / 依赖 / 脚本 / 文献表 / MP key / CWD 写权限,
+    并把命中的已知问题映射到 ERROR_CATALOG 给「症状 -> 修复」。
+
+    返回 True 表示硬性项全部通过; 缺依赖/缺脚本/不可写返回 False (exit 1), 便于 CI `&&` 短路。
     """
     import importlib
     ok = True
+    hits = []  # 命中的 catalog key (可能重复, 打印前会去重)
 
-    def line(good, msg):
+    def line(good, msg, key=None):
         nonlocal ok
         if not good:
             ok = False
+            if key:
+                hits.append(key)
         print(("  [OK]   " if good else "  [WARN] ") + msg)
 
     print(f"python : {sys.version.split()[0]}   ({sys.executable})")
     line(sys.version_info >= (3, 9),
-         f"Python >= 3.9 (当前 {sys.version.split()[0]})")
+         f"Python >= 3.9 (当前 {sys.version.split()[0]})", key="py39")
     for pkg in ("numpy", "numba", "matplotlib", "requests"):
         try:
             m = importlib.import_module(pkg)
             line(True, f"{pkg} {getattr(m, '__version__', '?')}")
         except Exception:
-            line(False, f"缺少依赖 {pkg} -> pip install -r requirements.txt")
+            line(False, f"缺少依赖 {pkg} -> pip install -r requirements.txt",
+                 key="missing_dep")
+
+    # packaging 专项: matplotlib 顶层 import 会连带需要它, 缺了 render 直接崩
+    try:
+        importlib.import_module("packaging")
+        line(True, "packaging (matplotlib 顶层 import 依赖)")
+    except Exception:
+        line(False, "缺少 packaging -> render 阶段会崩, pip install packaging",
+             key="packaging")
 
     need = ["reorient.py", "mc_2d.py", "poscar_to_mc3.py", "write_hamiltonian.py",
             "build_magnetic_cases3.py", "build_cluster_cases.py",
             "build_magnetic_cases_tri.py", "mp_fetch_2d.py"]
     miss = [s for s in need if not os.path.exists(os.path.join(SCRIPTS, s))]
-    line(not miss, "scripts/ 关键脚本齐全" if not miss else f"缺脚本: {miss}")
+    line(not miss, "scripts/ 关键脚本齐全" if not miss else f"缺脚本: {miss}",
+         key="scripts_missing")
 
     if os.path.exists(LIT):
         try:
@@ -161,16 +223,17 @@ def doctor():
                 tab = json.load(f)
             line(True, f"literature_J.json: {len(tab)} 条 ({', '.join(tab.keys())})")
         except Exception as e:
-            line(False, f"literature_J.json 解析失败: {e}")
+            line(False, f"literature_J.json 解析失败: {e}", key="lit_missing")
     else:
-        line(False, f"literature_J.json 不存在: {LIT}")
+        line(False, f"literature_J.json 不存在: {LIT}", key="lit_missing")
 
     # MP key 与 fixtures 是条件项 (非硬失败): 缺 MP key 只挡 fetch, 缺 fixtures 只挡回归测试。
     key = os.environ.get("MP_API_KEY")
     if key:
         line(True, "MP_API_KEY 已设置")
     else:
-        print("  [INFO] MP_API_KEY 未设置 (仅 --poscar 可用; 下载结构需 --mp-key)")
+        print("  [INFO] MP_API_KEY 未设置 (仅 --poscar 可用; 下载结构需 --mp-key / --provider cod)")
+        hits.append("mp_key")  # 条件项: 命中 catalog 但不置 ok=False
 
     fx = os.path.join(HERE, "tests", "fixtures")
     if os.path.isdir(fx):
@@ -185,7 +248,27 @@ def doctor():
         os.remove(probe)
         line(True, f"CWD 可写 ({os.getcwd()})")
     except Exception as e:
-        line(False, f"CWD 不可写 ({os.getcwd()}): {e}")
+        line(False, f"CWD 不可写 ({os.getcwd()}): {e}", key="cwd_ro")
+
+    # ---- 命中条目: 症状 -> 修复 (去重) ----
+    by_key = {e["key"]: e for e in ERROR_CATALOG}
+    shown = []
+    for k in hits:
+        if k in by_key and k not in shown:
+            shown.append(k)
+    if shown:
+        print("\n--- 命中 error catalog (症状 -> 修复) ---")
+        for k in shown:
+            e = by_key[k]
+            print(f"  * {e['symptom']}")
+            print(f"    -> {e['fix']}")
+
+    # ---- 静态参考条目 (运行时才出现, 环境自检探不到) ----
+    print("\n--- 常见运行时问题 (静态参考, 详见 KNOWN_ISSUES.md) ---")
+    for e in ERROR_CATALOG:
+        if e["static"]:
+            print(f"  * [{e['key']}] {e['symptom']}")
+            print(f"    -> {e['fix']}")
 
     return ok
 
@@ -445,8 +528,8 @@ def main():
     ap = argparse.ArgumentParser(description="二维磁体 结构->J->MC 通用流水线")
     # 子命令 (缺省=全流水线; 只跑单个阶段, 复用已有产物)
     ap.add_argument("command", nargs="?", default=None,
-                    choices=["fetch", "build", "dft", "mc", "solve", "render", "report"],
-                    help="只跑单个阶段 (fetch/build/dft/mc/solve/render/report); 缺省跑全流水线")
+                    choices=["fetch", "build", "dft", "mc", "solve", "render", "report", "doctor"],
+                    help="只跑单个阶段 (fetch/build/dft/mc/solve/render/report); doctor=环境自检+error catalog; 缺省跑全流水线")
     # 结构来源
     ap.add_argument("--formula", help="化学式, 如 MnPS3 (触发 MP 下载)")
     ap.add_argument("--mp-id", help="指定 MP material_id (覆盖自动挑选)")
@@ -500,11 +583,9 @@ def main():
     ap.add_argument("--skip-mc", action="store_true")
     ap.add_argument("--quiet", action="store_true",
                     help="静默模式: 抑制子进程输出, 只回显错误/警告 + 结尾摘要")
-    ap.add_argument("--doctor", action="store_true",
-                    help="环境自检 (python/依赖/脚本/文献表/MP key/写权限) 后退出")
     args = ap.parse_args()
 
-    if args.doctor:
+    if args.command == "doctor":
         sys.exit(0 if doctor() else 1)
 
     global QUIET

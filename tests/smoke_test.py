@@ -45,9 +45,9 @@ sys.path.insert(0, HERE)
 
 import cluster_sites as CS  # noqa: E402
 import fetch_structure as FS  # noqa: E402
-from run_2d_magnet import (SCRIPTS as DRV_SCRIPTS, _scripts_dir, detect_lattice,  # noqa: E402
-                           multi_sublattice_warning, peak_report, summarize_mc,
-                           write_workflow, zoom_window)
+from run_2d_magnet import (ERROR_CATALOG, SCRIPTS as DRV_SCRIPTS, _scripts_dir,  # noqa: E402
+                           detect_lattice, doctor, multi_sublattice_warning,
+                           peak_report, summarize_mc, write_workflow, zoom_window)
 
 FIXTURES = os.environ.get("MAGNET_FIXTURES", os.path.join(HERE, "tests", "fixtures"))
 MNPS3 = os.path.join(FIXTURES, "MnPS3_POSCAR")
@@ -360,6 +360,24 @@ check("pack: literature_J.json 在 scripts/ 内", os.path.exists(_lit))
 if os.path.exists(_lit):
     _tab = json.load(open(_lit, encoding="utf-8"))
     check("pack: literature_J.json 可解析且含 MnPS3", "MnPS3" in _tab)
+
+# ---- 12. doctor 子命令 + error catalog ----
+check("doctor: ERROR_CATALOG 非空且条目字段齐全",
+      bool(ERROR_CATALOG) and all(set(e) >= {"key", "symptom", "fix", "static"}
+                                  for e in ERROR_CATALOG))
+_known_keys = {e["key"] for e in ERROR_CATALOG}
+for _k in ("static_incar", "solve_no_outcar", "packaging", "fss_no_cross", "peak_boundary"):
+    check(f"doctor: catalog 含 {_k}", _k in _known_keys)
+check("doctor: 有静态运行时条目 (>=5)",
+      sum(1 for e in ERROR_CATALOG if e["static"]) >= 5)
+check("doctor: 有环境可探条目 (>=5)",
+      sum(1 for e in ERROR_CATALOG if not e["static"]) >= 5)
+
+r = run(sys.executable, os.path.join(HERE, "run_2d_magnet.py"), "doctor")
+check("doctor: 子命令派发 (退出码 0 或 1)", r.returncode in (0, 1))
+check("doctor: 输出含环境自检头", "python :" in r.stdout)
+check("doctor: 输出含静态参考段", "常见运行时问题" in r.stdout)
+check("doctor: 静态参考含 static_incar", "static_incar" in r.stdout)
 
 print("\n全部通过" if not fails else f"\n{len(fails)} 个失败: {fails}")
 sys.exit(1 if fails else 0)

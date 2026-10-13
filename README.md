@@ -37,7 +37,7 @@ python scripts/build_fgt_cases.py <monolayer_POSCAR> --outdir Fe3GeTe2_pipeline
 
 ## CLI 参考（节选，完整见 `python run_2d_magnet.py --help`）
 
-位置参 `<command>`（可选）分阶段运行：`fetch` / `build` / `dft` / `mc` / `solve` / `render` / `report`；省略即完整流水线。见下方「子命令」。
+位置参 `<command>`（可选）分阶段运行：`fetch` / `build` / `dft` / `mc` / `solve` / `render` / `report` / `doctor`；省略即完整流水线。见下方「子命令」。
 
 | 组 | 参数 |
 |---|---|
@@ -46,7 +46,7 @@ python scripts/build_fgt_cases.py <monolayer_POSCAR> --outdir Fe3GeTe2_pipeline
 | J 值 | `--literature <key>` `--J1` `--J2` `--J3` `--MAE` |
 | 磁性格点 | `--lattice {auto,honeycomb,triangular,cluster}` `--cluster-cutoff` |
 | Monte Carlo | `--mc-size` `--mc-tmin` `--mc-tmax` `--mc-nt` `--mc-refine-nt` `--mc-refine-max` `--no-mc-refine` `--mc-seeds` `--fss` `--fss-sizes` |
-| 开关 | `--skip-dft` `--skip-mc` `--quiet` `--outdir` `--doctor` |
+| 开关 | `--skip-dft` `--skip-mc` `--quiet` `--outdir` |
 
 ### 元素参数表
 
@@ -83,6 +83,7 @@ python scripts/build_fgt_cases.py <monolayer_POSCAR> --outdir Fe3GeTe2_pipeline
 | `solve` | 反解已算 OUTCAR 的 J（需先 `build` 再手动跑 VASP） | 打印 `J1/J2/J3` (meV) |
 | `render` | `build` + 超胞/磁序图 | `figures/supercell_orders.png` |
 | `report` | `build` + 汇总卡片（不跑 DFT/MC/render） | `workflow.md` |
+| `doctor` | 环境自检（python/依赖/脚本/文献表/MP key/写权限）→ 命中 error catalog 给「症状→修复」 | 控制台诊断 + `KNOWN_ISSUES.md` 参考 |
 
 例：`python run_2d_magnet.py fetch --formula MnPS3 --element Mn --nonmag P S --provider cod`
 
@@ -97,6 +98,7 @@ python scripts/build_fgt_cases.py <monolayer_POSCAR> --outdir Fe3GeTe2_pipeline
   dsh/bin/2d-magnet.cmd   # Windows 封装
   tests/                  # smoke_test.py + test_fgt_e2e.py（fixtures/ 内置，无外部路径依赖）
   WORKFLOW.md             # 阶段与脚本来源说明
+  KNOWN_ISSUES.md         # 已知问题 / error catalog（doctor 子命令联动的「症状→修复」表）
 ```
 
 ## 测试
@@ -122,12 +124,12 @@ python tests/test_fgt_e2e.py      # FGT 双亚晶格反解链路端到端（mock
 ## 路线图
 
 - [x] 硬编码路径清理 + 测试 fixture 内置 + 打包基线（LICENSE/README/requirements/pyproject）
-- [x] `doctor` 环境自检（`--doctor`）
+- [x] `doctor` 环境自检 → 子命令 + error catalog（`KNOWN_ISSUES.md`）
 - [x] 元素参数表（Mn/Cr/Ni/Co/V 兜底 S/moment/U）+ `--lattice` 显式化
 - [x] Binder U₄ 累积量 + `--mc-seeds` 误差棒
 - [x] 自动多尺寸有限尺寸标度（U₄ 交点定位 T_C）
 - [x] 结构 provider 链（COD/OQMD/AFLOW/JARVIS）
-- [x] 子命令化（`fetch/build/dft/mc/solve/render/report`）
+- [x] 子命令化（`fetch/build/dft/mc/solve/render/report/doctor`）
 - [x] `scripts/` 包化，支持非可编辑 `pip install .`
 
 ## License
