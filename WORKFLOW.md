@@ -11,7 +11,10 @@
 ```powershell
 cd <repo>
 
-# 已收录文献 J 的材料（如 MnPS3）—— 最简：
+# 命名模型预设（最简，一键设定 lattice/S/moment/U；文献 J 仅作参考）：
+python run_2d_magnet.py --model mnps3 --poscar tests/fixtures/MnPS3_POSCAR
+
+# 已收录文献 J 的材料（如 MnPS3）：
 python run_2d_magnet.py --formula MnPS3 --literature MnPS3 --mp-key <MP_API_KEY>
 
 # 新材料（手动给参数）：
@@ -34,6 +37,7 @@ python run_2d_magnet.py --formula MnPS3 --literature MnPS3 --provider cod
 
 | 参数 | 含义 | 例 (MnPS3) |
 |---|---|---|
+| `--model` | 命名预设，一键设定下方 element/nonmag/lattice/S/moment/U（`mnps3/cri3/crbr3/fe3gete2`） | `mnps3` |
 | `--formula` | MP 化学式 | `MnPS3` |
 | `--element` | 磁性元素 | `Mn` |
 | `--nonmag` | 非磁元素（可多个，空格分隔） | `P S` |
@@ -54,7 +58,9 @@ python run_2d_magnet.py --formula MnPS3 --literature MnPS3 --provider cod
 3. 或**真跑 DFT**：`03_dft` + `runs/<order>` 已备好，四磁态静态 + FM 弛豫后
    `scripts/solve_J3.py <cases> --demo` 自检 → 用真实能量反解。
 
-新材料写进 `literature_J.json`（字段 `formula/element/nonmag/S/moment/U/J1/J2/J3/MAE/ground_state/source`）。**J 未核实的条目 `J1` 留 `null` 并写 `_note`**。
+> `--model` / `--literature` 落回文献 J 时，driver 只在 stderr 打 `[ref]` 声明「文献参考、非本项目计算」，workflow.md 也会标注来源。**文献 J 是数量级 sanity-check，不是本项目结论**：真实 J 必须跑 VASP + `solve` 反解，或用 `--J1/--J2/--J3` 显式给定。VASP 侧只**导出**输入（`03_dft/` + `runs/<order>/`），不代提交——请在集群手动提交。
+
+新材料写进 `literature_J.json`（字段 `formula/element/nonmag/S/moment/U/J1/J2/J3/MAE/ground_state/source`），并在 `run_2d_magnet.py` 的 `MODEL_PRESETS` 里加同名键（含 `lattice`）以便 `--model` 一键调用。**J 未核实的条目 `J1` 留 `null` 并写 `_note`**。
 
 ---
 

@@ -15,19 +15,22 @@ git clone <this repo>
 cd 2d_magnet_pipeline
 pip install -r requirements.txt     # numpy / numba / matplotlib / requests
 
-# 1) 文献 J 的正向计算（MnPS3，需 Materials Project key 下载结构）
+# 1) 命名模型预设：一键设定 MnPS3 的 formula/element/nonmag/lattice/S/moment/U（文献 J 仅作参考）
+python run_2d_magnet.py --model mnps3 --poscar tests/fixtures/MnPS3_POSCAR
+
+# 2) 文献 J 的正向计算（需 Materials Project key 下载结构）
 python run_2d_magnet.py --formula MnPS3 --literature MnPS3 --mp-key <MP_API_KEY>
 
-# 2) 已有 POSCAR + 显式 J（跳过下载；J 需自备）
+# 3) 已有 POSCAR + 显式 J（跳过下载；J 需自备）
 python run_2d_magnet.py --poscar tests/fixtures/MnPS3_POSCAR `
   --element Mn --nonmag P S --S 2.5 --moment 5.0 --U 4.0 --J1 -0.3 --J2 0.1 --J3 0.02
 
-# 3) 双亚晶格反解（FGT 类，需 VASP；详见 dsh/2d-magnet/SKILL.md 或 hamiltonian.md 用法）
+# 4) 双亚晶格反解（FGT 类，需 VASP；详见 dsh/2d-magnet/SKILL.md 或 hamiltonian.md 用法）
 python scripts/build_fgt_cases.py <monolayer_POSCAR> --outdir Fe3GeTe2_pipeline
 ```
 
 > `--formula` 下载结构需要 Materials Project API key（环境变量 `MP_API_KEY` 或 `--mp-key`）。
-> 已有 POSCAR 用 `--poscar` 跳过下载。`--J1` 必填（J>0 铁磁 / J<0 反铁磁），除非用 `--literature`。
+> 已有 POSCAR 用 `--poscar` 跳过下载。`--J1` 必填（J>0 铁磁 / J<0 反铁磁），除非用 `--literature` / `--model`（此时 J 取文献参考值，仅作数量级 sanity-check，非本项目计算）。
 
 ## 安装
 
@@ -42,15 +45,29 @@ python scripts/build_fgt_cases.py <monolayer_POSCAR> --outdir Fe3GeTe2_pipeline
 | 组 | 参数 |
 |---|---|
 | 结构来源 | `--formula` `--mp-id` `--poscar` `--mp-key` `--provider {auto,mp,cod,oqmd,aflow,jarvis}` |
+| 命名预设 | `--model {mnps3,cri3,crbr3,fe3gete2}` |
 | 材料 | `--element` `--nonmag P S` `--S` `--moment` `--U` |
 | J 值 | `--literature <key>` `--J1` `--J2` `--J3` `--MAE` |
 | 磁性格点 | `--lattice {auto,honeycomb,triangular,cluster}` `--cluster-cutoff` |
 | Monte Carlo | `--mc-size` `--mc-tmin` `--mc-tmax` `--mc-nt` `--mc-refine-nt` `--mc-refine-max` `--no-mc-refine` `--mc-seeds` `--fss` `--fss-sizes` |
 | 开关 | `--skip-dft` `--skip-mc` `--quiet` `--outdir` |
 
+### 命名模型预设（`--model`）
+
+`--model <key>` 一键设定 `formula / element / nonmag / lattice / S / moment / U`（材料专属值，取自 `literature_J.json`，与元素表通用兜底不同）：
+
+| key | 体系 | lattice | S / moment / U |
+|---|---|---|---|
+| `mnps3` | MnPS₃ 蜂窝 Néel 反铁磁 | honeycomb | 2.5 / 5.0 μB / 5.0 eV |
+| `cri3` | CrI₃ 蜂窝铁磁 | honeycomb | 1.5 / 3.0 / 3.0 |
+| `crbr3` | CrBr₃ 蜂窝铁磁 | honeycomb | 1.5 / 3.0 / 3.0 |
+| `fe3gete2` | Fe₃GeTe₂（⚠ 巡游铁磁金属，会被几何判据误判成 cluster） | cluster | 1.0 / 2.0 / 4.0 |
+
+优先级：显式 CLI > `--model` 预设 > `--literature` 表 > 元素表。`--model` 自带的文献 J 只作**参考**（数量级 sanity-check），落到文献值时会在 stderr 打印 `[ref]` 声明，workflow.md 也会标注「文献参考、非本项目计算」；**真实 J 须跑 VASP + `solve` 反解，或用 `--J1/--J2/--J3` 显式给定**。VASP 侧始终只**导出**输入（`03_dft/` + `runs/<order>/`，含 INCAR/KPOINTS/POTCAR.spec/POSCAR），不替用户提交作业。
+
 ### 元素参数表
 
-`--S` / `--moment` / `--U` 未显式给出时，按磁性元素从内置表兜底（**Mn / Cr / Ni / Co / V**）。Fe 因 Fe²⁺/Fe³⁺/巡游有效自旋三种取值差异太大（S=2/2.5/1）而**故意不列**，须显式给 `--S/--moment`。优先级：显式 CLI > `--literature` 表 > 元素表；落表时会打 stderr 提醒。
+`--S` / `--moment` / `--U` 未显式给出时，按磁性元素从内置表兜底（**Mn / Cr / Ni / Co / V**）。Fe 因 Fe²⁺/Fe³⁺/巡游有效自旋三种取值差异太大（S=2/2.5/1）而**故意不列**，须显式给 `--S/--moment`。优先级：显式 CLI > `--model` 预设 > `--literature` 表 > 元素表；落表时会打 stderr 提醒。
 
 ### 结构 provider 链
 
@@ -126,6 +143,7 @@ python tests/test_fgt_e2e.py      # FGT 双亚晶格反解链路端到端（mock
 - [x] 硬编码路径清理 + 测试 fixture 内置 + 打包基线（LICENSE/README/requirements/pyproject）
 - [x] `doctor` 环境自检 → 子命令 + error catalog（`KNOWN_ISSUES.md`）
 - [x] 元素参数表（Mn/Cr/Ni/Co/V 兜底 S/moment/U）+ `--lattice` 显式化
+- [x] `--model` 命名预设（MnPS₃/CrI₃/CrBr₃/Fe₃GeTe₂ 一键设定，文献 J 仅参考）
 - [x] Binder U₄ 累积量 + `--mc-seeds` 误差棒
 - [x] 自动多尺寸有限尺寸标度（U₄ 交点定位 T_C）
 - [x] 结构 provider 链（COD/OQMD/AFLOW/JARVIS）

@@ -45,8 +45,8 @@ sys.path.insert(0, HERE)
 
 import cluster_sites as CS  # noqa: E402
 import fetch_structure as FS  # noqa: E402
-from run_2d_magnet import (ERROR_CATALOG, SCRIPTS as DRV_SCRIPTS, _scripts_dir,  # noqa: E402
-                           detect_lattice, doctor, multi_sublattice_warning,
+from run_2d_magnet import (ERROR_CATALOG, MODEL_PRESETS, SCRIPTS as DRV_SCRIPTS,  # noqa: E402
+                           _scripts_dir, detect_lattice, doctor, multi_sublattice_warning,
                            peak_report, summarize_mc, write_workflow, zoom_window)
 
 FIXTURES = os.environ.get("MAGNET_FIXTURES", os.path.join(HERE, "tests", "fixtures"))
@@ -378,6 +378,34 @@ check("doctor: 子命令派发 (退出码 0 或 1)", r.returncode in (0, 1))
 check("doctor: 输出含环境自检头", "python :" in r.stdout)
 check("doctor: 输出含静态参考段", "常见运行时问题" in r.stdout)
 check("doctor: 静态参考含 static_incar", "static_incar" in r.stdout)
+
+# ---- 13. --model 命名预设 ----
+check("model: 预设键齐全", set(MODEL_PRESETS) >= {"mnps3", "cri3", "crbr3", "fe3gete2"})
+_req = {"formula", "element", "nonmag", "lattice", "S", "moment", "U", "literature", "desc"}
+check("model: 每条预设字段齐全", all(set(v) >= _req for v in MODEL_PRESETS.values()))
+# 预设值须与 literature_J.json 材料专属值一致 (不能和 ELEMENT_PARAMS 通用兜底搞混)
+_tab = json.load(open(_lit, encoding="utf-8"))
+for _k in ("mnps3", "cri3", "crbr3", "fe3gete2"):
+    _p = MODEL_PRESETS[_k]
+    _l = _tab[_p["literature"]]
+    check(f"model: {_k} 与文献条目一致 (element/S/moment/U)",
+          _p["element"] == _l["element"] and _p["S"] == _l["S"]
+          and _p["moment"] == _l["moment"] and _p["U"] == _l["U"]
+          and _p["nonmag"] == _l["nonmag"])
+
+td = mktmp("_tmp_model_")
+try:
+    driver = os.path.join(HERE, "run_2d_magnet.py")
+    r = run(sys.executable, driver, "build", "--model", "mnps3",
+            "--poscar", MNPS3, "--outdir", td)
+    check("model: mnps3 build 退出 0", r.returncode == 0)
+    check("model: mnps3 build 写 cases/magnetic_orders.json",
+          os.path.exists(os.path.join(td, "02_supercell", "cases", "magnetic_orders.json")))
+    check("model: 输出含 [model] 命名预设", "[model]" in r.stdout and "mnps3" in r.stdout)
+    check("model: 输出含 [ref] J 参考声明 (stderr)", "[ref]" in r.stderr)
+    check("model: build 早退(不建 03_dft)", not os.path.exists(os.path.join(td, "03_dft")))
+finally:
+    shutil.rmtree(td, ignore_errors=True)
 
 print("\n全部通过" if not fails else f"\n{len(fails)} 个失败: {fails}")
 sys.exit(1 if fails else 0)

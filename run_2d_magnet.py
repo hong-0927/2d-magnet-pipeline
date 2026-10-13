@@ -72,6 +72,41 @@ ELEMENT_PARAMS = {
     "V":  {"S": 1.0, "moment": 2.0, "U": 3.0},   # V3+ 3d2
 }
 
+# 命名模型预设: `--model <key>` 一键设定 {化学式, 磁性元素, 非磁元素, 晶格类型, S, moment, U}。
+# 与 ELEMENT_PARAMS 的兜底不同, 这里的值来自文献条目 (literature_J.json), 是**材料专属**的
+# (如 MnPS3 的 U=5.0 取自 Sivadas 2015, 而非元素表里 Mn 的通用 4.0)。
+# 关联的 `literature` 键只作**参考**: 文献 J 用于数量级 sanity-check 与 workflow.md 标注来源,
+# 不冒充本项目的计算值 —— 真实 J 须跑 VASP (03_dft/runs 导出后手动提交) + `solve` 反解,
+# 或用 `--J1/--J2/--J3` 显式给定。VASP 侧始终只导出输入 (INCAR/KPOINTS/POTCAR.spec/POSCAR),
+# 不替用户提交作业。
+MODEL_PRESETS = {
+    "mnps3": {
+        "formula": "MnPS3", "element": "Mn", "nonmag": ["P", "S"],
+        "lattice": "honeycomb", "S": 2.5, "moment": 5.0, "U": 5.0,
+        "literature": "MnPS3",
+        "desc": "蜂窝 Néel 反铁磁, Mn2+ S=5/2 (Sivadas 2015)",
+    },
+    "cri3": {
+        "formula": "CrI3", "element": "Cr", "nonmag": ["I"],
+        "lattice": "honeycomb", "S": 1.5, "moment": 3.0, "U": 3.0,
+        "literature": "CrI3",
+        "desc": "蜂窝铁磁, Cr3+ S=3/2 (文献 J 待核实)",
+    },
+    "crbr3": {
+        "formula": "CrBr3", "element": "Cr", "nonmag": ["Br"],
+        "lattice": "honeycomb", "S": 1.5, "moment": 3.0, "U": 3.0,
+        "literature": "CrBr3",
+        "desc": "蜂窝铁磁, Cr3+ S=3/2 (文献 J 待核实)",
+    },
+    "fe3gete2": {
+        "formula": "Fe3GeTe2", "element": "Fe", "nonmag": ["Ge", "Te"],
+        "lattice": "cluster", "S": 1.0, "moment": 2.0, "U": 4.0,
+        "literature": "Fe3GeTe2",
+        "desc": "⚠ 巡游铁磁金属 (多亚晶格), 几何判据误判成 cluster; "
+                "Fe 的 S/moment 需自洽 (元素表不列 Fe)",
+    },
+}
+
 
 def log(*a, **k):
     if not QUIET:
@@ -544,6 +579,10 @@ def main():
     ap.add_argument("--moment", type=float, help="磁矩初猜 muB (Mn2+=5.0, Cr3+=3.0)")
     ap.add_argument("--U", type=float, help="DFT+U 加在磁性元素 d 轨道 (eV)")
     # J 值
+    ap.add_argument("--model", type=str.lower, choices=sorted(MODEL_PRESETS), default=None,
+                    help="命名模型预设: 一键设定 formula/element/nonmag/lattice/S/moment/U "
+                         "(关联文献 J 仅作参考)。可选: "
+                         + "; ".join(f"{k}={v['desc']}" for k, v in sorted(MODEL_PRESETS.items())))
     ap.add_argument("--literature", help="literature_J.json 里的键, 如 MnPS3")
     ap.add_argument("--J1", type=float, default=None)
     ap.add_argument("--J2", type=float, default=None)
@@ -591,25 +630,37 @@ def main():
     global QUIET
     QUIET = args.quiet
 
-    # ---- 解析参数 (文献表 < 显式 CLI) ----
+    # ---- 解析参数 (文献表/模型预设 < 显式 CLI) ----
+    model = None
+    if args.model:
+        model = MODEL_PRESETS[args.model]
+        log(f"[model] 命名预设 {args.model!r}: {model['desc']}")
+        # 预设自带文献 J 作参考; 显式 --literature 可覆盖
+        if not args.literature:
+            args.literature = model.get("literature")
+
     lit = None
     if args.literature:
         lit = load_literature(args.literature)
         log(f"[lit] 使用文献值 ({args.literature}): {lit.get('source')}")
 
     def pick(a, b, d=None):
-        """解析优先级: 显式 CLI > 文献表里**非 null** 的值 > 默认 d。
+        """解析优先级: 显式 CLI > --model 预设 > 文献表非 null 值 > 默认 d。
 
         注意: 文献条目里的 `null` 表示「未核实/未给出」, 必须落回默认值 —— 不能把它
         当字符串传下去 (FGT 条就只核实了 J1, J2/J3 是 null; 旧写法会让 J2 变成 'None'
         再喂给 mc_2d.py)。J1 的默认是 None, 所以 null 的 J1 仍会触发「缺少必要参数」。
         """
-        v = a if a is not None else (lit.get(b) if lit else None)
+        v = a if a is not None else (model.get(b) if model else None)
+        if v is None:
+            v = lit.get(b) if lit else None
         return d if v is None else v
 
-    formula = args.formula or (lit.get("formula") if lit else None)
+    formula = args.formula or (model.get("formula") if model else None) \
+        or (lit.get("formula") if lit else None)
     element = pick(args.element, "element")
-    nonmag = args.nonmag or (lit.get("nonmag") if lit else [])
+    nonmag = args.nonmag or (model.get("nonmag") if model else None) \
+        or (lit.get("nonmag") if lit else [])
     S = pick(args.S, "S")
     moment = pick(args.moment, "moment")
     U = pick(args.U, "U")
@@ -617,6 +668,16 @@ def main():
     J2 = pick(args.J2, "J2", 0.0)
     J3 = pick(args.J3, "J3", 0.0)
     MAE = pick(args.MAE, "MAE", 0.0)
+
+    # J 落回文献条目时明确声明「仅参考」, 免得把文献值当成本项目结果。
+    # 只对「确实取自文献非 null 条目」的 J 报警; 文献 null -> 落默认 0.0 的不算 (那是默认, 不是文献)。
+    if lit:
+        ref_J = [k for k, given in (("J1", args.J1), ("J2", args.J2), ("J3", args.J3))
+                 if given is None and lit.get(k) is not None]
+        if ref_J:
+            print(f"[ref] {', '.join(ref_J)} 来自文献参考 ({args.literature}), "
+                  f"非本项目 DFT 计算值; 请跑 VASP (03_dft/runs 导出后手动提交) + `solve` 反解真实 J, "
+                  f"或用 --J1/--J2/--J3 覆盖", file=sys.stderr)
 
     # 元素参数表兜底: 显式 CLI > 文献表 > 元素表 (ELEMENT_PARAMS)。落表时打 stderr 提醒,
     # 免得静默给出默认物理参数 (S/moment/U 都可被 --S/--moment/--U 覆盖)。
@@ -716,8 +777,13 @@ def main():
 
     # ---- 2.5 检测磁性格点类型 ----
     lattice, n_clusters, n_mag = detect_lattice(poscar_re, element, args.cluster_cutoff)
+    detected = lattice
     if args.lattice != "auto":
         lattice = args.lattice
+    elif model and model.get("lattice"):
+        lattice = model["lattice"]
+        if lattice != detected:
+            log(f"[model] 预设晶格类型 {lattice} (自动判别是 {detected})")
     log(f"[lattice] {lattice} (磁性原子 {n_mag}/胞, 簇 {n_clusters})")
     lat_warn = multi_sublattice_warning(lattice, n_clusters, n_mag, element)
     if lat_warn:
@@ -809,8 +875,11 @@ def main():
                 ["--species"] + ([element] + nonmag) +
                 ["--U", str(U), "--moment", str(moment)], cwd=outdir)
 
+    if run_dft and do_dft and not args.skip_dft:
+        log("[dft] VASP 输入已导出 (03_dft/ + runs/<order>/); 请手动在集群提交, 本流水线不代提交")
+
     if cmd == "dft":
-        print(f"\n[run] dft 完成: 03_dft/ + runs/<order>/ (lattice={lattice})")
+        print(f"\n[run] dft 完成: 03_dft/ + runs/<order>/ 已导出 (lattice={lattice}, 未提交 VASP)")
         return
 
     # ---- MC ----
