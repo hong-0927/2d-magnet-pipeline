@@ -37,6 +37,8 @@ python scripts/build_fgt_cases.py <monolayer_POSCAR> --outdir Fe3GeTe2_pipeline
 
 ## CLI 参考（节选，完整见 `python run_2d_magnet.py --help`）
 
+位置参 `<command>`（可选）分阶段运行：`fetch` / `build` / `dft` / `mc` / `solve` / `render` / `report`；省略即完整流水线。见下方「子命令」。
+
 | 组 | 参数 |
 |---|---|
 | 结构来源 | `--formula` `--mp-id` `--poscar` `--mp-key` `--provider {auto,mp,cod,oqmd,aflow,jarvis}` |
@@ -67,6 +69,22 @@ python scripts/build_fgt_cases.py <monolayer_POSCAR> --outdir Fe3GeTe2_pipeline
 2. **交叉验证**：使各尺寸 U₄ 之间方差最小的温度（collapse）。
 
 两者均值即临界温度 `T_C/T_N`，报告 `± 交点间标准差`；结果写 `05_mc/fss_fss.{csv,json,png}`。独立用法：`python scripts/mc_fss.py <model.json> --sizes 12 18 24`。提示：二维无真正相变（Mermin-Wagner），交点 T_C 本质是有限尺寸伪相变估计，且随种子噪声波动，须 `--mc-seeds > 1` 收敛。
+
+### 子命令（分阶段运行）
+
+`python run_2d_magnet.py <command> [参数]` 只跑某一段，复用已有产物，在阶段边界早退；省略 `command` 走完整流水线。
+
+| 子命令 | 跑什么 | 产出 |
+|---|---|---|
+| `fetch` | 结构下载（或 `--poscar`）→ `reorient` 加真空 | `01_structure/POSCAR` |
+| `build` | 磁性格点识别 → 超胞/磁态枚举 | `02_supercell/cases/` |
+| `dft` | `build` + DFT 输入组装 | `03_dft/` + `runs/<order>/` |
+| `mc` | `build` + Monte Carlo（J 取文献/CLI，不产 DFT 输入） | `05_mc/mc_mt.csv/.png`、`hamiltonian.md` |
+| `solve` | 反解已算 OUTCAR 的 J（需先 `build` 再手动跑 VASP） | 打印 `J1/J2/J3` (meV) |
+| `render` | `build` + 超胞/磁序图 | `figures/supercell_orders.png` |
+| `report` | `build` + 汇总卡片（不跑 DFT/MC/render） | `workflow.md` |
+
+例：`python run_2d_magnet.py fetch --formula MnPS3 --element Mn --nonmag P S --provider cod`
 
 ## 目录结构
 
@@ -109,7 +127,7 @@ python tests/test_fgt_e2e.py      # FGT 双亚晶格反解链路端到端（mock
 - [x] Binder U₄ 累积量 + `--mc-seeds` 误差棒
 - [x] 自动多尺寸有限尺寸标度（U₄ 交点定位 T_C）
 - [x] 结构 provider 链（COD/OQMD/AFLOW/JARVIS）
-- [ ] 子命令化（`fetch/build/dft/mc/solve/render/report`）
+- [x] 子命令化（`fetch/build/dft/mc/solve/render/report`）
 - [ ] `scripts/` 包化，支持非可编辑 `pip install .`
 
 ## License

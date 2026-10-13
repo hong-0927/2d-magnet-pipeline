@@ -322,5 +322,29 @@ try:
 except RuntimeError as e:
     check("fetch: 链全失败抛错含 cod/oqmd", "cod:" in str(e) and "oqmd:" in str(e))
 
+# ---- 10. 子命令化: fetch/build/report 分阶段派发 (不触网、不跑 DFT/MC/render) ----
+td = mktmp("_tmp_sub_")
+try:
+    driver = os.path.join(HERE, "run_2d_magnet.py")
+    base = [sys.executable, driver, "--poscar", MNPS3, "--formula", "MnPS3",
+            "--element", "Mn", "--nonmag", "P", "S", "--literature", "MnPS3",
+            "--outdir", td]
+    r = run(*(base + ["fetch"]))
+    check("sub: fetch 退出 0", r.returncode == 0)
+    check("sub: fetch 写 01_structure/POSCAR",
+          os.path.exists(os.path.join(td, "01_structure", "POSCAR")))
+    check("sub: fetch 早退(不建 03_dft)", not os.path.exists(os.path.join(td, "03_dft")))
+    r = run(*(base + ["build"]))
+    check("sub: build 退出 0", r.returncode == 0)
+    check("sub: build 写 02_supercell/cases/magnetic_orders.json",
+          os.path.exists(os.path.join(td, "02_supercell", "cases", "magnetic_orders.json")))
+    check("sub: build 早退(不建 03_dft)", not os.path.exists(os.path.join(td, "03_dft")))
+    r = run(*(base + ["report"]))
+    check("sub: report 退出 0", r.returncode == 0)
+    check("sub: report 写 workflow.md", os.path.exists(os.path.join(td, "workflow.md")))
+    check("sub: report 不跑 MC (05_mc 不存在)", not os.path.exists(os.path.join(td, "05_mc")))
+finally:
+    shutil.rmtree(td, ignore_errors=True)
+
 print("\n全部通过" if not fails else f"\n{len(fails)} 个失败: {fails}")
 sys.exit(1 if fails else 0)

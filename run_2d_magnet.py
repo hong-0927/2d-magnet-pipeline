@@ -395,8 +395,37 @@ def multi_sublattice_warning(lattice, n_clusters, n_mag, element):
     return None
 
 
+def _print_summary(outdir, lattice, S, J1, J2, J3, MAE, mc_order, mc_refine, args):
+    """打印 MC/FSS 结果摘要 (供 mc 子命令与全流水线共用, 避免重复)。"""
+    print(f"      lattice={lattice} | J1={J1} J2={J2} J3={J3} MAE={MAE} meV | S={S}")
+    s = summarize_mc(outdir, mc_order)
+    if s:
+        if mc_refine and mc_refine["rounds"]:
+            s += f" [峰落边界, 已自动缩放重扫 {len(mc_refine['rounds'])} 轮]"
+        print(f"      MC: {s}")
+    if args.fss:
+        _fj = os.path.join(outdir, "05_mc", "fss_fss.json")
+        if os.path.exists(_fj):
+            try:
+                _r = json.load(open(_fj, encoding="utf-8"))
+                if _r.get("tc") is not None:
+                    print(f"      FSS: Binder U4 交点 T_C/T_N ≈ {_r['tc']:.2f} K ± {_r['sd']:.2f} K "
+                          f"(尺寸 {_r['sizes']}, {_r['n_crossings']} 个交点)"
+                          + (f"; collapse {_r['tc_collapse']:.2f} K" if _r.get("tc_collapse") else ""))
+                else:
+                    print("      FSS: 未分辨 (无干净交点, 见 05_mc/fss_fss.csv/.png)")
+            except Exception as e:
+                print(f"      FSS: 读取结果失败 ({e})", file=sys.stderr)
+        else:
+            print("      FSS: 未产生结果文件 (见 05_mc/fss_fss.csv / .png)", file=sys.stderr)
+
+
 def main():
     ap = argparse.ArgumentParser(description="二维磁体 结构->J->MC 通用流水线")
+    # 子命令 (缺省=全流水线; 只跑单个阶段, 复用已有产物)
+    ap.add_argument("command", nargs="?", default=None,
+                    choices=["fetch", "build", "dft", "mc", "solve", "render", "report"],
+                    help="只跑单个阶段 (fetch/build/dft/mc/solve/render/report); 缺省跑全流水线")
     # 结构来源
     ap.add_argument("--formula", help="化学式, 如 MnPS3 (触发 MP 下载)")
     ap.add_argument("--mp-id", help="指定 MP material_id (覆盖自动挑选)")
@@ -518,6 +547,12 @@ def main():
     os.makedirs(outdir, exist_ok=True)
     log(f"[run] 项目目录: {outdir}")
 
+    cmd = args.command
+    # 子命令语义: 只跑对应阶段(及其数据依赖), 复用已有产物; 各阶段边界处早退
+    run_dft = cmd in (None, "dft")
+    run_mc = cmd in (None, "mc")
+    run_render = cmd in (None, "render")
+
     # ---- 1. fetch ----
     os.makedirs(os.path.join(outdir, "01_structure"), exist_ok=True)
     poscar_mp = os.path.join(outdir, "01_structure", "POSCAR.mp")
@@ -525,6 +560,8 @@ def main():
         src_poscar = os.path.abspath(args.poscar)
         log(f"[fetch] 跳过下载, 用 {src_poscar}")
         shutil.copy(src_poscar, poscar_mp)
+    elif cmd is not None and os.path.exists(poscar_mp):
+        log("[fetch] 子命令复用已下载的 01_structure/POSCAR.mp")
     else:
         if args.mp_key:
             os.environ["MP_API_KEY"] = args.mp_key
@@ -571,6 +608,10 @@ def main():
                         "-o", os.path.join(outdir, "01_structure", "POSCAR")], cwd=outdir)
     poscar_re = os.path.join(outdir, "01_structure", "POSCAR")
 
+    if cmd == "fetch":
+        print(f"\n[run] fetch 完成: {poscar_re} (reorient 后, 真空 {args.vacuum} Å)")
+        return
+
     # ---- 2.5 检测磁性格点类型 ----
     lattice, n_clusters, n_mag = detect_lattice(poscar_re, element, args.cluster_cutoff)
     if args.lattice != "auto":
@@ -580,6 +621,20 @@ def main():
     if lat_warn:
         # 走 stderr: --quiet 下 log() 被抑制, 但这条必须让用户看见
         print(f"[warn] {lat_warn}", file=sys.stderr)
+
+    # ---- solve 子命令: 对已算完的 OUTCAR 反解 J (需先跑过 dft 并手动跑 VASP) ----
+    if cmd == "solve":
+        cases = os.path.join(outdir, "02_supercell", "cases")
+        if not os.path.exists(os.path.join(cases, "magnetic_orders.json")):
+            raise SystemExit("solve 需要 02_supercell/cases (先跑 build 或全流水线, 再跑 VASP 填 OUTCAR)")
+        if lattice == "cluster":
+            run("solve_cluster_J.py", [cases], cwd=outdir)
+        elif lattice == "triangular":
+            run("solve_J_tri.py", [cases], cwd=outdir)
+        else:
+            run("solve_J3.py", [cases], cwd=outdir)
+        print(f"\n[run] solve 完成 (lattice={lattice}, cases={cases})")
+        return
 
     mc_poscar = poscar_re
     mc_order = "auto"
@@ -636,8 +691,12 @@ def main():
         raise SystemExit(f"无法处理晶格类型 {lattice!r} ({n_mag} 磁性原子/胞, {n_clusters} 簇); "
                          f"用 --lattice 指定或路由到 comp-chem-workflow 人工处理")
 
+    if cmd == "build":
+        print(f"\n[run] build 完成: 02_supercell/cases (lattice={lattice})")
+        return
+
     # ---- DFT 输入 ----
-    if do_dft and not args.skip_dft:
+    if run_dft and do_dft and not args.skip_dft:
         if render_kind == "triangular":
             run("assemble_dft_tri.py",
                 ["--root", outdir, "--element", element, "--nonmag"] + nonmag +
@@ -648,9 +707,13 @@ def main():
                 ["--species"] + ([element] + nonmag) +
                 ["--U", str(U), "--moment", str(moment)], cwd=outdir)
 
+    if cmd == "dft":
+        print(f"\n[run] dft 完成: 03_dft/ + runs/<order>/ (lattice={lattice})")
+        return
+
     # ---- MC ----
     mc_refine = None
-    if not args.skip_mc:
+    if run_mc and not args.skip_mc:
         os.makedirs(os.path.join(outdir, "05_mc"), exist_ok=True)
         model = os.path.join(outdir, "05_mc", "mc_model.json")
         run("poscar_to_mc3.py",
@@ -688,8 +751,13 @@ def main():
         run("write_hamiltonian.py", [model, "--label", formula or element,
                                      "-o", os.path.join(outdir, "hamiltonian.md")], cwd=outdir)
 
+    if cmd == "mc":
+        print(f"\n[run] mc 完成: 05_mc/mc_mt.csv/.png (lattice={lattice})")
+        _print_summary(outdir, lattice, S, J1, J2, J3, MAE, mc_order, mc_refine, args)
+        return
+
     # ---- render 超胞/磁序图 (蜂窝 / 簇磁体 / 三角) ----
-    if do_render:
+    if run_render and do_render:
         if render_kind == "cluster":
             run("render_cluster_orders.py",
                 ["--root", outdir, "--element", element, "--nonmag"] + nonmag +
@@ -707,32 +775,20 @@ def main():
                  "-o", os.path.join(outdir, "figures", "supercell_orders.png")],
                 cwd=outdir)
 
+    if cmd == "render":
+        print(f"\n[run] render 完成: figures/supercell_orders.png (lattice={lattice})")
+        return
+
     # ---- 7. workflow.md ----
     write_workflow(outdir, formula, element, nonmag, S, moment, U, J1, J2, J3, MAE,
                    args, lit, lattice, mc_refine, lat_warn)
 
+    if cmd == "report":
+        print(f"\n[run] report 完成: workflow.md (lattice={lattice})")
+        return
+
     print("\n[run] 完成。项目目录:", outdir)
-    print(f"      lattice={lattice} | J1={J1} J2={J2} J3={J3} MAE={MAE} meV | S={S}")
-    s = summarize_mc(outdir, mc_order)
-    if s:
-        if mc_refine and mc_refine["rounds"]:
-            s += f" [峰落边界, 已自动缩放重扫 {len(mc_refine['rounds'])} 轮]"
-        print(f"      MC: {s}")
-    if args.fss:
-        _fj = os.path.join(outdir, "05_mc", "fss_fss.json")
-        if os.path.exists(_fj):
-            try:
-                _r = json.load(open(_fj, encoding="utf-8"))
-                if _r.get("tc") is not None:
-                    print(f"      FSS: Binder U4 交点 T_C/T_N ≈ {_r['tc']:.2f} K ± {_r['sd']:.2f} K "
-                          f"(尺寸 {_r['sizes']}, {_r['n_crossings']} 个交点)"
-                          + (f"; collapse {_r['tc_collapse']:.2f} K" if _r.get("tc_collapse") else ""))
-                else:
-                    print("      FSS: 未分辨 (无干净交点, 见 05_mc/fss_fss.csv/.png)")
-            except Exception as e:
-                print(f"      FSS: 读取结果失败 ({e})", file=sys.stderr)
-        else:
-            print("      FSS: 未产生结果文件 (见 05_mc/fss_fss.csv / .png)", file=sys.stderr)
+    _print_summary(outdir, lattice, S, J1, J2, J3, MAE, mc_order, mc_refine, args)
     print(f"      产出: workflow.md, hamiltonian.md, 01_structure/, 02_supercell/, 03_dft/, 05_mc/, figures/")
 
 

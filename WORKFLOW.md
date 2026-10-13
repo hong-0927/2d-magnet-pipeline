@@ -80,6 +80,8 @@ hamiltonian write_hamiltonian.py    生成 <outdir>/hamiltonian.md (Heisenberg �
 
 脚本均在 `scripts/`，可单独调用。`mc_2d.py` 自包含（numpy+numba+matplotlib）。
 
+driver 另支持位置参 `<command>` 分阶段运行：`fetch` / `build` / `dft` / `mc` / `solve` / `render` / `report`。各子命令在阶段边界早退、复用已有产物（如 `mc` 不产 DFT 输入、`report` 不触发 MC/图）；省略 `<command>` 即完整流水线。
+
 ---
 
 ## 5. 目录结构
