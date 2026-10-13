@@ -43,8 +43,17 @@ python scripts/build_fgt_cases.py <monolayer_POSCAR> --outdir Fe3GeTe2_pipeline
 | 材料 | `--element` `--nonmag P S` `--S` `--moment` `--U` |
 | J 值 | `--literature <key>` `--J1` `--J2` `--J3` `--MAE` |
 | 磁性格点 | `--lattice {auto,honeycomb,triangular,cluster}` `--cluster-cutoff` |
-| Monte Carlo | `--mc-size` `--mc-tmin` `--mc-tmax` `--mc-nt` `--mc-refine-nt` `--mc-refine-max` `--no-mc-refine` |
-| 开关 | `--skip-dft` `--skip-mc` `--quiet` `--outdir` |
+| Monte Carlo | `--mc-size` `--mc-tmin` `--mc-tmax` `--mc-nt` `--mc-refine-nt` `--mc-refine-max` `--no-mc-refine` `--mc-seeds` |
+| 开关 | `--skip-dft` `--skip-mc` `--quiet` `--outdir` `--doctor` |
+
+### 元素参数表
+
+`--S` / `--moment` / `--U` 未显式给出时，按磁性元素从内置表兜底（**Mn / Cr / Ni / Co / V**）。Fe 因 Fe²⁺/Fe³⁺/巡游有效自旋三种取值差异太大（S=2/2.5/1）而**故意不列**，须显式给 `--S/--moment`。优先级：显式 CLI > `--literature` 表 > 元素表；落表时会打 stderr 提醒。
+
+### Monte Carlo 输出与误差
+
+- 序参量路径（蜂窝铁磁/Néel 反铁磁）的 `05_mc/mc_mt.csv` 多一列 **Binder 累积量 U₄**（`U₄ = 1 − ⟨M⁴⟩/((1+2/3)⟨M²⟩²)`）：有序 → 0.4、高温无序 → 0。跑多个 `--mc-size`，U₄(T) 的交点即有限尺寸标度定出的 T_C（比单一 χ 峰更稳健）。
+- `--mc-seeds N`（默认 1）跑 N 个独立种子并平均，峰位报 `± 种子间标准差`（误差棒）。
 
 ## 目录结构
 
@@ -82,9 +91,12 @@ python tests/test_fgt_e2e.py      # FGT 双亚晶格反解链路端到端（mock
 ## 路线图
 
 - [x] 硬编码路径清理 + 测试 fixture 内置 + 打包基线（LICENSE/README/requirements/pyproject）
-- [ ] 子命令化（`fetch/build/dft/mc/solve/render/report`）+ `doctor` 环境自检
-- [ ] `--model` 显式化 + 结构 provider 链（COD/OQMD/AFLOW/JARVIS）+ 元素参数表
-- [ ] Binder 累积量 + 有限尺寸标度，给 T_C 误差棒
+- [x] `doctor` 环境自检（`--doctor`）
+- [x] 元素参数表（Mn/Cr/Ni/Co/V 兜底 S/moment/U）+ `--lattice` 显式化
+- [x] Binder U₄ 累积量 + `--mc-seeds` 误差棒
+- [ ] 子命令化（`fetch/build/dft/mc/solve/render/report`）
+- [ ] 结构 provider 链（COD/OQMD/AFLOW/JARVIS）
+- [ ] 自动多尺寸有限尺寸标度（U₄ 交点定位 T_C）
 - [ ] `scripts/` 包化，支持非可编辑 `pip install .`
 
 ## License

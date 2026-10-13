@@ -5,10 +5,13 @@
 自包含: 只依赖 numpy + numba + matplotlib, 不依赖 spin_mc 共享引擎。
   - 自写 nopython 快速 kernel (xorshift64 RNG)。
   - 支持**总磁化** (铁磁, 算 T_C) 与**交错磁化** (反铁磁, 算 T_N) 两种序参量。
+  - 序参量路径额外算 **Binder 累积量 U4** (第 4 列): 有序 -> 0.4, 高温无序 -> 0;
+    不同 --size 的 U4(T) 交点是有限尺寸标度定 T_C 的稳健判据。
+  - --seeds N: 跑 N 个独立种子 (不同初态/MC 状态) 并平均, 报告峰位标准差 (误差棒)。
 
 用法:
   python mc_2d.py model.json --order auto --size 30 30 --tmin 5 --tmax 150 --nt 30 \
-      --therm 2500 --meas 6000 --out out_prefix
+      --therm 2500 --meas 6000 --seeds 5 --out out_prefix
   --order auto: J1<0 -> 交错 (反铁磁), J1>0 -> 总磁化 (铁磁)
 """
 
@@ -22,8 +25,8 @@ from numba import njit
 
 
 # --------------------------------------------------------------------------- lattice
-def build_arrays(model, size):
-    """从 poscar_to_mc3.py 的模型 JSON 直接构建 numba 所需数组。"""
+def build_arrays(model, size, spin_seed=0):
+    """从 poscar_to_mc3.py 的模型 JSON 直接构建 numba 所需数组。spin_seed 只决定初始自旋。"""
     prim = np.array(model["primitive_vectors"], dtype=float)
     basis = [np.array(f, dtype=float) for f in model["basis_frac"]]
     num_basis = len(basis)
@@ -59,7 +62,7 @@ def build_arrays(model, size):
             J_array[i, k] = jm[i][k]
 
     # 随机初始自旋
-    rng = np.random.default_rng(0)
+    rng = np.random.default_rng(spin_seed)
     phi = 2.0 * np.pi * rng.random(N)
     z = 2.0 * rng.random(N) - 1.0
     r = np.sqrt(1.0 - z * z)
@@ -89,6 +92,7 @@ def _run_T_fast(spins, neighbors, J, onsite, T, n_therm, n_meas, num_basis, stat
     beta = 1.0 / (0.08617333262 * T)
     s1 = 0.0
     s2 = 0.0
+    s4 = 0.0
     for it in range(n_therm + n_meas):
         for _ in range(N):
             i = int(_xorshift64(state) * N)
@@ -150,10 +154,19 @@ def _run_T_fast(spins, neighbors, J, onsite, T, n_therm, n_meas, num_basis, stat
                 m = math.sqrt(tx * tx + ty * ty + tz * tz) / N
             s1 += m
             s2 += m * m
+            s4 += m * m * m * m
     mean_m = s1 / n_meas
-    var = s2 / n_meas - mean_m * mean_m
+    m2_mean = s2 / n_meas
+    var = m2_mean - mean_m * mean_m
     chi = var * N / (0.08617 * T)
-    return mean_m, chi
+    # Binder 累积量: U4 = 1 - <M^4> / ((1+2/n) <M^2>^2), n=3 (Heisenberg 序参量)。
+    # M = 序参量模长 |ΣS|/N。有序(低温, M->1) -> 1-3/5 = 0.4; 高温无序(O(3) 高斯) -> 0。
+    # 不同 L 的 U4(T) 交点是有限尺寸标度定 T_C 的稳健判据 (见 --seeds 误差棒与 README)。
+    if m2_mean > 1e-16:
+        u4 = 1.0 - (s4 / n_meas) / ((5.0 / 3.0) * m2_mean * m2_mean)
+    else:
+        u4 = 0.4  # 完全有序极限
+    return mean_m, chi, u4
 
 
 @njit
@@ -228,10 +241,10 @@ def run_sweep(spins, neighbors, J, onsite, T_list, therm, meas, num_basis, order
     state = np.array([np.uint64(seed if seed != 0 else 88172645463325252)], dtype=np.uint64)
     results = []
     for T in T_list:
-        mean_m, chi = _run_T_fast(spins, neighbors, J, onsite, float(T), therm, meas,
-                                  num_basis, state, order)
-        results.append([T, mean_m, chi])
-        print(f"  T={T:6.1f} K | m={mean_m:.4f} | chi={chi:.4f}", flush=True)
+        mean_m, chi, u4 = _run_T_fast(spins, neighbors, J, onsite, float(T), therm, meas,
+                                      num_basis, state, order)
+        results.append([T, mean_m, chi, u4])
+        print(f"  T={T:6.1f} K | m={mean_m:.4f} | chi={chi:.4f} | U4={u4:.4f}", flush=True)
     return np.array(results)
 
 
@@ -258,6 +271,8 @@ def main():
     ap.add_argument("--cool", action="store_true")
     ap.add_argument("--seed", type=int, default=0,
                     help="MC 随机数种子; 0 = 默认 (可复现)。改种子可估计统计误差")
+    ap.add_argument("--seeds", type=int, default=1,
+                    help="独立种子数 N: 跑 N 次不同初态并平均, 报告峰位标准差 (误差棒)")
     ap.add_argument("--out", default=None)
     args = ap.parse_args()
 
@@ -289,8 +304,9 @@ def main():
     print(f"序参量: {kind}")
 
     prefix = args.out or os.path.splitext(os.path.basename(args.model))[0]
-    spins, neighbors, J, onsite, num_basis = build_arrays(model, args.size)
-    N = spins.shape[0]
+    # neighbors/J/onsite/num_basis 与种子无关; 先建一次拿 N/num_basis, 各种子只重建 spins。
+    _spins, neighbors, J, onsite, num_basis = build_arrays(model, args.size, spin_seed=0)
+    N = _spins.shape[0]
     # 单壳层模型 (poscar_to_mc3.py) 有 J1_meV/J2_meV; 多壳层模型 (如 FGT 双亚晶格)
     # 只给 shells_summary 或什么都没有 -> 不能硬取, 否则 KeyError。
     if "J1_meV" in meta:
@@ -305,13 +321,30 @@ def main():
     T_list = np.linspace(args.tmin, args.tmax, args.nt)
     if args.cool:
         T_list = T_list[::-1]
-    if use_cv:
-        res = run_sweep_cv(spins, neighbors, J, onsite, T_list, args.therm, args.meas,
-                           seed=args.seed)
-    else:
-        res = run_sweep(spins, neighbors, J, onsite, T_list, args.therm, args.meas,
-                        num_basis, order, seed=args.seed)
-    res = res[np.argsort(res[:, 0])]
+
+    # 多种子: 每个种子独立初态 + 独立 MC 状态, 事后平均曲线 + 收集峰位 -> 误差棒。
+    n_seeds = max(1, int(args.seeds))
+    all_res = []
+    peaks = {"chi": [], "dm": [], "cv": []}
+    for k in range(n_seeds):
+        spins, _, _, _, _ = build_arrays(model, args.size, spin_seed=args.seed + k)
+        sd = args.seed + k
+        if use_cv:
+            res = run_sweep_cv(spins, neighbors, J, onsite, T_list, args.therm, args.meas,
+                               seed=sd)
+        else:
+            res = run_sweep(spins, neighbors, J, onsite, T_list, args.therm, args.meas,
+                            num_basis, order, seed=sd)
+        res = res[np.argsort(res[:, 0])]
+        all_res.append(res)
+        if use_cv:
+            peaks["cv"].append(res[int(np.argmax(res[:, 2])), 0])
+        else:
+            peaks["chi"].append(res[int(np.argmax(res[:, 2])), 0])
+            peaks["dm"].append(res[int(np.argmax(-np.gradient(res[:, 1], res[:, 0]))), 0])
+    res = np.mean(np.stack(all_res), axis=0)
+    if n_seeds > 1:
+        print(f">>> 已平均 {n_seeds} 个独立种子 (初态/MC 状态各不同)")
 
     if use_cv:
         fn = f"{prefix}_mt.csv"
@@ -325,10 +358,13 @@ def main():
                   f"这是窗口截断/网格跨过窄峰的假象, 请收窄 --tmin/--tmax、加密 --nt "
                   f"(低于 T_N 启动时再加 --cool)")
         else:
-            print(f">>> 比热 Cv 峰处 T_N ≈ {cv_peak:.2f} K")
+            msg = f">>> 比热 Cv 峰处 T_N ≈ {cv_peak:.2f} K"
+            if n_seeds > 1:
+                msg += f" ± {np.std(peaks['cv']):.2f} K ({n_seeds} 种子峰位标准差)"
+            print(msg)
     else:
         fn = f"{prefix}_mt.csv"
-        np.savetxt(fn, res, delimiter=",", header="T_Kelvin,order_param,Susceptibility",
+        np.savetxt(fn, res, delimiter=",", header="T_Kelvin,order_param,Susceptibility,Binder_U4",
                    comments="")
         print(f"\n>>> 数据存至 {fn}")
         i_chi = int(np.argmax(res[:, 2]))
@@ -336,10 +372,14 @@ def main():
         i_dm = int(np.argmax(dm))
         chi_peak, tn_dm = res[i_chi, 0], res[i_dm, 0]
         chi_edge, dm_edge = i_chi in (0, len(res) - 1), i_dm in (0, len(res) - 1)
-        print(f">>> 磁化率峰处 T ≈ {chi_peak:.2f} K"
+        se = (lambda name: f" ± {np.std(peaks[name]):.2f} K ({n_seeds} 种子峰位标准差)"
+              if n_seeds > 1 else "")
+        print(f">>> 磁化率峰处 T ≈ {chi_peak:.2f} K{se('chi')}"
               + (" [warn] 落在窗口边界 → 未分辨" if chi_edge else ""))
-        print(f">>> |dm/dT| 最大处 T ≈ {tn_dm:.2f} K"
+        print(f">>> |dm/dT| 最大处 T ≈ {tn_dm:.2f} K{se('dm')}"
               + (" [warn] 落在窗口边界 → 未分辨" if dm_edge else ""))
+        print(f">>> Binder U4 见第 4 列: 有序 -> 0.4, 高温无序 -> 0; "
+              f"不同 --size 的 U4(T) 交点是有限尺寸标度定 T_C 的稳健判据")
         if chi_edge or dm_edge:
             print(">>> [warn] 峰判据落在温度窗口边界: 请收窄 --tmin/--tmax、加密 --nt "
                   "(低温侧加 --cool); 该值不能当作 T_C/T_N")
@@ -348,8 +388,8 @@ def main():
         import matplotlib
         matplotlib.use("Agg")
         import matplotlib.pyplot as plt
-        fig, ax1 = plt.subplots(figsize=(6.5, 4.5))
         if use_cv:
+            fig, ax1 = plt.subplots(figsize=(6.5, 4.5))
             ax1.plot(res[:, 0], res[:, 1], "o-", color="tab:blue", label="E/N (meV)")
             ax1.set_xlabel("T (K)")
             ax1.set_ylabel("energy per site", color="tab:blue")
@@ -363,10 +403,10 @@ def main():
                 else f"$T_N\\approx${cv_peak:.0f} K"
             ax1.set_title(f"{meta['element']} MC (Cv)  ({t_lbl})")
         else:
+            fig, (ax1, ax3) = plt.subplots(2, 1, figsize=(6.5, 6.5), sharex=True)
             ylab = "staggered $m_{stag}$" if order == 1 else "magnetization $M$"
             tc_label = "T_N" if order == 1 else "T_C"
             ax1.plot(res[:, 0], res[:, 1], "o-", color="tab:blue", label=ylab)
-            ax1.set_xlabel("T (K)")
             ax1.set_ylabel(ylab, color="tab:blue")
             ax1.tick_params(axis="y", labelcolor="tab:blue")
             ax2 = ax1.twinx()
@@ -377,6 +417,12 @@ def main():
             t_lbl = (f"{tc_label} unresolved (peak at window edge)" if chi_edge
                      else f"${{{tc_label}}}\\approx${chi_peak:.0f} K")
             ax1.set_title(f"{meta['element']} honeycomb MC  ({t_lbl})")
+            # Binder 累积量子图 (有限尺寸标度判据): 有序 -> 0.4, 无序 -> 0
+            ax3.plot(res[:, 0], res[:, 3], "^-", color="tab:green", label="Binder $U_4$")
+            ax3.axhline(0.4, color="gray", ls=":", lw=0.8)
+            ax3.set_xlabel("T (K)")
+            ax3.set_ylabel("Binder $U_4$")
+            ax3.grid(alpha=0.3)
         ax1.grid(alpha=0.3)
         png = f"{prefix}_mt.png"
         fig.savefig(png, dpi=150, bbox_inches="tight")

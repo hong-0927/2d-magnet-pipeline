@@ -22,7 +22,7 @@
   python run_2d_magnet.py --formula VI3 --element V --nonmag I --S 1.0 --moment 2.0 --U 3.0 \
       --J1 -1.0 --J2 -0.1 --J3 0.0 --MAE 0.2
 
-参数优先级: 显式 CLI 参数 > --literature 表 > 默认。
+参数优先级: 显式 CLI 参数 > --literature 表 > 元素表 ELEMENT_PARAMS (按磁性元素兜底 S/moment/U) > 默认。
 """
 import argparse
 import json
@@ -38,6 +38,18 @@ SCRIPTS = os.path.join(HERE, "scripts")
 LIT = os.path.join(HERE, "literature_J.json")
 
 QUIET = False
+
+# 常用磁性离子的经验默认参数: S (自旋), moment (磁矩初猜 μB), U (DFT+U 加在 d 轨道, eV)。
+# 仅在「显式 CLI 未给」且「--literature 条目未提供」时作为兜底; 任一显式值都优先。
+# U 是经验典型值(非材料本征量), 详见 README「元素参数表」。Fe 故意不列: Fe2+/Fe3+/巡游
+# 有效自旋三种取值差异太大 (S=2/2.5/1), 兜底反而会静默给出错误物理, 须显式给 --S/--moment。
+ELEMENT_PARAMS = {
+    "Mn": {"S": 2.5, "moment": 5.0, "U": 4.0},   # Mn2+ 高自旋 3d5
+    "Cr": {"S": 1.5, "moment": 3.0, "U": 3.0},   # Cr3+ 3d3
+    "Ni": {"S": 1.0, "moment": 2.0, "U": 5.0},   # Ni2+ 3d8
+    "Co": {"S": 1.5, "moment": 3.0, "U": 3.3},   # Co2+ 高自旋 3d7
+    "V":  {"S": 1.0, "moment": 2.0, "U": 3.0},   # V3+ 3d2
+}
 
 
 def log(*a, **k):
@@ -62,6 +74,71 @@ def run(pyfile, args, cwd=None):
         if r.returncode != 0:
             print(f"[FAIL] {pyfile} 退出码 {r.returncode}", file=sys.stderr)
             sys.exit(r.returncode)
+
+
+def doctor():
+    """环境自检 (--doctor): python 版本 / 依赖包 / 脚本 / 文献表 / MP key / CWD 写权限。
+
+    返回 True 表示全部通过; 任何缺依赖/缺脚本/不可写都返回 False (exit 1), 便于 CI 里 `&&` 短路。
+    """
+    import importlib
+    ok = True
+
+    def line(good, msg):
+        nonlocal ok
+        if not good:
+            ok = False
+        print(("  [OK]   " if good else "  [WARN] ") + msg)
+
+    print(f"python : {sys.version.split()[0]}   ({sys.executable})")
+    line(sys.version_info >= (3, 9),
+         f"Python >= 3.9 (当前 {sys.version.split()[0]})")
+    for pkg in ("numpy", "numba", "matplotlib", "requests"):
+        try:
+            m = importlib.import_module(pkg)
+            line(True, f"{pkg} {getattr(m, '__version__', '?')}")
+        except Exception:
+            line(False, f"缺少依赖 {pkg} -> pip install -r requirements.txt")
+
+    need = ["reorient.py", "mc_2d.py", "poscar_to_mc3.py", "write_hamiltonian.py",
+            "build_magnetic_cases3.py", "build_cluster_cases.py",
+            "build_magnetic_cases_tri.py", "mp_fetch_2d.py"]
+    miss = [s for s in need if not os.path.exists(os.path.join(SCRIPTS, s))]
+    line(not miss, "scripts/ 关键脚本齐全" if not miss else f"缺脚本: {miss}")
+
+    if os.path.exists(LIT):
+        try:
+            with open(LIT, encoding="utf-8") as f:
+                tab = json.load(f)
+            line(True, f"literature_J.json: {len(tab)} 条 ({', '.join(tab.keys())})")
+        except Exception as e:
+            line(False, f"literature_J.json 解析失败: {e}")
+    else:
+        line(False, f"literature_J.json 不存在: {LIT}")
+
+    # MP key 与 fixtures 是条件项 (非硬失败): 缺 MP key 只挡 fetch, 缺 fixtures 只挡回归测试。
+    key = os.environ.get("MP_API_KEY")
+    if key:
+        line(True, "MP_API_KEY 已设置")
+    else:
+        print("  [INFO] MP_API_KEY 未设置 (仅 --poscar 可用; 下载结构需 --mp-key)")
+
+    fx = os.path.join(HERE, "tests", "fixtures")
+    if os.path.isdir(fx):
+        line(True, "tests/fixtures/ 存在 (回归测试可用)")
+    else:
+        print("  [INFO] tests/fixtures/ 缺失 (回归测试会跳过)")
+
+    probe = os.path.join(os.getcwd(), "._doctor_probe")
+    try:
+        with open(probe, "w", encoding="utf-8") as f:
+            f.write("x")
+        os.remove(probe)
+        line(True, f"CWD 可写 ({os.getcwd()})")
+    except Exception as e:
+        line(False, f"CWD 不可写 ({os.getcwd()}): {e}")
+
+    return ok
 
 
 def peak_report(csv):
@@ -106,7 +183,7 @@ def zoom_window(pk, floor=0.1):
     return lo, hi
 
 
-def refine_mc_peak(outdir, model, mc_order, size, nt, max_rounds, enabled=True):
+def refine_mc_peak(outdir, model, mc_order, size, nt, max_rounds, enabled=True, seeds=1):
     """峰判据落在温度窗口边界时自动缩放窗口 + 加密重扫 (退火), 直到峰落进窗口内部。
 
     这是修一个真实缺陷: 默认窗口 5–150 K / nt=30 → 格距 5 K, 会**整个跨过**只有几 K 宽的
@@ -143,6 +220,7 @@ def refine_mc_peak(outdir, model, mc_order, size, nt, max_rounds, enabled=True):
             f"第 {r} 轮缩放重扫 [{lo:.2f}, {hi:.2f}] K, nt={nt}, 退火")
         run("mc_2d.py", [model, "--order", mc_order, "--size"] + [str(x) for x in size] +
             ["--tmin", f"{lo:.4f}", "--tmax", f"{hi:.4f}", "--nt", str(nt),
+             "--seeds", str(seeds),
              "--cool", "--out", os.path.join(outdir, "05_mc", "mc")], cwd=outdir)
         pk2 = peak_report(csv)
         if pk2 is None:
@@ -332,11 +410,18 @@ def main():
                     help="峰判据落在窗口边界时, 最多自动缩放重扫轮数 (默认 3)")
     ap.add_argument("--no-mc-refine", action="store_true",
                     help="关闭「峰落边界自动缩放重扫」(只声明未分辨, 不重跑)")
+    ap.add_argument("--mc-seeds", type=int, default=1,
+                    help="MC 独立种子数 (误差棒): 峰位 ± 种子间标准差 (默认 1 = 关闭)")
     ap.add_argument("--skip-dft", action="store_true")
     ap.add_argument("--skip-mc", action="store_true")
     ap.add_argument("--quiet", action="store_true",
                     help="静默模式: 抑制子进程输出, 只回显错误/警告 + 结尾摘要")
+    ap.add_argument("--doctor", action="store_true",
+                    help="环境自检 (python/依赖/脚本/文献表/MP key/写权限) 后退出")
     args = ap.parse_args()
+
+    if args.doctor:
+        sys.exit(0 if doctor() else 1)
 
     global QUIET
     QUIET = args.quiet
@@ -367,6 +452,22 @@ def main():
     J2 = pick(args.J2, "J2", 0.0)
     J3 = pick(args.J3, "J3", 0.0)
     MAE = pick(args.MAE, "MAE", 0.0)
+
+    # 元素参数表兜底: 显式 CLI > 文献表 > 元素表 (ELEMENT_PARAMS)。落表时打 stderr 提醒,
+    # 免得静默给出默认物理参数 (S/moment/U 都可被 --S/--moment/--U 覆盖)。
+    ep = ELEMENT_PARAMS.get(element) if element else None
+    if ep:
+        filled = []
+        if S is None and "S" in ep:
+            S = ep["S"]; filled.append("S")
+        if moment is None and "moment" in ep:
+            moment = ep["moment"]; filled.append("moment")
+        if U is None and "U" in ep:
+            U = ep["U"]; filled.append("U")
+        if filled:
+            print(f"[params] {element} 的 {', '.join(filled)} 未显式给出 -> 元素表默认 "
+                  f"S={S}, moment={moment}, U={U} (用 --S/--moment/--U 覆盖)",
+                  file=sys.stderr)
 
     missing = [k for k, v in [("--element", element), ("--S", S), ("--moment", moment),
                               ("--U", U), ("--J1", J1)] if v is None]
@@ -514,11 +615,12 @@ def main():
         run("mc_2d.py", [model, "--order", mc_order,
                          "--size"] + [str(x) for x in args.mc_size] +
             ["--tmin", str(args.mc_tmin), "--tmax", str(args.mc_tmax), "--nt", str(args.mc_nt),
+             "--seeds", str(args.mc_seeds),
              "--cool", "--out", os.path.join(outdir, "05_mc", "mc")], cwd=outdir)
         # 峰判据落窗口边界 (网格跨过窄峰) -> 自动缩放 + 加密重扫, 免得把边界值当 T_C/T_N
         mc_refine = refine_mc_peak(outdir, model, mc_order, args.mc_size,
                                    args.mc_refine_nt, args.mc_refine_max,
-                                   enabled=not args.no_mc_refine)
+                                   enabled=not args.no_mc_refine, seeds=args.mc_seeds)
         # 附带 MC 脚本到 05_mc/, 使每条流水线可脱离主仓独立重跑 MC
         ship = ["mc_2d.py", "poscar_to_mc3.py", "write_hamiltonian.py"]
         if lattice == "cluster":
