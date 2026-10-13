@@ -27,7 +27,8 @@ import numpy as np
 
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SCRIPTS = os.path.join(HERE, "scripts")
-FGT_CASES = r"C:\Users\吴\Desktop\项目\Fe3GeTe2_pipeline\02_supercell\cases"
+FGT_CASES = os.environ.get(
+    "MAGNET_FGT_CASES", os.path.join(HERE, "tests", "fixtures", "fgt_cases"))
 
 fails = []
 # 子进程统一用 UTF-8 输出、父进程统一按 UTF-8 解码: 免得在中文 Windows 上

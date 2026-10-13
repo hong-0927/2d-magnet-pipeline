@@ -48,8 +48,13 @@ import cluster_sites as CS  # noqa: E402
 from run_2d_magnet import (detect_lattice, multi_sublattice_warning, peak_report,  # noqa: E402
                            summarize_mc, write_workflow, zoom_window)
 
-MNPS3 = r"C:\Users\吴\Desktop\项目\MnPS3_pipeline\01_structure\POSCAR"
-NB3I8 = r"C:\Users\吴\Desktop\项目\Nb3I8_pipeline\01_structure\POSCAR"
+FIXTURES = os.environ.get("MAGNET_FIXTURES", os.path.join(HERE, "tests", "fixtures"))
+MNPS3 = os.path.join(FIXTURES, "MnPS3_POSCAR")
+NB3I8 = os.path.join(FIXTURES, "Nb3I8_POSCAR")
+
+for _name, _path in (("MnPS3", MNPS3), ("Nb3I8", NB3I8)):
+    if not os.path.exists(_path):
+        sys.exit("[skip] 缺少测试 fixture: %s (仓库应自带 tests/fixtures/, 或设 MAGNET_FIXTURES 指向)" % _path)
 
 fails = []
 

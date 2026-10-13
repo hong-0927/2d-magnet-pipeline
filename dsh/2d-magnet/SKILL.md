@@ -6,18 +6,18 @@ description: >-
   monolayer, starting from a Materials Project structure or a POSCAR. Use
   whenever the user wants 磁耦合常数 / 磁交换 / J1 J2 J3 / 磁性 Monte Carlo /
   居里温度 Curie / Néel 温度 / 二维磁体 / 铁磁 / 反铁磁 / 超胞磁序 / 海森堡哈密顿.
-  Drives run_2d_magnet.py (--quiet) in C:\Users\吴\Desktop\项目\2d_magnet_pipeline.
+  Drives run_2d_magnet.py (--quiet) from the pipeline root (paths below are repo-relative).
 ---
 
 # 2D 磁体：结构 → 磁耦合 J → Monte Carlo
 
-单入口是 `run_2d_magnet.py`（已封装，勿手写脚本）。流水线根目录
-`C:\Users\吴\Desktop\项目\2d_magnet_pipeline\`，脚本在 `scripts\`，说明在 `WORKFLOW.md`。
+单入口是 `run_2d_magnet.py`（已封装，勿手写脚本）。流水线根目录 `<repo>`（本 SKILL.md 所在目录的
+上两级），脚本在 `<repo>\scripts\`，说明在 `WORKFLOW.md`。
 
 **命令封装**（Windows cmd，自动带 `--quiet`）：
-`C:\Users\吴\Desktop\项目\2d_magnet_pipeline\dsh\bin\2d-magnet.cmd`
-等价于 `python "<root>\run_2d_magnet.py" --quiet <args>`。Python 需有 numpy/numba/matplotlib
-（Anaconda `C:\ProgramData\anaconda3\python.exe` 与 dsh 自带 Python 均满足）。
+`<repo>\dsh\bin\2d-magnet.cmd`
+等价于 `python "<repo>\run_2d_magnet.py" --quiet <args>`。Python 需 numpy/numba/matplotlib/requests
+（`pip install -r requirements.txt` 即可；`.cmd` 会按 `%MAGNET_PYTHON%` → `python` → `py` 顺序找解释器）。
 
 ## 跑之前先定三件事
 
@@ -33,7 +33,7 @@ description: >-
 ## 命令
 
 ```powershell
-cd C:\Users\吴\Desktop\项目\2d_magnet_pipeline
+cd <repo>
 
 # 文献 J（已核实）
 python run_2d_magnet.py --quiet --formula MnPS3 --literature MnPS3
@@ -105,7 +105,7 @@ driver 会往 **stderr 打警告**（`--quiet` 下同样可见），并在 `work
 + `README_mc_literature_J.md`）。整套目录可整体拷走，不依赖 `2d_magnet_pipeline`：
 
 ```powershell
-cd C:\Users\吴\Desktop\项目\Fe3GeTe2_pipeline\05_mc
+cd <outdir>\05_mc
 # 1) 建模型: A=Fe I@2c / B=Fe II@4e x2 自动识别, 按「距离+配对」把 Kim 2026 的 J1..J4
 #    映射到实测壳层, 共 28 根键/胞; 自检 Σ(-J_mat) = +185.28 meV/胞 => 全 FM 基态 -61.76 meV/格点
 python build_fgt_mc_model.py ..\01_structure\POSCAR -o fgt_mc_model_mae.json --mae 1.05

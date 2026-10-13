@@ -102,12 +102,13 @@ def min_image(d, lat):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("poscar",
-                    default=r"C:\Users\吴\Desktop\项目\Fe3GeTe2_pipeline\01_structure\POSCAR",
-                    nargs="?")
+                    help="单层原胞 POSCAR (必须含两个 Fe 亚晶格: 1 个 2c + 2 个 4e)")
     ap.add_argument("--supercell", type=int, nargs=3, default=[3, 3, 1],
                     help="默认 3x3: 2x2 (边长 8 A) 会让 ~4 A 的同亚晶格键**别名坍缩** -> J3/J4 少算")
-    ap.add_argument("--outdir", default=r"C:\Users\吴\Desktop\项目\Fe3GeTe2_pipeline")
-    ap.add_argument("--root", default=r"C:\Users\吴\Desktop\项目\Fe3GeTe2_pipeline")
+    ap.add_argument("--outdir", default=os.path.abspath("Fe3GeTe2_pipeline"),
+                    help="项目目录 (默认 ./Fe3GeTe2_pipeline)")
+    ap.add_argument("--root", default=None,
+                    help="产物根目录 (默认 == --outdir)")
     ap.add_argument("--element", default="Fe")
     ap.add_argument("--nonmag", nargs="+", default=["Ge", "Te"])
     ap.add_argument("--moment", type=float, default=2.0, help="每个 Fe 的初始磁矩 (muB)")
@@ -117,6 +118,8 @@ def main():
     ap.add_argument("--shells", nargs="+", default=["J1", "J2", "J3", "J4"],
                     help="纳入反解的壳 (默认 J1..J4; 加 J5 需要更多磁态)")
     args = ap.parse_args()
+    if args.root is None:
+        args.root = args.outdir
 
     lat, atoms, frac, species, counts = parse_poscar(args.poscar)
     sc = tuple(args.supercell)

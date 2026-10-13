@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "2d-magnet-pipeline"
+version = "0.1.0"
+description = "2D magnetic monolayer: structure -> exchange coupling J -> Monte Carlo critical temperature (T_C/T_N)"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [{ name = "吴思泓" }]
+keywords = ["2d-magnets", "magnetism", "Heisenberg", "Monte Carlo", "exchange coupling", "DFT"]
+dependencies = [
+    "numpy>=1.24",
+    "numba>=0.59",
+    "matplotlib>=3.7",
+    "requests>=2.31",
+]
+
+[project.scripts]
+2d-magnet = "run_2d_magnet:main"
+
+[tool.setuptools]
+# 只暴露主入口模块; scripts/ 由 run_2d_magnet.py 相对 __file__ 定位, 因此
+# `2d-magnet` 命令需要**可编辑安装** (`pip install -e .`), 否则用 `python run_2d_magnet.py` 直接跑。
+py-modules = ["run_2d_magnet"]

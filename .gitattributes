@@ -1,0 +1,6 @@
+# 统一行尾: Python/Markdown/JSON 在仓库与检出均用 LF; Windows batch 用 CRLF。
+* text=auto eol=lf
+*.cmd text eol=crlf
+*.bat text eol=crlf
+*.png binary
+*.pptx binary

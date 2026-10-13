@@ -2,14 +2,14 @@
 
 给一个二维磁性材料的化学式，自动完成：**Materials Project 下载结构 → 层对齐 → 超胞/四磁态 → 磁耦合常数 J(J1/J2/J3) 能量映射 → 经典 Heisenberg Monte Carlo 临界温度 (T_C / T_N)**。
 
-> 从 `MnPS3_pipeline` 抽象而来（它是已验证实例）；继承了 `CrBr3_pipeline` 的参数化脚本与 `mp_2d` 的下载脚本。之前的 CrI3/CrBr3 流水线只支持 J1/J2 + 铁磁总磁化，本框架扩展了 **J3** 与 **反铁磁交错序参量**，并把 MC 引擎重写成自包含版本（不再依赖 `Desktop\MnSTe_repro`）。
+> 从 `MnPS3_pipeline` 抽象而来（它是已验证实例）；继承了 `CrBr3_pipeline` 的参数化脚本与 `mp_2d` 的下载脚本。之前的 CrI3/CrBr3 流水线只支持 J1/J2 + 铁磁总磁化，本框架扩展了 **J3** 与 **反铁磁交错序参量**，并把 MC 引擎重写成自包含版本（不再依赖外部 `MnSTe_repro` 仓库）。
 
 ---
 
 ## 1. 一句话运行
 
 ```powershell
-cd C:\Users\吴\Desktop\项目\2d_magnet_pipeline
+cd <repo>
 
 # 已收录文献 J 的材料（如 MnPS3）—— 最简：
 python run_2d_magnet.py --formula MnPS3 --literature MnPS3 --mp-key <MP_API_KEY>
@@ -113,7 +113,7 @@ hamiltonian write_hamiltonian.py    生成 <outdir>/hamiltonian.md (Heisenberg �
 | `solve_J3.py` | CrBr3 `solve_J.py` | J1/J2→J1/J2/J3 |
 | `render_supercell.py` | CrBr3 `render_supercell.py` | 加多非磁元素 + J1/J2/J3 壳分色/系数标注 |
 | `assemble_dft.py` | CrBr3 `assemble_runs.py` 重写 | 参数化 U/LDAUL/物种 |
-| `poscar_to_mc3.py` | MnPS3（源 `Desktop\MnSTe_repro`） | 加 J3 + 修 bug |
+| `poscar_to_mc3.py` | MnPS3（源外部 `MnSTe_repro` 仓库） | 加 J3 + 修 bug |
 | `mc_2d.py` | 新写 | 自包含 MC + 铁磁/反铁磁序参量 |
 | `write_hamiltonian.py` | 新写 | 模型 JSON -> `hamiltonian.md` (海森堡哈密顿卡片) |
 | `reorient.py` | 新写 | 修 MP 层法线/真空缺口 |
