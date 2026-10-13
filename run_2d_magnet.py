@@ -34,8 +34,29 @@ import sys
 import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-SCRIPTS = os.path.join(HERE, "scripts")
-LIT = os.path.join(HERE, "literature_J.json")
+
+
+def _scripts_dir():
+    """定位 scripts/ 目录, 三种运行方式都能找到脚本:
+
+    1. 非可编辑 `pip install .`: scripts 是 site-packages 里的真包, `import scripts` 命中;
+    2. 可编辑安装: setuptools 把 scripts 映射回源码目录, 同样命中;
+    3. 源码树直跑 (`python run_2d_magnet.py`): sys.path[0] = 脚本所在目录 = 仓库根, 命中仓库 scripts/。
+    以 `mc_2d.py` 作标记校验, 避免 `scripts` 这个通用名撞上环境里无关的同名包;
+    校验失败 (或删了 scripts/__init__.py 且不在仓库里跑) 才回退 __file__ 同目录。
+    """
+    try:
+        import scripts as _pkg
+        _d = os.path.dirname(os.path.abspath(_pkg.__file__))
+        if os.path.exists(os.path.join(_d, "mc_2d.py")):
+            return _d
+    except Exception:
+        pass
+    return os.path.join(HERE, "scripts")
+
+
+SCRIPTS = _scripts_dir()
+LIT = os.path.join(SCRIPTS, "literature_J.json")
 
 QUIET = False
 

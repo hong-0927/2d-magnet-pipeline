@@ -89,9 +89,10 @@ driver 另支持位置参 `<command>` 分阶段运行：`fetch` / `build` / `dft
 ```
 2d_magnet_pipeline/
 ├── run_2d_magnet.py     # 单入口 driver
-├── literature_J.json    # 已核实文献 J 表（MnPS3 已验证）
 ├── WORKFLOW.md          # 本文件
 └── scripts/
+    ├── __init__.py      # 使 scripts/ 可作包安装 (非可编辑 pip install . 也能定位脚本)
+    ├── literature_J.json # 已核实文献 J 表（MnPS3 已验证）
     ├── mp_fetch_2d.py   / reorient.py / standardize_cell.py
     ├── build_magnetic_cases3.py / solve_J3.py
     ├── poscar_to_mc3.py / mc_2d.py (--order cv 比热判据)

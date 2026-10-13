@@ -32,7 +32,7 @@ python scripts/build_fgt_cases.py <monolayer_POSCAR> --outdir Fe3GeTe2_pipeline
 ## 安装
 
 - **Python 3.9+**（`numba` 兼容性），依赖见 [requirements.txt](requirements.txt)。
-- 可选：`pip install -e .`（**可编辑**安装）得到 `2d-magnet` 命令。`scripts/` 由入口相对定位，因此只支持可编辑安装；否则直接用 `python run_2d_magnet.py`。
+- 可选：`pip install .`（或 `pip install -e .`）得到 `2d-magnet` 命令。`scripts/` 已包化（含 `literature_J.json`），非可编辑安装后入口也能通过 `import scripts` 定位脚本；否则直接用 `python run_2d_magnet.py`。
 - Windows 封装：`dsh/bin/2d-magnet.cmd`（自动带 `--quiet`；解释器查找顺序 `%MAGNET_PYTHON%` → `python` → `py`）。
 
 ## CLI 参考（节选，完整见 `python run_2d_magnet.py --help`）
@@ -92,9 +92,9 @@ python scripts/build_fgt_cases.py <monolayer_POSCAR> --outdir Fe3GeTe2_pipeline
 2d_magnet_pipeline/
   run_2d_magnet.py        # 主入口（单文件驱动整个流水线）
   scripts/                # 各阶段 + 分模型解算器（solve_J3 / solve_cluster_J / solve_fgt_J / ...）
+                          #   __init__.py 使其可作包安装; literature_J.json 已迁入此处作为包数据
   dsh/2d-magnet/SKILL.md  # agent skill
   dsh/bin/2d-magnet.cmd   # Windows 封装
-  literature_J.json       # 已核实文献 J 表（含符号约定说明）
   tests/                  # smoke_test.py + test_fgt_e2e.py（fixtures/ 内置，无外部路径依赖）
   WORKFLOW.md             # 阶段与脚本来源说明
 ```
@@ -128,7 +128,7 @@ python tests/test_fgt_e2e.py      # FGT 双亚晶格反解链路端到端（mock
 - [x] 自动多尺寸有限尺寸标度（U₄ 交点定位 T_C）
 - [x] 结构 provider 链（COD/OQMD/AFLOW/JARVIS）
 - [x] 子命令化（`fetch/build/dft/mc/solve/render/report`）
-- [ ] `scripts/` 包化，支持非可编辑 `pip install .`
+- [x] `scripts/` 包化，支持非可编辑 `pip install .`
 
 ## License
 

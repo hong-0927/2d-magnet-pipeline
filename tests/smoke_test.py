@@ -46,8 +46,9 @@ sys.path.insert(0, HERE)
 
 import cluster_sites as CS  # noqa: E402
 import fetch_structure as FS  # noqa: E402
-from run_2d_magnet import (detect_lattice, multi_sublattice_warning, peak_report,  # noqa: E402
-                           summarize_mc, write_workflow, zoom_window)
+from run_2d_magnet import (SCRIPTS as DRV_SCRIPTS, _scripts_dir, detect_lattice,  # noqa: E402
+                           multi_sublattice_warning, peak_report, summarize_mc,
+                           write_workflow, zoom_window)
 
 FIXTURES = os.environ.get("MAGNET_FIXTURES", os.path.join(HERE, "tests", "fixtures"))
 MNPS3 = os.path.join(FIXTURES, "MnPS3_POSCAR")
@@ -345,6 +346,16 @@ try:
     check("sub: report 不跑 MC (05_mc 不存在)", not os.path.exists(os.path.join(td, "05_mc")))
 finally:
     shutil.rmtree(td, ignore_errors=True)
+
+# ---- 11. scripts/ 包化: _scripts_dir() 定位脚本 + 文献表 ----
+check("pack: _scripts_dir 命中 (含 mc_2d.py)",
+      os.path.exists(os.path.join(DRV_SCRIPTS, "mc_2d.py")))
+check("pack: _scripts_dir 与源码 scripts/ 一致", DRV_SCRIPTS == SCRIPTS)
+_lit = os.path.join(DRV_SCRIPTS, "literature_J.json")
+check("pack: literature_J.json 在 scripts/ 内", os.path.exists(_lit))
+if os.path.exists(_lit):
+    _tab = json.load(open(_lit, encoding="utf-8"))
+    check("pack: literature_J.json 可解析且含 MnPS3", "MnPS3" in _tab)
 
 print("\n全部通过" if not fails else f"\n{len(fails)} 个失败: {fails}")
 sys.exit(1 if fails else 0)

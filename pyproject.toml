@@ -22,6 +22,10 @@ dependencies = [
 2d-magnet = "run_2d_magnet:main"
 
 [tool.setuptools]
-# 只暴露主入口模块; scripts/ 由 run_2d_magnet.py 相对 __file__ 定位, 因此
-# `2d-magnet` 命令需要**可编辑安装** (`pip install -e .`), 否则用 `python run_2d_magnet.py` 直接跑。
+# run_2d_magnet.py 作为顶层模块安装; scripts/ 作为普通包一起装 (含 literature_J.json),
+# 因此非可编辑 `pip install .` 后 `2d-magnet` 命令也能通过 `import scripts` 定位脚本。
 py-modules = ["run_2d_magnet"]
+packages = ["scripts"]
+
+[tool.setuptools.package-data]
+scripts = ["*.json"]
