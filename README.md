@@ -39,7 +39,7 @@ python scripts/build_fgt_cases.py <monolayer_POSCAR> --outdir Fe3GeTe2_pipeline
 
 | 组 | 参数 |
 |---|---|
-| 结构来源 | `--formula` `--mp-id` `--poscar` `--mp-key` |
+| 结构来源 | `--formula` `--mp-id` `--poscar` `--mp-key` `--provider {auto,mp,cod,oqmd,aflow,jarvis}` |
 | 材料 | `--element` `--nonmag P S` `--S` `--moment` `--U` |
 | J 值 | `--literature <key>` `--J1` `--J2` `--J3` `--MAE` |
 | 磁性格点 | `--lattice {auto,honeycomb,triangular,cluster}` `--cluster-cutoff` |
@@ -49,6 +49,10 @@ python scripts/build_fgt_cases.py <monolayer_POSCAR> --outdir Fe3GeTe2_pipeline
 ### 元素参数表
 
 `--S` / `--moment` / `--U` 未显式给出时，按磁性元素从内置表兜底（**Mn / Cr / Ni / Co / V**）。Fe 因 Fe²⁺/Fe³⁺/巡游有效自旋三种取值差异太大（S=2/2.5/1）而**故意不列**，须显式给 `--S/--moment`。优先级：显式 CLI > `--literature` 表 > 元素表；落表时会打 stderr 提醒。
+
+### 结构 provider 链
+
+`--provider`（默认 `auto`）选择结构来源：`mp` 走 Materials Project（需 `--mp-key`，会剥单层）；`cod` / `oqmd` / `aflow` / `jarvis` 走公开 REST 接口（**无需 key**，返回体相结构，之后由 `reorient` + `standardize` 处理）。`auto` 先试 MP（有 key 时），失败自动回退 `cod → oqmd → aflow → jarvis`。实现见 `scripts/fetch_structure.py`（CIF/OPTIMADE/AFLUX → POSCAR 三个纯函数转换器 + 可 mock 的 HTTP 层）。说明：这些公开端点可能随时间调整，解析为 best-effort；无网络或全部失败时须 `--poscar` 自带单层 POSCAR。
 
 ### Monte Carlo 输出与误差
 
@@ -89,7 +93,7 @@ python tests/test_fgt_e2e.py      # FGT 双亚晶格反解链路端到端（mock
 
 ## 已知局限
 
-1. 结构下载当前只走 Materials Project（无 key 时须自备 POSCAR）；部分材料 MP 没有（如 Fe₃GeTe₂），需手动建层。
+1. 结构下载走 Materials Project（`--provider mp`，需 key，会剥单层）或公开 provider 链（`cod/oqmd/aflow/jarvis`，无 key，返回体相）。部分材料所有库都没有（如 Fe₃GeTe₂ 的 MP 三元空间为 0 条），需手动建层用 `--poscar`。
 2. **磁性格点分类是纯几何判据**（近邻 < `--cluster-cutoff` 就并簇）。连通的多亚晶格铁磁网络（FGT 类）与真分子簇（Nb₃I₈ 类）签名可能相同，会被误判——driver 会打 stderr 警告但**不改路由**，请人工确认。
 3. `--J1` 为正向 MC 的必需输入；未核实文献条目（`literature_J.json` 里 `null`）会明确报错而非硬跑。
 4. MC 的 T_C/T_N 取比热峰 `argmax(Cv)`；峰落在温度窗口边界时**不再把边界值当结果**，而是显式「未分辨」并自动缩放重扫（`--mc-refine-*`）。
@@ -104,8 +108,8 @@ python tests/test_fgt_e2e.py      # FGT 双亚晶格反解链路端到端（mock
 - [x] 元素参数表（Mn/Cr/Ni/Co/V 兜底 S/moment/U）+ `--lattice` 显式化
 - [x] Binder U₄ 累积量 + `--mc-seeds` 误差棒
 - [x] 自动多尺寸有限尺寸标度（U₄ 交点定位 T_C）
+- [x] 结构 provider 链（COD/OQMD/AFLOW/JARVIS）
 - [ ] 子命令化（`fetch/build/dft/mc/solve/render/report`）
-- [ ] 结构 provider 链（COD/OQMD/AFLOW/JARVIS）
 - [ ] `scripts/` 包化，支持非可编辑 `pip install .`
 
 ## License

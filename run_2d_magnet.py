@@ -76,6 +76,34 @@ def run(pyfile, args, cwd=None):
             sys.exit(r.returncode)
 
 
+def try_mp_fetch(outdir, formula, mp_id):
+    """跑 mp_fetch_2d.py (MP 下载 + 剥单层); 成功返回选中 POSCAR 路径, 失败返回 None (不退出)。"""
+    fetch_dir = os.path.join(outdir, "_fetch_tmp")
+    os.makedirs(fetch_dir, exist_ok=True)
+    # mp_fetch_2d.py 固定写脚本同目录 structures/ + candidates.csv; 复制到临时目录运行
+    shutil.copy(os.path.join(SCRIPTS, "mp_fetch_2d.py"), fetch_dir)
+    fa = [os.path.join(fetch_dir, "mp_fetch_2d.py")]
+    if mp_id:
+        fa += ["fetch", "--ids", mp_id]
+    else:
+        fa += ["fetch", "--formula", formula]
+    log("\n$", " ".join([sys.executable] + fa))
+    kw = {"capture_output": True, "text": True} if QUIET else {}
+    try:
+        r = subprocess.run([sys.executable] + fa, cwd=fetch_dir, **kw)
+    except Exception as e:  # noqa: BLE001
+        print(f"[fetch] MP 运行异常: {e}", file=sys.stderr)
+        return None
+    if r.returncode != 0:
+        print(f"[fetch] MP 退出码 {r.returncode}: {(r.stderr or r.stdout or '')[-300:]}", file=sys.stderr)
+        return None
+    try:
+        return pick_structure(os.path.join(fetch_dir, "structures"), formula, mp_id)
+    except SystemExit as e:
+        print(f"[fetch] MP 选结构失败: {e}", file=sys.stderr)
+        return None
+
+
 def doctor():
     """环境自检 (--doctor): python 版本 / 依赖包 / 脚本 / 文献表 / MP key / CWD 写权限。
 
@@ -374,6 +402,8 @@ def main():
     ap.add_argument("--mp-id", help="指定 MP material_id (覆盖自动挑选)")
     ap.add_argument("--poscar", help="已有单层 POSCAR (跳过下载)")
     ap.add_argument("--mp-key", default=None, help="MP_API_KEY (默认读环境变量)")
+    ap.add_argument("--provider", choices=["auto", "mp", "cod", "oqmd", "aflow", "jarvis"],
+                    default="auto", help="结构来源 provider (auto=MP 优先, 失败回退 cod→oqmd→aflow→jarvis)")
     # 材料/方法参数
     ap.add_argument("--element", help="磁性元素, 如 Mn")
     ap.add_argument("--nonmag", nargs="+", help="非磁元素, 如 P S")
@@ -490,38 +520,50 @@ def main():
 
     # ---- 1. fetch ----
     os.makedirs(os.path.join(outdir, "01_structure"), exist_ok=True)
+    poscar_mp = os.path.join(outdir, "01_structure", "POSCAR.mp")
     if args.poscar:
         src_poscar = os.path.abspath(args.poscar)
         log(f"[fetch] 跳过下载, 用 {src_poscar}")
+        shutil.copy(src_poscar, poscar_mp)
     else:
         if args.mp_key:
             os.environ["MP_API_KEY"] = args.mp_key
-        if "MP_API_KEY" not in os.environ:
-            raise SystemExit("未设置 MP_API_KEY; 用 --mp-key 或环境变量")
-        fetch_dir = os.path.join(outdir, "_fetch_tmp")
-        os.makedirs(fetch_dir, exist_ok=True)
-        # mp_fetch_2d.py 固定写脚本同目录 structures/ + candidates.csv; 复制到临时目录运行
-        shutil.copy(os.path.join(SCRIPTS, "mp_fetch_2d.py"), fetch_dir)
-        fa = [os.path.join(fetch_dir, "mp_fetch_2d.py")]
-        if args.mp_id:
-            fa += ["fetch", "--ids", args.mp_id]
-        else:
-            fa += ["fetch", "--formula", formula]
-        log("\n$", " ".join([sys.executable] + fa))
-        if QUIET:
-            r = subprocess.run([sys.executable] + fa, cwd=fetch_dir, capture_output=True, text=True)
-            if r.returncode != 0:
-                print(f"[FAIL] mp_fetch_2d.py 退出码 {r.returncode}\n{r.stdout}{r.stderr}", file=sys.stderr)
-                sys.exit(r.returncode)
-            if r.stderr and r.stderr.strip():
-                print(r.stderr.rstrip(), file=sys.stderr)
-        else:
-            r = subprocess.run([sys.executable] + fa, cwd=fetch_dir)
-            if r.returncode != 0:
-                sys.exit(r.returncode)
-        struct_dir = os.path.join(fetch_dir, "structures")
-        src_poscar = pick_structure(struct_dir, formula, args.mp_id)
-    shutil.copy(src_poscar, os.path.join(outdir, "01_structure", "POSCAR.mp"))
+        provider = args.provider
+        got = False
+
+        # 1) Materials Project (需 key; 会剥单层)。--provider mp/auto 时先试。
+        if provider in ("auto", "mp"):
+            if "MP_API_KEY" in os.environ:
+                src_poscar = try_mp_fetch(outdir, formula, args.mp_id)
+                if src_poscar:
+                    shutil.copy(src_poscar, poscar_mp)
+                    got = True
+                    log("[fetch] Materials Project 成功")
+                else:
+                    log("[fetch] MP 失败, 回退其他 provider")
+            else:
+                log("[fetch] 无 MP_API_KEY, 跳过 MP (用 --mp-key, 或 --provider cod/oqmd/aflow/jarvis)")
+            if provider == "mp" and not got:
+                raise SystemExit("MP provider 失败 (需 --mp-key 且 MP 里存在该结构)")
+
+        # 2) 其他 provider 链 (COD/OQMD/AFLOW/JARVIS, 无 key)。
+        if not got:
+            chain = ["cod", "oqmd", "aflow", "jarvis"] if provider == "auto" else [provider]
+            for p in chain:
+                if p == "mp":
+                    continue
+                log(f"[fetch] 试 {p} ...")
+                r = subprocess.run([sys.executable, os.path.join(SCRIPTS, "fetch_structure.py"),
+                                    formula, "--provider", p, "--out", poscar_mp],
+                                   capture_output=True, text=True)
+                if r.returncode == 0 and os.path.exists(poscar_mp):
+                    log(f"[fetch] {p} 成功")
+                    got = True
+                    break
+                print(f"[fetch] {p} 失败: {(r.stderr or r.stdout or '').strip()[-200:]}", file=sys.stderr)
+            if not got:
+                raise SystemExit("所有结构 provider 均失败; 用 --poscar 自带单层 POSCAR, "
+                                 "或 --provider mp 配 --mp-key")
 
     # ---- 2. reorient ----
     run("reorient.py", [os.path.join(outdir, "01_structure", "POSCAR.mp"),

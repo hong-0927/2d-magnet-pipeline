@@ -45,6 +45,7 @@ sys.path.insert(0, SCRIPTS)
 sys.path.insert(0, HERE)
 
 import cluster_sites as CS  # noqa: E402
+import fetch_structure as FS  # noqa: E402
 from run_2d_magnet import (detect_lattice, multi_sublattice_warning, peak_report,  # noqa: E402
                            summarize_mc, write_workflow, zoom_window)
 
@@ -245,6 +246,81 @@ try:
     check("mc_fss: 写出 fss_fss.csv", os.path.exists(os.path.join(td, "fss_fss.csv")))
 finally:
     shutil.rmtree(td, ignore_errors=True)
+
+# ---- 9. fetch_structure.py: CIF/OPTIMADE/AFLOW -> POSCAR + provider 链 ----
+# 9a. CIF -> POSCAR (NaCl: 2 不对称位 x 4 对称操作 -> 4 Na + 4 Cl)
+_naCl_cif = """data_test
+_cell_length_a 5.0
+_cell_length_b 5.0
+_cell_length_c 5.0
+_cell_angle_alpha 90.0
+_cell_angle_beta 90.0
+_cell_angle_gamma 90.0
+loop_
+_atom_site_type_symbol
+_atom_site_fract_x
+_atom_site_fract_y
+_atom_site_fract_z
+Na 0.0 0.0 0.0
+Cl 0.5 0.5 0.5
+loop_
+_symmetry_equiv_pos_as_xyz
+'x,y,z'
+'x+1/2,y+1/2,z'
+'x+1/2,y,z+1/2'
+'x,y+1/2,z+1/2'
+"""
+_p9 = FS.cif_to_poscar(_naCl_cif, "NaCl")
+check("fetch: CIF->POSCAR 含物种行 Na Cl", "Na  Cl" in _p9)
+check("fetch: CIF->POSCAR 对称展开 8 原子", "Direct" in _p9
+      and sum(1 for l in _p9.splitlines()[8:] if l.strip()) == 8)
+
+# 9b. OPTIMADE -> POSCAR (MnS, 面心式)
+_p9b = FS.optimade_to_poscar(
+    {"lattice_vectors": [[4.0, 0, 0], [0, 4.0, 0], [0, 0, 4.0]],
+     "cartesian_site_positions": [[0, 0, 0], [2.0, 2.0, 2.0]],
+     "species_at_sites": ["Mn", "S"], "nelements": 2}, "MnS")
+check("fetch: OPTIMADE->POSCAR 分数坐标 0.5", "0.500000000000" in _p9b)
+
+# 9c. AFLOW -> POSCAR
+_p9c = FS.aflow_to_poscar(
+    {"lattice": [[4.0, 0, 0], [0, 4.0, 0], [0, 0, 4.0]],
+     "atom_names": ["Mn", "S"],
+     "positions_fractional": [[0.0, 0.0, 0.0], [0.5, 0.5, 0.5]]}, "MnS")
+check("fetch: AFLOW->POSCAR 物种 Mn S", _p9c.count("\n") >= 7 and "Mn  S" in _p9c)
+
+# 9d. provider 链 (mock HTTP, 不触网)
+class _Resp:
+    def __init__(self, text=None, js=None):
+        self._text, self._js = text, js
+
+    def json(self):
+        return self._js
+
+    @property
+    def text(self):
+        return self._text
+
+    def raise_for_status(self):
+        pass
+
+
+def _fake_get(url, **kw):
+    if "result.php" in url:
+        return _Resp(js=[{"file": "test.cif"}])
+    if url.endswith("test.cif"):
+        return _Resp(text=_naCl_cif)
+    raise RuntimeError("unexpected url " + url)
+
+
+_p9d_name, _p9d_poscar = FS.fetch_chain("NaCl", providers=["cod"], _get=_fake_get)
+check("fetch: 链 mock 命中 cod", _p9d_name == "cod" and "Na  Cl" in _p9d_poscar)
+# 链全失败 -> 抛 RuntimeError (含各 provider 错误)
+try:
+    FS.fetch_chain("Xx", providers=["cod", "oqmd"], _get=lambda u, **k: (_ for _ in ()).throw(RuntimeError("down")))
+    check("fetch: 链全失败应抛错", False)
+except RuntimeError as e:
+    check("fetch: 链全失败抛错含 cod/oqmd", "cod:" in str(e) and "oqmd:" in str(e))
 
 print("\n全部通过" if not fails else f"\n{len(fails)} 个失败: {fails}")
 sys.exit(1 if fails else 0)

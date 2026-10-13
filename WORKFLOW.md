@@ -21,6 +21,9 @@ python run_2d_magnet.py --formula VI3 --element V --nonmag I --S 1.0 --moment 2.
 # 已有 POSCAR（跳过下载）：
 python run_2d_magnet.py --poscar my.vasp --element Cr --nonmag I --S 1.5 --moment 3.0 --U 3.0 `
     --J1 2.4 --J2 0.6
+
+# 无 MP key，改用公开 provider 链（COD/OQMD/AFLOW/JARVIS，返回体相）：
+python run_2d_magnet.py --formula MnPS3 --literature MnPS3 --provider cod
 ```
 
 输出到 `<公式>_pipeline/`（`--outdir` 可改）：`workflow.md`、`hamiltonian.md`（顶层海森堡哈密顿卡片）、`01_structure/`、`02_supercell/`、`03_dft/`、`05_mc/`（含自包含的 `mc_2d.py` + `poscar_to_mc3.py` + `write_hamiltonian.py`）、`figures/`。
@@ -59,6 +62,7 @@ python run_2d_magnet.py --poscar my.vasp --element Cr --nonmag I --S 1.5 --momen
 
 ```
 fetch      mp_fetch_2d.py           MP 下载 + 剥单层（取 hull 最小的候选）
+           fetch_structure.py       结构 provider 链: COD/OQMD/AFLOW/JARVIS (--provider, 无 key, CIF/OPTIMADE/AFLUX -> POSCAR)
 reorient   reorient.py              层法线对齐 z + 加真空（修 MP 单斜/紧胞缺口）
 standardize standardize_cell.py     紧凑胞标准化（把胞内两磁性原子变成最近邻；MP 原胞可能非紧凑，如 CrI3 的 8.05 Å）
 supercell  build_magnetic_cases3.py 2×2×1 超胞 + 四磁态 + J1/J2/J3 系数
