@@ -12,6 +12,8 @@ import argparse
 import os
 import shutil
 
+from element_data import ldaul_for
+
 
 def read_species_counts(poscar_path):
     lines = [ln for ln in open(poscar_path, encoding="utf-8").read().splitlines() if ln.strip()]
@@ -23,7 +25,7 @@ def read_species_counts(poscar_path):
 def build_incar(species, counts, element, U, moment, encut, npar=4):
     total_mag = counts[species.index(element)] if element in species else 0
     n_nonmag = sum(counts) - total_mag
-    ldaul = " ".join("2" if s == element else "-1" for s in species)
+    ldaul = " ".join(ldaul_for(s) if s == element else "-1" for s in species)
     ldauu = " ".join(f"{U:.1f}" if s == element else "0.0" for s in species)
     ldauj = " ".join("0.0" for _ in species)
     return f"""SYSTEM   = {" ".join(species)} monolayer triangular magnetic order

@@ -294,6 +294,6 @@ J 来源、MAE、有限尺寸、单层 vs 体相、U/k 网格假设；三角/簇
 另：**4f 磁体（Gd²⁺ S=7/2，如 GdI₂）不是新晶格类型，走既有三角分支**。GdI₂ 单层是 2H-TaS₂ 型，
 三角 Gd 亚晶格（单层胞 1 Gd），`detect_lattice` 正确判 `triangular`。但交换机制与 3d 超交换不同 ——
 层内铁磁交换经 Gd 的 5d 巡游电子中介（double-exchange 类似），比纯超交换强，单层 T_C≈241 K（GdI₂, MC）。
-Heisenberg 模型仍适用（S=7/2 近乎纯自旋），但 **J 必须来自 DFT 反解**（4f 需 DFT+U `LDAUL=3`，`--U 6.0`
-只是经验假设值）；已加 Gd 元素表兜底（S=3.5/moment=7.0/U=6.0）+ `--model gdi2` 预设 + `literature_J.json`
+Heisenberg 模型仍适用（S=7/2 近乎纯自旋），但 **J 必须来自 DFT 反解**（4f 自动加 `LDAUL=3`，组装脚本按元素
+判 d/f 轨道；`--U 6.0` 只是经验假设值）；已加 Gd 元素表兜底（S=3.5/moment=7.0/U=6.0）+ `--model gdi2` 预设 + `literature_J.json`
 GdI₂ 条目（J 留 null 待核实）。

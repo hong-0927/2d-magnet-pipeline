@@ -34,6 +34,8 @@ from itertools import product
 
 import numpy as np
 
+from element_data import ldaul_for
+
 
 # ---------- POSCAR / supercell ----------
 
@@ -198,7 +200,7 @@ def q_pattern(q, cell_coords):
 def build_incar_static(species, counts, element, U, moment, encut, npar=4):
     nm = counts[species.index(element)]
     n_nonmag = sum(counts) - nm
-    ldaul = " ".join("2" if s == element else "-1" for s in species)
+    ldaul = " ".join(ldaul_for(s) if s == element else "-1" for s in species)
     ldauu = " ".join(f"{U:.1f}" if s == element else "0.0" for s in species)
     ldauj = " ".join("0.0" for _ in species)
     return f"""SYSTEM   = {" ".join(species)} monolayer cluster magnet order

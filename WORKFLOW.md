@@ -43,7 +43,7 @@ python run_2d_magnet.py --formula MnPS3 --literature MnPS3 --provider cod
 | `--nonmag` | 非磁元素（可多个，空格分隔） | `P S` |
 | `--S` | 自旋大小 | `2.5`（Mn²⁺ 5/2） |
 | `--moment` | 磁矩初猜 μB | `5.0` |
-| `--U` | DFT+U 加磁性元素 d 轨道 (eV) | `5.0` |
+| `--U` | DFT+U 加磁性元素 d 轨道（f 块元素自动用 f，eV） | `5.0` |
 | `--J1/--J2/--J3` | 交换常数 meV，约定 `H = -J S·S`（J>0 铁磁） | `-0.79/-0.04/-0.23` |
 | `--MAE` | 单离子各向异性 meV（默认 0） | `0.0` |
 
@@ -99,6 +99,7 @@ driver 另支持位置参 `<command>` 分阶段运行：`fetch` / `build` / `dft
 ├── WORKFLOW.md          # 本文件
 └── scripts/
     ├── __init__.py      # 使 scripts/ 可作包安装 (非可编辑 pip install . 也能定位脚本)
+    ├── element_data.py  # f 块元素表 + ldaul_for()：组装脚本按元素判 DFT+U 轨道 (d=2/f=3)
     ├── literature_J.json # 已核实文献 J 表（MnPS3 已验证）
     ├── mp_fetch_2d.py   / reorient.py / standardize_cell.py
     ├── build_magnetic_cases3.py / solve_J3.py

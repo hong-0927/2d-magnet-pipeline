@@ -29,6 +29,8 @@ from itertools import product
 
 import numpy as np
 
+from element_data import ldaul_for
+
 # 壳层定义: (标签, 配对, 距离 A, 描述)  —— 顺序即 J1..J5
 SHELL_DEF = [
     ("J1", "AB", 2.63, "A-B 最近邻 (主体铁磁耦合)"),
@@ -334,7 +336,7 @@ def main():
     # --- DFT 输入 ---
     dft = os.path.join(args.outdir, "03_dft")
     os.makedirs(dft, exist_ok=True)
-    ldaul = " ".join("2" if s == args.element else "-1" for s in species)
+    ldaul = " ".join(ldaul_for(s) if s == args.element else "-1" for s in species)
     ldauu = " ".join(f"{args.U:.1f}" if s == args.element else "0.0" for s in species)
     ldauj = " ".join("0.0" for _ in species)
 
