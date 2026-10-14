@@ -73,5 +73,20 @@
     "MAE": 0.0,
     "ground_state": "fm",
     "source": "Ke Yang & Hua Wu, Phys. Rev. B 104, 144416 (2021) = arXiv:2108.02418. 矩形晶格(正交 Pmmn, 单层 a=3.54/b=4.76 A), 距离壳升序: J1=a轴 2.79 / J2=b轴 2.12 / J3=对角(|a+b|) 3.88 meV, 全铁磁. 论文原始命名 J1=对角/J2=a/J3=b, 已按距离壳升序重排. 单层 FM T_C≈175 K (理论 MC) / 146 K (实验 SHG), 体相 A 型反铁磁 T_N=132 K. MAE 三轴(易轴 b, ~16-34 ueV/Cr) 单轴 MAE 不适用, 留 0.0."
+  },
+  "GdI2": {
+    "_note": "⚠ 4f 磁体, 交换机制与 3d 超交换不同。Gd2+ 4f7(8S, S=7/2) 磁矩近乎纯自旋, 层内铁磁交换经 Gd 的 5d 巡游电子中介 (double-exchange 类似, You&Dong ACS AEM 2022), 比纯超交换强。J 未核实: 留 null, 由流水线落到默认 0.0 并提示, 真实 J 须跑 VASP+solve 反解 (单层 MC T_C≈241 K 对应的最近邻 J1 量级约 +0.3 meV)。MAE 易轴垂直于膜面 (~0.5 meV/Gd), 单轴近似适用故填 0.5。体相 A 型反铁磁, 单层铁磁。",
+    "formula": "GdI2",
+    "element": "Gd",
+    "nonmag": ["I"],
+    "S": 3.5,
+    "moment": 7.0,
+    "U": 6.0,
+    "J1": null,
+    "J2": null,
+    "J3": null,
+    "MAE": 0.5,
+    "ground_state": "fm",
+    "source": "You, Ding, Chen, Yao & Dong, ACS Appl. Electron. Mater. (2022) arXiv:2205.08666 (GdX2 单层铁磁, 4f-5d 巡游中介); Mater. Horiz. 7, 2303 (2020) DOI:10.1039/D0MH00183J (单层 T_C≈241 K, MC); PRB 103, 125121 (2021) (ferrovalley, 垂直 MAE). 结构: 2H-TaS2 型, 三角 Gd 亚晶格 (单层胞 1 Gd), 体相同构于 2H-TaS2 (Maitra cond-mat/0511327)."
   }
 }

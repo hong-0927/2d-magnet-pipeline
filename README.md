@@ -45,7 +45,7 @@ python scripts/build_fgt_cases.py <monolayer_POSCAR> --outdir Fe3GeTe2_pipeline
 | 组 | 参数 |
 |---|---|
 | 结构来源 | `--formula` `--mp-id` `--poscar` `--mp-key` `--provider {auto,mp,cod,oqmd,aflow,jarvis}` |
-| 命名预设 | `--model {mnps3,cri3,crbr3,fe3gete2,crsbr}` |
+| 命名预设 | `--model {mnps3,cri3,crbr3,fe3gete2,crsbr,gdi2}` |
 | 材料 | `--element` `--nonmag P S` `--S` `--moment` `--U` |
 | J 值 | `--literature <key>` `--J1` `--J2` `--J3` `--MAE` |
 | 磁性格点 | `--lattice {auto,honeycomb,triangular,cluster,rectangular}` `--cluster-cutoff` `--rect-supercell` |
@@ -63,12 +63,13 @@ python scripts/build_fgt_cases.py <monolayer_POSCAR> --outdir Fe3GeTe2_pipeline
 | `crbr3` | CrBr₃ 蜂窝铁磁 | honeycomb | 1.5 / 3.0 / 3.0 |
 | `fe3gete2` | Fe₃GeTe₂（⚠ 巡游铁磁金属，会被几何判据误判成 cluster） | cluster | 1.0 / 2.0 / 4.0 |
 | `crsbr` | CrSBr 矩形晶格铁磁（正交 a≠b，三项各向异性 FM 交换） | rectangular | 1.5 / 3.0 / 4.0 |
+| `gdi2` | GdI₂ 三角铁磁（Gd²⁺ 4f7 S=7/2，4f-5d 巡游中介交换，单层 T_C≈241 K） | triangular | 3.5 / 7.0 / 6.0 |
 
 优先级：显式 CLI > `--model` 预设 > `--literature` 表 > 元素表。`--model` 自带的文献 J 只作**参考**（数量级 sanity-check），落到文献值时会在 stderr 打印 `[ref]` 声明，workflow.md 也会标注「文献参考、非本项目计算」；**真实 J 须跑 VASP + `solve` 反解，或用 `--J1/--J2/--J3` 显式给定**。VASP 侧始终只**导出**输入（`03_dft/` + `runs/<order>/`，含 INCAR/KPOINTS/POTCAR.spec/POSCAR），不替用户提交作业。
 
 ### 元素参数表
 
-`--S` / `--moment` / `--U` 未显式给出时，按磁性元素从内置表兜底（**Mn / Cr / Ni / Co / V**）。Fe 因 Fe²⁺/Fe³⁺/巡游有效自旋三种取值差异太大（S=2/2.5/1）而**故意不列**，须显式给 `--S/--moment`。优先级：显式 CLI > `--model` 预设 > `--literature` 表 > 元素表；落表时会打 stderr 提醒。
+`--S` / `--moment` / `--U` 未显式给出时，按磁性元素从内置表兜底（**Mn / Cr / Ni / Co / V / Gd**）。Fe 因 Fe²⁺/Fe³⁺/巡游有效自旋三种取值差异太大（S=2/2.5/1）而**故意不列**，须显式给 `--S/--moment`。优先级：显式 CLI > `--model` 预设 > `--literature` 表 > 元素表；落表时会打 stderr 提醒。
 
 ### 结构 provider 链
 

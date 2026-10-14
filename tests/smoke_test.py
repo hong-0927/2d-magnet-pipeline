@@ -53,8 +53,9 @@ FIXTURES = os.environ.get("MAGNET_FIXTURES", os.path.join(HERE, "tests", "fixtur
 MNPS3 = os.path.join(FIXTURES, "MnPS3_POSCAR")
 NB3I8 = os.path.join(FIXTURES, "Nb3I8_POSCAR")
 CRSBR = os.path.join(FIXTURES, "CrSBr_POSCAR")
+GDI2 = os.path.join(FIXTURES, "GdI2_POSCAR")
 
-for _name, _path in (("MnPS3", MNPS3), ("Nb3I8", NB3I8), ("CrSBr", CRSBR)):
+for _name, _path in (("MnPS3", MNPS3), ("Nb3I8", NB3I8), ("CrSBr", CRSBR), ("GdI2", GDI2)):
     if not os.path.exists(_path):
         sys.exit("[skip] 缺少测试 fixture: %s (仓库应自带 tests/fixtures/, 或设 MAGNET_FIXTURES 指向)" % _path)
 
@@ -447,6 +448,35 @@ try:
 finally:
     shutil.rmtree(td14, ignore_errors=True)
     shutil.rmtree(td14 + "_drv", ignore_errors=True)
+
+# ---- 15. 4f 磁体 (GdI2, 三角) ----
+check("model: 含 gdi2 预设", "gdi2" in MODEL_PRESETS)
+check("model: gdi2 lattice=triangular (4f 磁体不是新晶格类型)",
+      MODEL_PRESETS["gdi2"]["lattice"] == "triangular")
+check("model: gdi2 与文献条目一致 (element/S/moment/U)",
+      MODEL_PRESETS["gdi2"]["element"] == "Gd" and MODEL_PRESETS["gdi2"]["S"] == 3.5
+      and MODEL_PRESETS["gdi2"]["moment"] == 7.0 and MODEL_PRESETS["gdi2"]["U"] == 6.0)
+_lit = json.load(open(os.path.join(SCRIPTS, "literature_J.json"), encoding="utf-8"))
+check("lit: literature_J.json 含 GdI2 (ground_state=fm, J 未核实留 null)",
+      "GdI2" in _lit and _lit["GdI2"]["ground_state"] == "fm" and _lit["GdI2"]["J1"] is None)
+
+_lat15, _ncl15, _nmag15 = detect_lattice(GDI2, "Gd")
+check("gdi2: detect_lattice -> triangular (1 磁原子/胞)",
+      _lat15 == "triangular" and _nmag15 == 1)
+
+td15 = mktmp("_tmp_gdi2_")
+try:
+    drv = os.path.join(HERE, "run_2d_magnet.py")
+    r15 = run(sys.executable, drv, "build", "--model", "gdi2", "--J1", "0.33",
+               "--poscar", GDI2, "--outdir", td15)
+    check("gdi2: driver build --model gdi2 退出 0", r15.returncode == 0)
+    check("gdi2: driver 判 [lattice] triangular", "[lattice] triangular" in r15.stdout)
+    _mo = os.path.join(td15, "02_supercell", "cases", "magnetic_orders.json")
+    check("gdi2: cases 四态 fm/120deg/stripy_a/stripy_ab",
+          os.path.exists(_mo) and set(json.load(open(_mo, encoding="utf-8"))["selected_orders"])
+          == {"fm", "120deg", "stripy_a", "stripy_ab"})
+finally:
+    shutil.rmtree(td15, ignore_errors=True)
 
 print("\n全部通过" if not fails else f"\n{len(fails)} 个失败: {fails}")
 sys.exit(1 if fails else 0)

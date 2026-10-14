@@ -70,6 +70,7 @@ ELEMENT_PARAMS = {
     "Ni": {"S": 1.0, "moment": 2.0, "U": 5.0},   # Ni2+ 3d8
     "Co": {"S": 1.5, "moment": 3.0, "U": 3.3},   # Co2+ 高自旋 3d7
     "V":  {"S": 1.0, "moment": 2.0, "U": 3.0},   # V3+ 3d2
+    "Gd": {"S": 3.5, "moment": 7.0, "U": 6.0},   # Gd2+ 4f7 (S=7/2); 4f 磁矩, DFT+U 需 LDAUL=3 (与 3d 元素不同)
 }
 
 # 命名模型预设: `--model <key>` 一键设定 {化学式, 磁性元素, 非磁元素, 晶格类型, S, moment, U}。
@@ -111,6 +112,12 @@ MODEL_PRESETS = {
         "literature": "CrSBr",
         "desc": "矩形铁磁, Cr3+ S=3/2 (Yang&Wu PRB 104,144416 (2021): 距离壳升序 "
                 "J1(a)=2.79/J2(b)=2.12/J3(对角)=3.88 meV, 单层 T_C≈175 K)",
+    },
+    "gdi2": {
+        "formula": "GdI2", "element": "Gd", "nonmag": ["I"],
+        "lattice": "triangular", "S": 3.5, "moment": 7.0, "U": 6.0,
+        "literature": "GdI2",
+        "desc": "三角铁磁, Gd2+ 4f7 S=7/2 (4f-5d 巡游中介交换, 单层 T_C≈241 K; J 需 DFT 反解)",
     },
 }
 

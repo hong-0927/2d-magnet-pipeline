@@ -25,7 +25,7 @@ description: >-
    - 蜂窝（原胞 2 磁原子）→ 全链；三角（1 磁原子）→ 含 120° 非共线；簇（成簇）→ 簇模型；
      **矩形（正交 a≠b，如 CrSBr/CrSCl）→ 矩形分支**（4 共线态 fm/afm_a/afm_b/afm_diag，见专节）。
    - ⚠ **仍会误判的**：**多亚晶格铁磁网络**（Fe₃GeTe₂/Fe₃GaTe₂/Fe₅GeTe₂ 类）会被**误判成「簇」**（见专节）。
-   - 自旋 S / 磁矩 μB：Mn²⁺ S=5/2、Cr³⁺ S=3/2、Fe²⁺ S=2；簇用簇净自旋。
+   - 自旋 S / 磁矩 μB：Mn²⁺ S=5/2、Cr³⁺ S=3/2、Fe²⁺ S=2、Gd²⁺ S=7/2（4f7，见局限第 10 条）；簇用簇净自旋。
      **FGT 类不要套 Fe²⁺ 默认值**（不等价 Fe 位，磁矩/J 都须来自文献或自算）。
 2. **J 从哪来**：文献（`literature_J.json`，目前仅 MnPS3 核实）、用户给定、或跑 DFT 反解。
 3. **MP_API_KEY**：`--formula` 下载需要（环境变量 `MP_API_KEY` 或 `--mp-key`）；已有 POSCAR 用 `--poscar` 跳过。
@@ -291,3 +291,9 @@ J 来源、MAE、有限尺寸、单层 vs 体相、U/k 网格假设；三角/簇
 另：**矩形晶格铁磁（CrSBr/CrSCl 类）已有独立分支**（`detect_lattice` 先查 a⊥b 且 a≠b → `rectangular`），
 走 `build_rectangular_cases.py`（4 共线态）+ `solve_J_rect.py`；注意 J 按**距离壳升序**给（J1=a 轴 2.79 / J2=b 轴 2.12 / J3=对角 3.88），
 与论文原始命名（J1=对角）不同，别照抄。
+另：**4f 磁体（Gd²⁺ S=7/2，如 GdI₂）不是新晶格类型，走既有三角分支**。GdI₂ 单层是 2H-TaS₂ 型，
+三角 Gd 亚晶格（单层胞 1 Gd），`detect_lattice` 正确判 `triangular`。但交换机制与 3d 超交换不同 ——
+层内铁磁交换经 Gd 的 5d 巡游电子中介（double-exchange 类似），比纯超交换强，单层 T_C≈241 K（GdI₂, MC）。
+Heisenberg 模型仍适用（S=7/2 近乎纯自旋），但 **J 必须来自 DFT 反解**（4f 需 DFT+U `LDAUL=3`，`--U 6.0`
+只是经验假设值）；已加 Gd 元素表兜底（S=3.5/moment=7.0/U=6.0）+ `--model gdi2` 预设 + `literature_J.json`
+GdI₂ 条目（J 留 null 待核实）。
