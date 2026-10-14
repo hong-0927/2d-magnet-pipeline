@@ -37,7 +37,7 @@ python run_2d_magnet.py --formula MnPS3 --literature MnPS3 --provider cod
 
 | 参数 | 含义 | 例 (MnPS3) |
 |---|---|---|
-| `--model` | 命名预设，一键设定下方 element/nonmag/lattice/S/moment/U（`mnps3/cri3/crbr3/fe3gete2`） | `mnps3` |
+| `--model` | 命名预设，一键设定下方 element/nonmag/lattice/S/moment/U（`mnps3/cri3/crbr3/fe3gete2/crsbr`） | `mnps3` |
 | `--formula` | MP 化学式 | `MnPS3` |
 | `--element` | 磁性元素 | `Mn` |
 | `--nonmag` | 非磁元素（可多个，空格分隔） | `P S` |
@@ -74,6 +74,7 @@ standardize standardize_cell.py     紧凑胞标准化（把胞内两磁性原�
 supercell  build_magnetic_cases3.py 2×2×1 超胞 + 四磁态 + J1/J2/J3 系数
           build_cluster_cases.py   簇磁体：fm+波矢态 + J_intra/J1/J2/J3
           build_magnetic_cases_tri.py 三角：fm + 120°非共线 + stripy/uud + J1/J2/J3
+          build_rectangular_cases.py 矩形：fm/afm_a/afm_b/afm_diag 四共线 + J1/J2/J3 (距离壳升序)
 dft        assemble_dft.py / assemble_dft_tri.py  生成 INCAR/KPOINTS/POTCAR.spec + runs/<order>/ (三角用非共线)
 mc         poscar_to_mc3.py + mc_2d.py  建模型 + Heisenberg MC（自写 fast kernel）
            之后 driver 自己再判一次峰位: 峰落在温度窗口首/末格点 (= 窗口截断或网格跨过窄峰)
@@ -111,6 +112,8 @@ driver 另支持位置参 `<command>` 分阶段运行：`fetch` / `build` / `dft
     ├── assemble_dft_tri.py # 三角：非共线 INCAR (LNONCOLLINEAR) + runs
     ├── solve_J_tri.py # 三角：OUTCAR -> J1/J2/J3
     ├── render_tri_orders.py # 三角：磁序俯视图 (120° 矢量箭头)
+    ├── build_rectangular_cases.py # 矩形(CrSBr/CrSCl)：超胞 + 四共线态(fm/afm_a/afm_b/afm_diag) + J1/J2/J3 映射
+    ├── solve_J_rect.py     # 矩形：OUTCAR -> J1/J2/J3（距离壳升序, 对齐 build_rectangular_cases --selftest）
     ├── build_fgt_cases.py # **双亚晶格铁磁网络 (Fe3GeTe2/Fe3GaTe2 类)**：超胞(默认 3x3, 含别名自检)
     │                      #   + 磁序枚举 + 系数矩阵 + 逐原子 MAGMOM 的 INCAR/KPOINTS/runs + 俯视图 + 哈密顿卡片
     ├── solve_fgt_J.py     # **双亚晶格反解**：各磁态总能量 -> J1..J4 + E0（`--demo` 自检, 应 PASS）
@@ -140,6 +143,7 @@ driver 另支持位置参 `<command>` 分阶段运行：`fetch` / `build` / `dft
 | `assemble_dft_tri.py` | 新写 | 三角：非共线 INCAR (LNONCOLLINEAR) + runs |
 | `solve_J_tri.py` | 新写 | 三角：OUTCAR -> J1/J2/J3 |
 | `render_tri_orders.py` | 新写 | 三角：磁序俯视图 (120° 矢量箭头) |
+| `build_rectangular_cases.py` / `solve_J_rect.py` | 新写（本仓, 2026-10） | 矩形晶格铁磁（CrSBr/CrSCl 类）：4 共线态 fm/afm_a/afm_b/afm_diag 枚举 + 系数矩阵 + OUTCAR 反解 J1/J2/J3（`--selftest`/`--demo` PASS）；J 按距离壳升序（J1=a 轴/J2=b 轴/J3=对角） |
 | `mc_2d.py --order cv` | 新写 | 比热 Cv 判据，受挫/非二分晶格（三角）通用定 T_N |
 | 峰边界检测 + 自动缩放重扫 | 新写（本仓） | 内置在 `run_2d_magnet.py`：峰落窗口首/末格点 → 缩放加密退火重扫，首轮留 `mc_mt_survey.csv`；`mc_2d.py` 自身也会对边界峰打警告 |
 | `build_fgt_cases.py` / `solve_fgt_J.py` | 新写（本仓, 2026-10） | **双亚晶格铁磁网络**（Fe3GeTe2 类）：A(2c)+B(4e) 建模、磁序枚举、系数矩阵(M=[1\|C], cond≈178)、逐原子 MAGMOM、俯视图、哈密顿卡片、总能量反解 J1..J4（`--demo` PASS） |
@@ -148,7 +152,7 @@ driver 另支持位置参 `<command>` 分阶段运行：`fetch` / `build` / `dft
 
 ## 7. 已知局限（结论里务必声明）
 
-1. **蜂窝/三角/簇磁体**均支持磁序枚举 + DFT 输入 + 反解脚本 + 图（三角用非共线 120°）；**簇磁体**若是**单重态/dimer（如 Nb3X8）**，经典 Heisenberg 的 T_N **无物理意义**（仅机制演示），需两套 J 另建模，见 skill `references/cluster-magnets.md`。
+1. **蜂窝/三角/矩形/簇磁体**均支持磁序枚举 + DFT 输入 + 反解脚本 + 图（三角用非共线 120°；矩形用 4 共线态 fm/afm_a/afm_b/afm_diag，J 按距离壳升序）；**簇磁体**若是**单重态/dimer（如 Nb3X8）**，经典 Heisenberg 的 T_N **无物理意义**（仅机制演示），需两套 J 另建模，见 skill `references/cluster-magnets.md`。
 1b. **多亚晶格铁磁网络（Fe3GeTe2/Fe3GaTe2/Fe5GeTe2 类）不走通用分支**：几何并簇会把它误判成「分子簇」（Nb3I8 与 FGT 签名相同，都是 cluster/1 簇/3 原子），`build_cluster_cases.py` 会明确报错退出。请用 `build_fgt_cases.py` + `solve_fgt_J.py`。**超胞不能太小**：脚本内建 `r_max < 面内边长/2` 判据（2×2 对 3.99 Å 的键已坍缩）。
 2. **J 取文献/给定**，未跑 DFT 前非本项目计算值。
 3. **MAE 默认 0** → 二维无真正相变（Mermin-Wagner），临界温度为有限尺寸伪相变估计。
@@ -168,7 +172,7 @@ driver 另支持位置参 `<command>` 分阶段运行：`fetch` / `build` / `dft
 
 收到「去 MP 找 XX 结构算磁耦合 + MC」：
 
-1. **先分类磁性格点**：蜂窝（原胞 2 磁原子）/ 三角（1 磁原子）/ 簇磁体（磁性原子成簇）；确认价态（S、μB；簇磁体用簇净自旋）。
+1. **先分类磁性格点**：蜂窝（原胞 2 磁原子）/ 三角（1 磁原子）/ 矩形（正交 a≠b，如 CrSBr）/ 簇磁体（磁性原子成簇）；确认价态（S、μB；簇磁体用簇净自旋）。
 2. 查 `literature_J.json`；没有就联网查 J（**转号！**），查不到就问用户或走 DFT。簇磁体需簇间 J。
 3. 跑 `run_2d_magnet.py --formula XX --literature ...`（或手动参数）；三角/受挫晶格用 `--order cv`。
 4. 读 MC 输出 T_C/T_N（峰判据须落在窗口**内部**；落边界会被自动重扫，仍落边界则标「未分辨」），

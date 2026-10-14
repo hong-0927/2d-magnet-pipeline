@@ -59,5 +59,19 @@
     "MAE": 0.35,
     "ground_state": "fm",
     "source": "J/MAE: Pushkarev et al., J. Magn. Magn. Mater. 588, 171456 (2023), arXiv:2303.01888 (单层; 原文 H=+J S.S 且 J<0=FM: J1=-113 meV, J3^I=+10.9 meV, A=0.35 meV/Fe -> 已转号为本表 J1=+113, J3=-10.9, MAE=+0.35; 原文亚晶格磁矩 m_I=2.43 / m_II=1.48 muB 被其折算为统一 S=1)。结构: P6_3/mmc (No.194) — 注意不是 R-3m; a=3.991 A / c=16.33 A (XRD 293K, Deiseroth et al. 2006), 单层 DFT a=4.010 A; 每层胞 3 Fe。Tc 参考: 单层实验约 130 K (Fei et al., Nat. Mater. 17, 778 (2018)); 体相实验约 200-230 K; 双亚晶格 MC 单层 152 K / 体相 205 K (arXiv:2009.05701)"
+  },
+  "CrSBr": {
+    "formula": "CrSBr",
+    "element": "Cr",
+    "nonmag": ["S", "Br"],
+    "S": 1.5,
+    "moment": 3.0,
+    "U": 4.0,
+    "J1": 2.79,
+    "J2": 2.12,
+    "J3": 3.88,
+    "MAE": 0.0,
+    "ground_state": "fm",
+    "source": "Ke Yang & Hua Wu, Phys. Rev. B 104, 144416 (2021) = arXiv:2108.02418. 矩形晶格(正交 Pmmn, 单层 a=3.54/b=4.76 A), 距离壳升序: J1=a轴 2.79 / J2=b轴 2.12 / J3=对角(|a+b|) 3.88 meV, 全铁磁. 论文原始命名 J1=对角/J2=a/J3=b, 已按距离壳升序重排. 单层 FM T_C≈175 K (理论 MC) / 146 K (实验 SHG), 体相 A 型反铁磁 T_N=132 K. MAE 三轴(易轴 b, ~16-34 ueV/Cr) 单轴 MAE 不适用, 留 0.0."
   }
 }

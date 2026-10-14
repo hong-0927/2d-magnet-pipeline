@@ -138,7 +138,9 @@ def main():
 
     root = os.path.abspath(args.root)
     cases_dir = os.path.join(root, "02_supercell", "cases")
-    titles = {"fm": "FM (铁磁)", "neel": "Néel (反铁磁)", "zigzag": "zigzag", "stripy": "stripy"}
+    titles = {"fm": "FM (铁磁)", "neel": "Néel (反铁磁)", "zigzag": "zigzag", "stripy": "stripy",
+              "afm_a": "AFM-a (沿 a 反平行)", "afm_b": "AFM-b (沿 b 反平行)",
+              "afm_diag": "AFM-对角 (棋盘)"}
 
     # 壳距离: 优先 magnetic_orders.json, 否则自动聚壳
     shells_angstrom, coeffs = load_order_meta(cases_dir)

@@ -52,8 +52,9 @@ from run_2d_magnet import (ERROR_CATALOG, MODEL_PRESETS, SCRIPTS as DRV_SCRIPTS,
 FIXTURES = os.environ.get("MAGNET_FIXTURES", os.path.join(HERE, "tests", "fixtures"))
 MNPS3 = os.path.join(FIXTURES, "MnPS3_POSCAR")
 NB3I8 = os.path.join(FIXTURES, "Nb3I8_POSCAR")
+CRSBR = os.path.join(FIXTURES, "CrSBr_POSCAR")
 
-for _name, _path in (("MnPS3", MNPS3), ("Nb3I8", NB3I8)):
+for _name, _path in (("MnPS3", MNPS3), ("Nb3I8", NB3I8), ("CrSBr", CRSBR)):
     if not os.path.exists(_path):
         sys.exit("[skip] 缺少测试 fixture: %s (仓库应自带 tests/fixtures/, 或设 MAGNET_FIXTURES 指向)" % _path)
 
@@ -406,6 +407,46 @@ try:
     check("model: build 早退(不建 03_dft)", not os.path.exists(os.path.join(td, "03_dft")))
 finally:
     shutil.rmtree(td, ignore_errors=True)
+
+# ---- 14. 矩形晶格 (CrSBr) ----
+check("model: 含 crsbr 预设", "crsbr" in MODEL_PRESETS)
+check("model: crsbr lattice=rectangular", MODEL_PRESETS["crsbr"]["lattice"] == "rectangular")
+check("model: crsbr 与文献条目一致 (element/S/moment/U)",
+      MODEL_PRESETS["crsbr"]["element"] == "Cr" and MODEL_PRESETS["crsbr"]["S"] == 1.5
+      and MODEL_PRESETS["crsbr"]["moment"] == 3.0 and MODEL_PRESETS["crsbr"]["U"] == 4.0)
+
+_lat14, _ncl14, _nmag14 = detect_lattice(CRSBR, "Cr")
+check("rect: detect_lattice -> rectangular (1 磁原子/胞, 不是 triangular)",
+      _lat14 == "rectangular" and _nmag14 == 1)
+
+td14 = mktmp("_tmp_rect_")
+try:
+    r14 = run(sys.executable, os.path.join(SCRIPTS, "build_rectangular_cases.py"),
+              CRSBR, "--element", "Cr", "--nonmag", "S", "Br",
+              "--moment", "3.0", "--spin", "1.5", "--selftest", "--outdir", td14)
+    check("rect: build_rectangular_cases --selftest (系数+反解) PASS",
+          "PASS" in r14.stdout and "FAIL" not in r14.stdout)
+    r14b = run(sys.executable, os.path.join(SCRIPTS, "solve_J_rect.py"), td14, "--demo")
+    check("rect: solve_J_rect --demo PASS", "PASS" in r14b.stdout)
+
+    drv = os.path.join(HERE, "run_2d_magnet.py")
+    r14c = run(sys.executable, drv, "build", "--model", "crsbr",
+               "--poscar", CRSBR, "--outdir", td14 + "_drv")
+    check("rect: driver build --model crsbr 退出 0", r14c.returncode == 0)
+    check("rect: driver 判 [lattice] rectangular", "[lattice] rectangular" in r14c.stdout)
+    _mo = os.path.join(td14 + "_drv", "02_supercell", "cases", "magnetic_orders.json")
+    check("rect: cases 四共线态 fm/afm_a/afm_b/afm_diag",
+          os.path.exists(_mo) and set(json.load(open(_mo, encoding="utf-8"))["selected_orders"])
+          == {"fm", "afm_a", "afm_b", "afm_diag"})
+    # assemble_dft 应读 selected_orders (不是硬编码蜂窝 fm/neel/zigzag/stripy)
+    r14d = run(sys.executable, drv, "dft", "--model", "crsbr",
+               "--poscar", CRSBR, "--outdir", td14 + "_drv")
+    check("rect: dft 组装 runs/ 四共线态 (无 neel/zigzag/stripy)",
+          r14d.returncode == 0 and set(os.listdir(os.path.join(td14 + "_drv", "runs")))
+          == {"fm", "afm_a", "afm_b", "afm_diag"})
+finally:
+    shutil.rmtree(td14, ignore_errors=True)
+    shutil.rmtree(td14 + "_drv", ignore_errors=True)
 
 print("\n全部通过" if not fails else f"\n{len(fails)} 个失败: {fails}")
 sys.exit(1 if fails else 0)

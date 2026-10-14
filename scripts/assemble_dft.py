@@ -8,6 +8,7 @@
       --species "Mn P S" --encut 520
 """
 import argparse
+import json
 import os
 import shutil
 
@@ -145,7 +146,13 @@ def main():
     runs_dir = os.path.join(root, "runs")
     os.makedirs(runs_dir, exist_ok=True)
     static_tmpl = build_incar_static(sp, counts, args.element, args.U, args.moment, args.encut)
-    for order in ["fm", "neel", "zigzag", "stripy"]:
+    try:
+        with open(os.path.join(cases_dir, "magnetic_orders.json"), encoding="utf-8") as _f:
+            _meta = json.load(_f)
+        orders = _meta.get("selected_orders") or list(_meta.get("coefficients_per_cell", {}))
+    except (OSError, ValueError):
+        orders = ["fm", "neel", "zigzag", "stripy"]
+    for order in orders:
         d = os.path.join(cases_dir, order)
         if not os.path.isdir(d):
             continue

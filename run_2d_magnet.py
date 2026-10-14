@@ -105,6 +105,13 @@ MODEL_PRESETS = {
         "desc": "⚠ 巡游铁磁金属 (多亚晶格), 几何判据误判成 cluster; "
                 "Fe 的 S/moment 需自洽 (元素表不列 Fe)",
     },
+    "crsbr": {
+        "formula": "CrSBr", "element": "Cr", "nonmag": ["S", "Br"],
+        "lattice": "rectangular", "S": 1.5, "moment": 3.0, "U": 4.0,
+        "literature": "CrSBr",
+        "desc": "矩形铁磁, Cr3+ S=3/2 (Yang&Wu PRB 104,144416 (2021): 距离壳升序 "
+                "J1(a)=2.79/J2(b)=2.12/J3(对角)=3.88 meV, 单层 T_C≈175 K)",
+    },
 }
 
 
@@ -457,13 +464,30 @@ def pick_structure(struct_dir, formula, mp_id=None):
     return os.path.join(struct_dir, best["poscar"])
 
 
+def _is_rectangular_net(lat, tol_cos=0.05, tol_ratio=0.05):
+    """2D 面内晶格是否正交且 a≠b (矩形晶格, 如 CrSBr: a⊥b, |a|≠|b|)。
+
+    原子数判据 (1→triangular / 2→honeycomb) 只看个数不看几何, 会把矩形单离子磁体
+    误判成三角/蜂窝; 这里先验正交+不等长, 把矩形晶格救出来。
+    """
+    a = lat[0]
+    b = lat[1]
+    na, nb = np.linalg.norm(a), np.linalg.norm(b)
+    if na < 1e-8 or nb < 1e-8:
+        return False
+    cosang = abs(np.dot(a, b)) / (na * nb)
+    ratio = abs(1.0 - na / nb)
+    return cosang < tol_cos and ratio > tol_ratio
+
+
 def detect_lattice(poscar_path, element, cutoff=3.3):
     """读 reorient 后 POSCAR, 数磁性原子/胞 + 簇数, 返回 (lattice, n_clusters, n_mag)。
 
-    lattice ∈ {"honeycomb", "triangular", "cluster", "other"}:
-      cluster    = 磁性原子成簇 (簇数 < 原子数), 簇 = 有效磁位
-      triangular = 1 磁性原子/胞
-      honeycomb  = 2 磁性原子/胞 (不分簇)
+    lattice ∈ {"honeycomb", "triangular", "rectangular", "cluster", "other"}:
+      cluster     = 磁性原子成簇 (簇数 < 原子数), 簇 = 有效磁位
+      rectangular = 正交且 a≠b 的矩形晶格 (CrSBr 类, 非受挫)
+      triangular  = 1 磁性原子/胞
+      honeycomb   = 2 磁性原子/胞 (不分簇)
     """
     lines = [l for l in open(poscar_path, encoding="utf-8").read().splitlines() if l.strip()]
     lat = np.array([[float(x) for x in lines[i].split()] for i in range(2, 5)])
@@ -507,6 +531,8 @@ def detect_lattice(poscar_path, element, cutoff=3.3):
 
     if n_clusters < n_mag:
         return "cluster", n_clusters, n_mag
+    if _is_rectangular_net(lat):
+        return "rectangular", n_clusters, n_mag
     if n_mag == 1:
         return "triangular", 1, 1
     if n_mag == 2:
@@ -592,8 +618,8 @@ def main():
     ap.add_argument("--outdir", default=None, help="项目目录 (默认 ./<formula>_pipeline)")
     ap.add_argument("--vacuum", type=float, default=15.0)
     ap.add_argument("--supercell", type=int, nargs=3, default=[2, 2, 1])
-    ap.add_argument("--lattice", choices=["auto", "honeycomb", "triangular", "cluster"],
-                    default="auto", help="磁性格点类型 (默认自动判别)")
+    ap.add_argument("--lattice", choices=["auto", "honeycomb", "triangular", "cluster", "rectangular"],
+                    default="auto", help="磁性格点类型 (默认自动判别; rectangular=正交 a≠b 矩形)")
     ap.add_argument("--cluster-cutoff", type=float, default=3.3,
                     help="簇识别成键阈值 A (簇磁体用)")
     ap.add_argument("--cluster-nbr-shells", type=int, default=3,
@@ -602,6 +628,8 @@ def main():
                     help="簇磁体能量映射超胞 (默认 5 5 1)")
     ap.add_argument("--tri-supercell", type=int, nargs=3, default=[5, 5, 1],
                     help="三角磁体能量映射超胞 (默认 5 5 1, J3=2a 需 smax>=2)")
+    ap.add_argument("--rect-supercell", type=int, nargs=3, default=[4, 4, 1],
+                    help="矩形磁体能量映射超胞 (默认 4 4 1, 偶数保证条纹态纯净)")
     ap.add_argument("--mc-size", type=int, nargs=2, default=[30, 30])
     ap.add_argument("--mc-tmin", type=float, default=5.0)
     ap.add_argument("--mc-tmax", type=float, default=150.0)
@@ -799,6 +827,8 @@ def main():
             run("solve_cluster_J.py", [cases], cwd=outdir)
         elif lattice == "triangular":
             run("solve_J_tri.py", [cases], cwd=outdir)
+        elif lattice == "rectangular":
+            run("solve_J_rect.py", [cases], cwd=outdir)
         else:
             run("solve_J3.py", [cases], cwd=outdir)
         print(f"\n[run] solve 完成 (lattice={lattice}, cases={cases})")
@@ -839,6 +869,18 @@ def main():
         do_dft = True
         do_render = True
         render_kind = "triangular"
+    elif lattice == "rectangular":
+        # 矩形单离子磁体 (正交 a≠b, 如 CrSBr): 四共线磁态 + J1/J2/J3 映射
+        run("build_rectangular_cases.py",
+            [poscar_re, "--supercell"] + [str(x) for x in args.rect_supercell] +
+            ["--outdir", os.path.join(outdir, "02_supercell", "cases"),
+             "--element", element, "--nonmag"] + nonmag +
+            ["--moment", str(moment), "--spin", str(S)], cwd=outdir)
+        mc_poscar = poscar_re
+        mc_order = "auto"
+        do_dft = True
+        do_render = True
+        render_kind = "rectangular"
     elif lattice == "honeycomb":
         # 紧凑胞标准化 + 四磁态 + 系数
         run("standardize_cell.py", [poscar_re, "--element", element,
@@ -915,6 +957,8 @@ def main():
             ship += ["build_cluster_cases.py", "solve_cluster_J.py"]
         elif lattice == "triangular":
             ship += ["build_magnetic_cases_tri.py", "solve_J_tri.py"]
+        elif lattice == "rectangular":
+            ship += ["build_rectangular_cases.py", "solve_J_rect.py"]
         for name in ship:
             shutil.copy(os.path.join(SCRIPTS, name), os.path.join(outdir, "05_mc", name))
         log("[run] 附带 MC 脚本 -> " + ", ".join(f"05_mc/{n}" for n in ship))
@@ -939,6 +983,12 @@ def main():
                 ["--root", outdir, "--element", element, "--nonmag"] + nonmag +
                 ["--label", formula or element,
                  "-o", os.path.join(outdir, "figures", "supercell_orders.png")], cwd=outdir)
+        elif render_kind == "rectangular":
+            run("render_supercell.py",
+                ["--root", outdir, "--element", element, "--nonmag"] + nonmag +
+                ["--label", formula or element, "--orders", "fm", "afm_a", "afm_b", "afm_diag",
+                 "-o", os.path.join(outdir, "figures", "supercell_orders.png")],
+                cwd=outdir)
         else:
             run("render_supercell.py",
                 ["--root", outdir, "--element", element, "--nonmag"] + nonmag +
@@ -996,6 +1046,15 @@ def write_workflow(outdir, formula, element, nonmag, S, moment, U, J1, J2, J3, M
         mc_desc = "序参量 " + ("交错(反铁磁)" if J1 < 0 else "总磁化(铁磁)")
         struct_desc = ("- 超胞/磁态: `02_supercell/cases/{{fm,neel,zigzag,stripy}}` "
                        "+ `magnetic_orders.json`\n- DFT 输入: `03_dft/` + `runs/<order>/` (未运行, 待 POTCAR)")
+    elif lattice == "rectangular":
+        model_desc = ("矩形晶格单离子 Heisenberg 模型 H = -J1 Σ_<ij> S·S - J2 Σ_<<ij>> S·S "
+                      "- J3 Σ_<<<ij>>> S·S (J1=a 轴, J2=b 轴, J3=对角; J>0 铁磁)")
+        mc_desc = "序参量 " + ("总磁化(铁磁)" if J1 > 0 else "交错(反铁磁)")
+        struct_desc = ("- 磁序枚举: `02_supercell/cases/{{fm,afm_a,afm_b,afm_diag}}` "
+                       "+ `magnetic_orders.json`\n"
+                       "- DFT 输入 (共线): `03_dft/` + `runs/<order>/` (未运行, 待 POTCAR)\n"
+                       "- 反解: `05_mc/solve_J_rect.py` (OUTCAR -> J1/J2/J3)\n"
+                       "- 图: `figures/supercell_orders.png` (四共线磁态)")
     elif lattice == "cluster":
         model_desc = ("簇磁体: 磁性原子成簇 (Nb3 等), 每簇 = 1 个有效自旋, 簇中心成"
                       "三角/非二分晶格; 低能可能是单重态, 经典 Heisenberg 为近似")

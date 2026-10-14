@@ -45,10 +45,10 @@ python scripts/build_fgt_cases.py <monolayer_POSCAR> --outdir Fe3GeTe2_pipeline
 | 组 | 参数 |
 |---|---|
 | 结构来源 | `--formula` `--mp-id` `--poscar` `--mp-key` `--provider {auto,mp,cod,oqmd,aflow,jarvis}` |
-| 命名预设 | `--model {mnps3,cri3,crbr3,fe3gete2}` |
+| 命名预设 | `--model {mnps3,cri3,crbr3,fe3gete2,crsbr}` |
 | 材料 | `--element` `--nonmag P S` `--S` `--moment` `--U` |
 | J 值 | `--literature <key>` `--J1` `--J2` `--J3` `--MAE` |
-| 磁性格点 | `--lattice {auto,honeycomb,triangular,cluster}` `--cluster-cutoff` |
+| 磁性格点 | `--lattice {auto,honeycomb,triangular,cluster,rectangular}` `--cluster-cutoff` `--rect-supercell` |
 | Monte Carlo | `--mc-size` `--mc-tmin` `--mc-tmax` `--mc-nt` `--mc-refine-nt` `--mc-refine-max` `--no-mc-refine` `--mc-seeds` `--fss` `--fss-sizes` |
 | 开关 | `--skip-dft` `--skip-mc` `--quiet` `--outdir` |
 
@@ -62,6 +62,7 @@ python scripts/build_fgt_cases.py <monolayer_POSCAR> --outdir Fe3GeTe2_pipeline
 | `cri3` | CrI₃ 蜂窝铁磁 | honeycomb | 1.5 / 3.0 / 3.0 |
 | `crbr3` | CrBr₃ 蜂窝铁磁 | honeycomb | 1.5 / 3.0 / 3.0 |
 | `fe3gete2` | Fe₃GeTe₂（⚠ 巡游铁磁金属，会被几何判据误判成 cluster） | cluster | 1.0 / 2.0 / 4.0 |
+| `crsbr` | CrSBr 矩形晶格铁磁（正交 a≠b，三项各向异性 FM 交换） | rectangular | 1.5 / 3.0 / 4.0 |
 
 优先级：显式 CLI > `--model` 预设 > `--literature` 表 > 元素表。`--model` 自带的文献 J 只作**参考**（数量级 sanity-check），落到文献值时会在 stderr 打印 `[ref]` 声明，workflow.md 也会标注「文献参考、非本项目计算」；**真实 J 须跑 VASP + `solve` 反解，或用 `--J1/--J2/--J3` 显式给定**。VASP 侧始终只**导出**输入（`03_dft/` + `runs/<order>/`，含 INCAR/KPOINTS/POTCAR.spec/POSCAR），不替用户提交作业。
 
@@ -109,7 +110,7 @@ python scripts/build_fgt_cases.py <monolayer_POSCAR> --outdir Fe3GeTe2_pipeline
 ```
 2d_magnet_pipeline/
   run_2d_magnet.py        # 主入口（单文件驱动整个流水线）
-  scripts/                # 各阶段 + 分模型解算器（solve_J3 / solve_cluster_J / solve_fgt_J / ...）
+  scripts/                # 各阶段 + 分模型解算器（solve_J3 / solve_cluster_J / solve_fgt_J / solve_J_rect / ...）
                           #   __init__.py 使其可作包安装; literature_J.json 已迁入此处作为包数据
   dsh/2d-magnet/SKILL.md  # agent skill
   dsh/bin/2d-magnet.cmd   # Windows 封装
@@ -149,6 +150,7 @@ python tests/test_fgt_e2e.py      # FGT 双亚晶格反解链路端到端（mock
 - [x] 结构 provider 链（COD/OQMD/AFLOW/JARVIS）
 - [x] 子命令化（`fetch/build/dft/mc/solve/render/report/doctor`）
 - [x] `scripts/` 包化，支持非可编辑 `pip install .`
+- [x] 矩形晶格分支（CrSBr/CrSCl 类，`detect_lattice` 查 a⊥b 且 a≠b → 4 共线态 + `solve_J_rect`）
 
 ## License
 
