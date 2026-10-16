@@ -1,0 +1,17 @@
+# sdist 里带上「不是包、但发布/复现需要」的东西：文档、手册、agent skill、样例产物、测试与夹具、扩展骨架、CI 配置。
+# wheel 只装 run_2d_magnet.py + scripts/（见 pyproject.toml 的 py-modules / packages），
+# 文档与样例随 sdist 和 Git 仓库分发 —— 这正是「clone 有、sdist 没有」这类发布事故的来源。
+include README.md
+include LICENSE
+include requirements.txt
+include pyproject.toml
+include MANIFEST.in
+include *.md
+recursive-include dsh *
+recursive-include examples *
+recursive-include tests *
+recursive-include templates *
+recursive-include .github *
+global-exclude __pycache__/*
+global-exclude *.pyc
+global-exclude *.pyo

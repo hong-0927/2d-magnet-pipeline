@@ -1773,6 +1773,75 @@ if True:
         _plo27 = "k_convergence.py" in _tpl27 or "k 点收敛" in _tpl27
     check("p42: NEW_TYPES_PLAN 的 P4.2 残余里点名 k 点收敛抽查", _plo27)
 
+# ---------------------------------------------------------------------------
+# [28] 发布闸门: sdist 内容 (MANIFEST.in) + CI 配置 + check_sdist 的判定逻辑
+# ---------------------------------------------------------------------------
+if True:
+    print("\n[28] 发布闸门: sdist/打包")
+
+    _man28 = os.path.join(HERE, "MANIFEST.in")
+    _mano28 = False
+    if os.path.isfile(_man28):
+        with open(_man28, encoding="utf-8") as _f:
+            _tman28 = _f.read()
+        _mano28 = all(k in _tman28 for k in ("recursive-include examples *", "recursive-include tests *",
+                                             "recursive-include dsh *", "recursive-include templates *",
+                                             "global-exclude __pycache__/*"))
+    check("pkg: MANIFEST.in 把 examples/tests/dsh/templates 收进 sdist 且排除缓存", _mano28)
+
+    _ci28 = os.path.join(HERE, ".github", "workflows", "ci.yml")
+    _cio28 = False
+    if os.path.isfile(_ci28):
+        with open(_ci28, encoding="utf-8") as _f:
+            _tci28 = _f.read()
+        _cio28 = all(k in _tci28 for k in ("check_sdist.py", "build", "run_2d_magnet.py doctor",
+                                           "magnetic_orders.py --regress", "tests/smoke_test.py",
+                                           "tests/test_ingest.py", "tests/test_crect_cant.py"))
+    check("pkg: CI 跑 regress + smoke + 契约测试, 并有打包作业 (check_sdist)", _cio28)
+
+    _cs28 = os.path.join(HERE, "tests", "check_sdist.py")
+    check("pkg: tests/check_sdist.py 存在 (发布闸门本体)", os.path.isfile(_cs28))
+
+    if os.path.isfile(_cs28):
+        import tarfile as _tf28
+        sys.path.insert(0, os.path.join(HERE, "tests"))
+        import check_sdist as CS28  # noqa: E402
+
+        _missing28 = [w for w in CS28.REQUIRED if not os.path.isfile(os.path.join(HERE, w.replace("/", os.sep)))]
+        check("pkg: check_sdist 的 REQUIRED 清单在仓库里都真实存在 (%d 项)" % len(CS28.REQUIRED),
+              not _missing28)
+
+        _td28 = tempfile.mkdtemp(prefix="_tmp_pkg28_")
+        try:
+            def _mk28(arc, names):
+                p = os.path.join(_td28, arc)
+                with _tf28.open(p, "w") as tf:
+                    for _n in names:
+                        src = os.path.join(_td28, "src", _n.replace("/", os.sep))
+                        os.makedirs(os.path.dirname(src), exist_ok=True)
+                        with open(src, "w", encoding="utf-8") as fh:
+                            fh.write("x\n")
+                        tf.add(src, arcname="2d_magnet_pipeline-0.1.0/" + _n)
+                return p
+
+            _good28 = _mk28("good.tar.gz", CS28.REQUIRED)
+            _rg28 = run(sys.executable, _cs28, _good28)
+            check("pkg: check_sdist 对完整 sdist 判通过 (exit 0 + [OK])",
+                  _rg28.returncode == 0 and "[OK]" in _rg28.stdout)
+
+            _bad28 = _mk28("bad.tar.gz", [w for w in CS28.REQUIRED if not w.endswith("P4_2_KAGOME_RUNBOOK.md")])
+            _rb28 = run(sys.executable, _cs28, _bad28)
+            check("pkg: check_sdist 对缺项 sdist 判失败并点名缺项",
+                  _rb28.returncode == 1 and "[FAIL]" in _rb28.stdout
+                  and "P4_2_KAGOME_RUNBOOK.md" in _rb28.stdout)
+
+            _dirty28 = _mk28("dirty.tar.gz", list(CS28.REQUIRED) + ["scripts/__pycache__/x.pyc"])
+            _rd28 = run(sys.executable, _cs28, _dirty28)
+            check("pkg: check_sdist 会拦下混入 __pycache__ 的 sdist",
+                  _rd28.returncode == 1 and "不该有" in _rd28.stdout)
+        finally:
+            shutil.rmtree(_td28, ignore_errors=True)
+
 print("\n全部通过" if not fails else f"\n{len(fails)} 个失败: {fails}")
 
 sys.exit(1 if fails else 0)
