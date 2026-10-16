@@ -1,0 +1,58 @@
+# 2d-magnet-pipeline CI —— 只跑「不需要 VASP」的那部分（本仓库全部测试都属于这一类）。
+#
+# 设计取舍：
+#   * 跑在 windows-latest 上，与开发环境一致（仓库里的路径/编码习惯是 Windows 优先）；
+#     Linux/macOS **未验证**，若要在那边发布请先本地跑通 `tests/smoke_test.py` 再加进来。
+#   * `doctor` 允许失败：它会把「缺 matplotlib / 缺 requests / 沙箱拒绝 CWD 探测」这类
+#     环境差异报成 WARN 并以 exit 1 结束，但那不是代码缺陷（见 KNOWN_ISSUES.md）。
+#     真正的门禁是下面的 smoke + 8 个契约测试，它们任一失败 CI 即红。
+#   * 所有测试都自带直跑入口（不需要 pytest），退出码即结论。
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  tests:
+    name: 回归（无 VASP）
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12"]
+    env:
+      PYTHONIOENCODING: utf-8
+      PYTHONUTF8: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: 安装依赖
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+
+      - name: doctor（环境自检，已知环境 WARN 不阻断）
+        continue-on-error: true
+        run: python run_2d_magnet.py doctor
+
+      - name: 规格层逐位回归（8 种晶格的系数与落盘产物逐位一致）
+        run: python scripts/magnetic_orders.py --regress
+
+      - name: smoke（总回归，含各阶段的文档/契约交叉检查）
+        run: python tests/smoke_test.py
+
+      - name: 契约测试（8 个，全部自带直跑入口）
+        run: |
+          python tests/test_magnetic_orders.py
+          python tests/test_square_cases.py
+          python tests/test_crect_cases.py
+          python tests/test_kagome_cases.py
+          python tests/test_fgt_e2e.py
+          python tests/test_altermagnet.py
+          python tests/test_crect_cant.py
+          python tests/test_ingest.py

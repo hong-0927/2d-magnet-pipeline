@@ -1173,6 +1173,13 @@ def main():
             print(f"[params] {element} 的 {', '.join(filled)} 未显式给出 -> 元素表默认 "
                   f"S={S}, moment={moment}, U={U} (用 --S/--moment/--U 覆盖)",
                   file=sys.stderr)
+    elif element and any(v is None for v in (S, moment, U)):
+        # 不在元素表里 (Fe 是刻意的): 这里**不猜值**, 直接说清原因与下一步 —— 否则用户看到的是
+        # 后面「--S/--moment/--U 缺失」的症状, 而不是「本表故意不列该元素」的原因。
+        _miss = ", ".join(k for k, v in (("--S", S), ("--moment", moment), ("--U", U)) if v is None)
+        print(f"[params] {element} 不在内置元素参数表 (Mn / Cr / Ni / Co / V / Gd) 里 —— 该表**故意**不列 "
+              f"Fe 等变价/巡游元素的有效自旋 (猜一个值会静默给出错的物理)。请显式给 {_miss}; "
+              f"或用 --model <预设> / --literature <条目> 取材料专属值。", file=sys.stderr)
 
     # J 只在**真正需要它**的阶段才必须: mc / report / 全流水线。
     # build/dft/solve/render 只用几何与规格层 —— 这一点很重要: 文献 J 未核实的材料
@@ -1839,7 +1846,8 @@ def write_workflow(outdir, formula, element, nonmag, S, moment, U, J1, J2, J3, M
                     "但连接的是不同的亚晶格对。3 壳方案把二者并成一条 J1 ⇒ 反解值与 MC 的 T_N 只对 "
                     "(J1+J1')/2 的组合敏感; 分开二者需要降对称 (√3×√3 或 2×2) 的超胞与更多磁序 (P4.2 待做)。"
                     "同理 `poscar_to_mc3 --jfile` 必须用 `pair=` 显式声明壳, 旧的自动路径会把同距离的两条并成一条。\n"
-                    "10. **Fe3Sn 的文献 J 未核实 + S 是占位值**: `literature_J.json` 里没有 Fe3Sn 条目 ⇒ "
+                    "10. **Fe3Sn 的文献 J 未核实 + S 是占位值**: `literature_J.json` 里有 Fe3Sn 条目(铁磁基态 + "
+                    "T_C = 705 K + 结构/各向异性锚点), 但 J1/J2/J3 按设计仍是 null (原文自承交换常数未确立) ⇒ "
                     "跑 MC 必须显式给 `--J1/--J2/--J3`; `solve --demo` 必须给 `--synthetic` 或已核实的 `--ref`。"
                     "预设里的 S=1.0 / moment=2.0 / U=4.0 是占位值 (元素表不列 Fe, 需自洽计算), "
                     "所以本晶格目前是**几何/线性代数层可用, 物理结论待 DFT**。\n")

@@ -1,0 +1,237 @@
+{
+  "input": "C:\\Users\\\u5434\\AppData\\Local\\Temp\\dsh-HxaRfu\\la2_example\\01_structure\\POSCAR",
+  "supercell": [
+    4,
+    4,
+    1
+  ],
+  "n_atoms": 112,
+  "n_mag": 16,
+  "element": "Cu",
+  "nonmag": [
+    "La",
+    "O"
+  ],
+  "moment": 1.0,
+  "spin": 0.5,
+  "S2": 0.25,
+  "shells_angstrom": {
+    "J1": 3.7992,
+    "J2": 5.372880166167863,
+    "J3": 7.5984
+  },
+  "selected_orders": [
+    "fm",
+    "stripe_a",
+    "p4_a",
+    "mix_ab"
+  ],
+  "all_orders": [
+    "fm",
+    "g_type",
+    "stripe_a",
+    "stripe_b",
+    "p4_a",
+    "mix_ab"
+  ],
+  "noncollinear": false,
+  "coefficients_per_cell": {
+    "fm": [
+      -32.0,
+      -32.0,
+      -32.0
+    ],
+    "g_type": [
+      32.0,
+      -32.0,
+      -32.0
+    ],
+    "stripe_a": [
+      -0.0,
+      32.0,
+      -32.0
+    ],
+    "stripe_b": [
+      -0.0,
+      32.0,
+      -32.0
+    ],
+    "p4_a": [
+      -16.0,
+      -0.0,
+      -0.0
+    ],
+    "mix_ab": [
+      16.0,
+      -0.0,
+      -0.0
+    ]
+  },
+  "coefficients_per_mag": {
+    "fm": [
+      -2.0,
+      -2.0,
+      -2.0
+    ],
+    "g_type": [
+      2.0,
+      -2.0,
+      -2.0
+    ],
+    "stripe_a": [
+      -0.0,
+      2.0,
+      -2.0
+    ],
+    "stripe_b": [
+      -0.0,
+      2.0,
+      -2.0
+    ],
+    "p4_a": [
+      -1.0,
+      -0.0,
+      -0.0
+    ],
+    "mix_ab": [
+      1.0,
+      -0.0,
+      -0.0
+    ]
+  },
+  "per_site_bonds": {
+    "J1": 4.0,
+    "J2": 4.0,
+    "J3": 4.0
+  },
+  "inversion_matrix_per_cell": [
+    [
+      0.0,
+      0.0,
+      0.5,
+      0.5000000000000001
+    ],
+    [
+      0.0,
+      0.0,
+      -0.03125,
+      0.03125
+    ],
+    [
+      -0.015625,
+      0.015625,
+      0.015624999999999997,
+      -0.015624999999999997
+    ],
+    [
+      -0.015625,
+      -0.015625,
+      0.03125,
+      0.0
+    ]
+  ],
+  "design_cond": 40.41495947100014,
+  "order_spec": [
+    {
+      "name": "fm",
+      "kind": "collinear",
+      "rule": "sigma_i = +1 (\u5168\u540c\u5411)",
+      "coeffs": [
+        -32.0,
+        -32.0,
+        -32.0
+      ]
+    },
+    {
+      "name": "g_type",
+      "kind": "collinear",
+      "rule": "sigma = (-1)^(n0+n1) (\u65b9\u5f62 G \u578b/N\u00e9el, \u68cb\u76d8)",
+      "coeffs": [
+        32.0,
+        -32.0,
+        -32.0
+      ]
+    },
+    {
+      "name": "stripe_a",
+      "kind": "collinear",
+      "rule": "sigma = (-1)^n0 (\u65b9\u5f62 C \u578b\u6761\u7eb9, \u6cbf a \u4ea4\u66ff)",
+      "coeffs": [
+        -0.0,
+        32.0,
+        -32.0
+      ]
+    },
+    {
+      "name": "stripe_b",
+      "kind": "collinear",
+      "rule": "sigma = (-1)^n1 (\u65b9\u5f62 C \u578b\u6761\u7eb9, \u6cbf b \u4ea4\u66ff)",
+      "coeffs": [
+        -0.0,
+        32.0,
+        -32.0
+      ]
+    },
+    {
+      "name": "p4_a",
+      "kind": "collinear",
+      "rule": "sigma = (-1)^floor(n0/2) (\u65b9\u5f62\u5468\u671f 4; \u6253\u7834 J3/e0 \u7b80\u5e76\u7684\u5fc5\u8981\u6761\u4ef6)",
+      "coeffs": [
+        -16.0,
+        -0.0,
+        -0.0
+      ]
+    },
+    {
+      "name": "mix_ab",
+      "kind": "collinear",
+      "rule": "sigma = (-1)^n0 * (-1)^floor(n1/2) (\u5468\u671f 2 x \u5468\u671f 4 \u6df7\u5408)",
+      "coeffs": [
+        16.0,
+        -0.0,
+        -0.0
+      ]
+    }
+  ],
+  "model_spec": {
+    "schema": "model_spec/1",
+    "lattice": "square",
+    "label": "\u65b9\u5f62\u5355\u79bb\u5b50",
+    "element": "Cu",
+    "nonmag": [
+      "La",
+      "O"
+    ],
+    "spin": 0.5,
+    "S2": 0.25,
+    "supercell": [
+      4,
+      4,
+      1
+    ],
+    "policy": "shift_search",
+    "nshift": 1,
+    "noncollinear": false,
+    "n_mag": 16,
+    "shells": [
+      {
+        "name": "J1",
+        "d": 3.7992,
+        "tol": 0.3,
+        "pair": null
+      },
+      {
+        "name": "J2",
+        "d": 5.372880166167863,
+        "tol": 0.3,
+        "pair": null
+      },
+      {
+        "name": "J3",
+        "d": 7.5984,
+        "tol": 0.3,
+        "pair": null
+      }
+    ]
+  }
+}

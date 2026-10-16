@@ -38,7 +38,7 @@ kagome: 六角 (a=b, 120°), **每胞 3 个磁原子** (Fe 在 (0,1/2), (1/2,0),
   python solve_J_kagome.py <cases_dir> --demo --ref Fe3Sn              # 从 literature_J.json 取锚点
   python solve_J_kagome.py <cases_dir> --demo --synthetic 1 1 1 --jfile-out /tmp/J.json
 
-⚠ Fe3Sn 的文献 J **未核实** (literature_J.json 里没有 Fe3Sn 条目) ⇒ `--ref Fe3Sn` 会明确拒绝,
+⚠ Fe3Sn 的文献 J **未核实** (literature_J.json 里 Fe3Sn 条目已有, 但 J1/J2/J3 = null) ⇒ `--ref Fe3Sn` 会明确拒绝,
   且 `--demo` 必须显式给 `--ref` 或 `--synthetic` 之一 —— 绝不用 0 或别的材料的值顶上
   (WORKFLOW §63/§99 不静默降级)。
 
@@ -65,7 +65,7 @@ EXPECT_Z_N = (4.0, 4.0, 6.0)
 
 # 本晶格家族的**定量**锚点 = 没有 (Fe3Sn 的文献 J 未核实) ⇒ LIT 故意留 None。
 LIT = None
-LIT_SOURCE = "(无: Fe3Sn 的文献 J 未核实, literature_J.json 里没有该条目)"
+LIT_SOURCE = "(无: Fe3Sn 的文献 J 未核实, literature_J.json 里该条目的 J1/J2/J3 = null)"
 
 LIT_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "literature_J.json")
 

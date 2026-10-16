@@ -7,6 +7,22 @@
 - 八种晶格共用一套**规格层 + 统一产物**（`scripts/magnetic_orders.py` / `J_result.json`）：J 是怎么算出来的可追溯、可回归比对。见「J 产物与规格层」。
 - 附 DeepSeek Harness 的 agent skill（`dsh/2d-magnet/SKILL.md`）。
 
+## 该读哪份（文档索引）
+
+七份文档各管一段，按这个顺序读不会绕路：
+
+| 顺序 | 文档 | 读它为了 |
+|---|---|---|
+| 1 | 本 README | 装、跑、产物在哪、**已知局限 18 条**——先读局限，才不会把「工具就绪」当成「结果就绪」 |
+| 2 | [`KNOWN_ISSUES.md`](KNOWN_ISSUES.md) | **症状 → 修复表**（24 条 error key；`doctor` 命中的就是它）。跑挂了第一站来这里 |
+| 3 | [`WORKFLOW.md`](WORKFLOW.md) | 每个脚本的出处、阶段交接、局限 1a–1i（比 README 更细的边界） |
+| 4 | [`dsh/2d-magnet/SKILL.md`](dsh/2d-magnet/SKILL.md) | agent 技能本体：跑之前先定三件事、逐晶格专节、**文献符号约定冲突表** |
+| 5 | [`NEW_TYPES_PLAN.md`](NEW_TYPES_PLAN.md) | 各磁性格点的判定依据与工期、**明确不做什么** |
+| 6 | [`P4_2_KAGOME_RUNBOOK.md`](P4_2_KAGOME_RUNBOOK.md) | 真要上机时用：kagome 的装配 / 提交 / 回收 / 判定（**手册不是结果**） |
+| 7 | [`DMI_MTI_MEMO.md`](DMI_MTI_MEMO.md) | DMI / MTI 为什么**不进主链**：能说与不能说的清单 |
+
+> 只想先看产物长什么样：直接看 [`examples/`](examples/)（合成/文献 J 的样例产物，不需要 VASP、也不需要装依赖）。
+
 ---
 
 ## 快速开始
@@ -74,7 +90,7 @@ python scripts/build_fgt_cases.py <monolayer_POSCAR> --outdir Fe3GeTe2_pipeline
 | `crbr3` | CrBr₃ 蜂窝铁磁 | honeycomb | 1.5 / 3.0 / 3.0 |
 | `fe3gete2` | Fe₃GeTe₂（⚠ 巡游铁磁金属，会被几何判据误判成 cluster） | cluster | 1.0 / 2.0 / 4.0 |
 | `crsbr` | CrSBr 矩形晶格铁磁（正交 a≠b，三项各向异性 FM 交换） | rectangular | 1.5 / 3.0 / 4.0 |
-| `gdi2` | GdI₂ 三角铁磁（Gd²⁺ 4f7 S=7/2，4f-5d 巡游中介交换，单层 T_C≈241 K） | triangular | 3.5 / 7.0 / 6.0 |
+| `gdi2` | GdI₂ 三角铁磁（Gd²⁺ 4f7 S=7/2，4f-5d 巡游中介交换，单层 T_C≈241 K 是**理论 MC 估算、非实验值**；文献 J 未核实 ⇒ 留 null） | triangular | 3.5 / 7.0 / 6.0 |
 | `la2cuo4` | La₂CuO₄ 方形 G 型反铁磁（Cu²⁺ 3d⁹ S=1/2，**方形定量锚点**，J 已核实于 Coldea PRL 86, 5377 (2001)） | square | 0.5 / 1.0 / 7.0 |
 | `k2nif4` | K₂NiF₄（方形晶格类型的**结构原型**，Ni²⁺ 3d⁸ S=1；文献 J 未核实 ⇒ 留 null，只作结构参考） | square | 1.0 / 2.0 / 4.0 |
 | `crocl` | CrOCl **C 心矩形**（正交 a≠b 且原胞 2 个 Cr，由 (½,½) C 心矢量相连；J 与 T_N **均未核实** ⇒ 只作结构/序枚举锚点，`mc`/`report` 须显式给 J） | rect_centered | 1.5 / 3.0 / 4.0 |
@@ -155,7 +171,7 @@ python scripts/magnetic_orders.py --emit-spec rect_crsbr --dry-run   # 预览某
 }
 ```
 
-`confidence` **不可手改**：`source` 不是 `vasp` 只给 `low`；残差 >1e-4 或条件数 >1e3 降 `low`；残差超 1e-2 直接**拒绝写出**（不静默降级）。`validate` 会重算一遍，手写 `"confidence":"high"` 骗不过去。每个壳自带 `tol`，消费端不必自己猜容差。`solve_J_rect.py --jfile-out` 已经会写这个文件。
+示例里的 `J_meV` 取自 CrSBr 的文献条目（Ke Yang & Hua Wu, PRB 104, 144416 (2021)；原论文命名 `J1=对角 / J2=a / J3=b`，**已按本仓「距离壳升序」重排**）——它只是 `source=demo` 的 schema 样例，**不代表本仓算过 CrSBr**。`confidence` **不可手改**：`source` 不是 `vasp` 只给 `low`；残差 >1e-4 或条件数 >1e3 降 `low`；残差超 1e-2 直接**拒绝写出**（不静默降级）。`validate` 会重算一遍，手写 `"confidence":"high"` 骗不过去。每个壳自带 `tol`，消费端不必自己猜容差。`solve_J_rect.py --jfile-out` 已经会写这个文件。
 
 ### 自描述块
 
@@ -187,7 +203,7 @@ python scripts/magnetic_orders.py --emit-spec rect_crsbr --dry-run   # 预览某
                           #   __init__.py 使其可作包安装; literature_J.json 已迁入此处作为包数据
   dsh/2d-magnet/SKILL.md  # agent skill
   dsh/bin/2d-magnet.cmd   # Windows 封装
-  tests/                  # smoke_test.py + test_magnetic_orders.py + test_fgt_e2e.py + test_square_cases.py + test_crect_cases.py + test_kagome_cases.py + test_altermagnet.py + test_crect_cant.py（fixtures/ 内置，无外部路径依赖）
+  tests/                  # smoke_test.py + test_magnetic_orders.py + test_fgt_e2e.py + test_square_cases.py + test_crect_cases.py + test_kagome_cases.py + test_altermagnet.py + test_crect_cant.py + test_ingest.py（fixtures/ 内置，无外部路径依赖）
                           #   fixtures/ 里另有 GdI2 / K2NiF4 / La2CuO4 / CrOCl / CrSBr / Nb3I8 / Fe3GeTe2 / Fe3Sn 的 POSCAR 与
                           #   gdi2_nc_soc_120deg.INCAR.norm（非共线 120° 的 INCAR 快照基准）
   NEW_TYPES_PLAN.md       # 新磁性格点类型（方形/kagome/交变磁体…）的扩展计划与工期
@@ -196,25 +212,28 @@ python scripts/magnetic_orders.py --emit-spec rect_crsbr --dry-run   # 预览某
   WORKFLOW.md             # 阶段与脚本来源说明
   KNOWN_ISSUES.md         # 已知问题 / error catalog（doctor 子命令联动的「症状→修复」表）
   LICENSE                 # MIT
+  examples/               # 样例产物快照（见 examples/README.md）：方形 La2CuO4 文献-J 全程 + kagome 合成 dry-run（不需要 VASP）
   templates/              # 扩展骨架（不参与运行）：material_preset.json + new_lattice_checklist.md
   requirements.txt        # 运行期依赖（numpy / numba / matplotlib / requests，另有可选兜底 Pillow）
   pyproject.toml          # 打包基线（`2d-magnet` 控制台入口 + scripts 包数据）
+  .github/workflows/ci.yml # CI：windows-latest + Python 3.12，跑 smoke + 8 个契约测试（只覆盖不需要 VASP 的部分）
 ```
 
 ## 测试
 
 ```powershell
 python tests/smoke_test.py            # 主回归：分类、峰边界、工作流文档、J_result 契约、poscar_to_mc3 新旧路径等价
-python tests/test_magnetic_orders.py  # 规格层契约 + 八种晶格逐位回归（9 项）
+python tests/test_magnetic_orders.py  # 规格层契约 + 八种晶格逐位回归（8 项，实跑输出 8/8）
 python tests/test_square_cases.py     # 方形：构建器 / 规格层 / 手推理想值 三方交叉锚定（28 项）
 python tests/test_crect_cases.py      # C 心矩形：basis 退化不可见性 / det 奇异性 / tol=0.2 并壳陷阱 / per_site_bonds
 python tests/test_kagome_cases.py     # kagome：q=0 简并 (rank=2) / √3×√3 可解 (rank=4, cond=98.51) / 配位数判据 / mock 闭环（68 项）
 python tests/test_fgt_e2e.py          # FGT 双亚晶格反解链路端到端（mock DFT，不跑 VASP）
 python tests/test_altermagnet.py      # P5：几何判据分支 / 容差语义 / 真 fixture 结论 / mc_2d 掩码序参量接线（83 项）
 python tests/test_crect_cant.py       # P2'：弱铁磁倾斜的闭式 θ 标度 / 倾斜家族自由度审计 / 反解器与产物契约（44 项）
+python tests/test_ingest.py           # P4.2：回收通道 ingest_dft.py 的 11 条硬闸门 / 原子性（不过就一件不写）/ --dry-run / --lenient
 ```
 
-八个都**自带直跑入口，不需要 pytest**（本机环境可能没装）。测试 fixture 已内置在 `tests/fixtures/`，不依赖本机任何绝对路径；可用环境变量
+九个都**自带直跑入口，不需要 pytest**（本机环境可能没装）。测试 fixture 已内置在 `tests/fixtures/`，不依赖本机任何绝对路径；可用环境变量
 `MAGNET_FIXTURES` / `MAGNET_FGT_CASES` / `MAGNET_TEST_TMP` 覆盖。
 
 ### 脚本级自检（不跑 DFT、秒级、与测试互为交叉核对）
@@ -285,7 +304,7 @@ python scripts/solve_J_kagome.py ../_selfcheck/kag --demo --synthetic 3 -0.4 0.1
 
 17. **CrOCl 弱铁磁倾斜（P2′）只做到「系数层 + 反解器」**：`scripts/solve_J_crect_cant.py` 与 `tests/test_crect_cant.py`（44 项）把倾斜家族的系数审计 + 反解跑通，物理内核是一条**闭式**关系——同一母序在倾斜 θ 后的系数等于「共线母序系数 + sin²θ × 一个与 θ 无关的基向量」的合成，所以倾斜构型的系数是**可解析验证**的。但边界同样明确：① **θ 是输入参数，不是自洽解出来的**——闭式给的是「给定 θ 时系数是多少」，不是「基态 θ 是多少」，真实 θ 仍需 SOC 总能量极小（本仓库没做，也没有真实 SOC 能量）；② **一次倾斜 SCF 定不出唯一的 (J, D)**：单壳闭式只有一条冗余的自由度，`--orders cant` 因此取「倾斜家族 + 张成所需的 fm/母序行」而不是「倾斜行自己」（`--audit-only` 会打印每行的系数与自由度）；③ 倾斜序属 `mag_vectors.SOC_ORDERS` ⇒ 装配**必须** `--soc`，否则被硬拒（不会静默按共线算）；④ CrOCl 的文献 J **未核实**（`literature_J.json` 全 null）⇒ 真值路径必须 `--ref` 或 `--synthetic`；⑤ **没有任何真实非共线/SOC 能量**，验收只到「合成能量闭环 + 与独立实现的逐位对拍」；⑥ **覆盖面**：倾斜族只在 4×4×1 超胞上验证（奇数超胞的 cant 路径未跑），θ 与 φ 的取值域由构建器守卫（`|θ| < 90`、`φ ∈ [0, 360)`、`--cant-base fm` 硬拒），`--lsorbit` 接线由 smoke §26 端到端钉住（`assemble_dft` 缺 `--lsorbit` 对 cant 序硬拒；给了则 `runs/<cant 序>/INCAR` 落 `LNONCOLLINEAR = .TRUE.` + `LSORBIT` + `GGA_COMPAT = .FALSE.` 且无 `ISPIN`）；⑦ **driver 已接通，但只是「透传 + 改派」**：`run_2d_magnet.py build --model crocl --cant-theta "8 16"`（可加 `--cant-base` / `--cant-azimuth`）会把倾斜家族交给 `build_crect_cases.py`，`solve` 端一旦在 `cases/magnetic_orders.json` 里看到 `cant_orders` 就**自动改派** `solve_J_crect_cant.py --orders cant`（不静默按共线解）；三条守卫是硬的——非 C 心矩形给 `--cant-theta`、`--cant-base fm`、以及「有了倾斜序却没 `--soc`」（后者在 `dft` 装配阶段硬拒，`build`/`solve` 只警告）；smoke §26 用「驱动 build + 合成 OUTCAR + 驱动 solve」端到端钉住（J 回解误差 < 5e-4 meV）。但**路由不等于物理解**：θ 仍是你给的输入，`solve` 只是把同一组 J 反解出来并顺手做自洽校验（倾斜行不增加秩）；⑧ **易轴是假设不是结论**：倾斜按「面内分量 + z 分量」写 MAGMOM（`SAXIS` 缺省即 `0 0 1`），各向异性大小与易轴方向都**没有**算过，φ 由几何定不出来（`--cant-azimuth` 只是取值，不是解）。
 
-18. **kagome 的物理层（P4.2）只有操作手册 + 装配侧工具，没有任何真实 J / T_N**：[P4_2_KAGOME_RUNBOOK.md](P4_2_KAGOME_RUNBOOK.md) 把「上真实机时」这件事写成可执行步骤——入口条件（真实机时 + **已核实**的文献锚点 + 参数表填满）、装配与已知坑（`ISYM` 默认只写在 `INCAR.relax`、static 不写，但可用 `--isym` 显式覆盖；`NPAR` 默认 4，可用 `--npar` 覆盖；`KPOINTS` 默认 `3 3 1` 且表头已修正（不再写 2×2×1），可用 `--kpoints 6 6 1` 覆盖；`POTCAR` **不生成**，只给 `POTCAR.spec` 的元素顺序；理想化胞未弛豫）、SCF 四条判据与失败协议、回收通道**已自动化**（`ingest_dft.py` 的 11 条硬闸门 + `dft_handoff.py` 的交接包，见手册 §5.0/§5.1；此前「没有从 `03_dft/runs/` 的自动 ingest」的说法已不成立）、反解可信度与「残差不为零先怀疑什么」、§8 的**纯估算**机时（替换成实测前不许当预算）、§9 与原计划的五项偏差（含 P4.2 残余工作量 **≈4–9 人天**的补估）。k 点收敛抽查同样只有**工具**（`python run_2d_magnet.py kconv --outdir <proj> --k-grids 3,4,6,8`，或直调 `scripts/k_convergence.py`）：它把 `runs/<序>/` 复制成 `<序>@<k网格>` 变体（**只换 KPOINTS**，INCAR 逐字节不变）、OUTCAR 放回后判「总能量对 k 网格收敛到哪个网格够了」；它**不代提交作业**，而且总能量收敛只是 J 可信的**必要**条件（J 是能量**差**）——`k_convergence.json` 里因此带着这条免责声明。**手册与工具都不是进度**：路线图上的 P4.2 仍未勾选，`literature_J.json` 里没有 Fe3Sn 条目，仓库里没有任何真实 kagome OUTCAR。
+18. **kagome 的物理层（P4.2）只有操作手册 + 装配侧工具，没有任何真实 J / T_N**：[P4_2_KAGOME_RUNBOOK.md](P4_2_KAGOME_RUNBOOK.md) 把「上真实机时」这件事写成可执行步骤——入口条件（真实机时 + **已核实**的文献锚点 + 参数表填满）、装配与已知坑（`ISYM` 默认只写在 `INCAR.relax`、static 不写，但可用 `--isym` 显式覆盖；`NPAR` 默认 4，可用 `--npar` 覆盖；`KPOINTS` 默认 `3 3 1` 且表头已修正（不再写 2×2×1），可用 `--kpoints 6 6 1` 覆盖；`POTCAR` **不生成**，只给 `POTCAR.spec` 的元素顺序；理想化胞未弛豫）、SCF 四条判据与失败协议、回收通道**已自动化**（`ingest_dft.py` 的 11 条硬闸门 + `dft_handoff.py` 的交接包，见手册 §5.0/§5.1；此前「没有从 `03_dft/runs/` 的自动 ingest」的说法已不成立）、反解可信度与「残差不为零先怀疑什么」、§8 的**纯估算**机时（替换成实测前不许当预算）、§9 与原计划的五项偏差（含 P4.2 残余工作量 **≈4–9 人天**的补估）。k 点收敛抽查同样只有**工具**（`python run_2d_magnet.py kconv --outdir <proj> --k-grids 3,4,6,8`，或直调 `scripts/k_convergence.py`）：它把 `runs/<序>/` 复制成 `<序>@<k网格>` 变体（**只换 KPOINTS**，INCAR 逐字节不变）、OUTCAR 放回后判「总能量对 k 网格收敛到哪个网格够了」；它**不代提交作业**，而且总能量收敛只是 J 可信的**必要**条件（J 是能量**差**）——`k_convergence.json` 里因此带着这条免责声明。**手册与工具都不是进度**：路线图上的 P4.2 仍未勾选，`literature_J.json` 里 Fe3Sn **条目已有**（铁磁基态 + T_C = 705 K + 结构/各向异性锚点，见该条 `_note`），但 **J1/J2/J3 按设计仍为 `null`**（原文自承交换常数尚未确立）⇒ `solve_J_kagome.py --ref Fe3Sn` 会被明确拒绝；仓库里没有任何真实 kagome OUTCAR。
 
 ## 路线图
 
@@ -321,7 +340,14 @@ python scripts/solve_J_kagome.py ../_selfcheck/kag --demo --synthetic 3 -0.4 0.1
 - **许可**：[MIT](LICENSE)（`pyproject.toml` 的 `license` 与之同源，作者署名一致）。
 - **P0–P4.1 能力状态**：P0 规格层 / P1 方形 / P2 C 心矩形 / **P3 非共线 + SOC** / **P4.1 kagome 系数层** 均已落地并通过自检与回归（见「路线图」与「脚本级自检」）。**P3 与 P4.1 都是「能力已实现」，不是「物理已验证」**：没有任何真实非共线 DFT 能量，P3 的验收止于 INCAR/MAGMOM 内容 + 快照回归 + mock-OUTCAR 闭环回解 J（smoke §21），P4.1 的验收止于系数矩阵/条件数 + 合成能量回解 + 配位数判据（smoke §23，68 项契约测试），详见局限 8 与局限 14。**P6** 随后落地，但**只是识别层**（判据 + 边界 + 备忘，见 [DMI_MTI_MEMO.md](DMI_MTI_MEMO.md) 与局限 15）——它**不产生 D、不做拓扑判定**，所以不构成任何物理能力；随它落盘的 `scripts/dmi_matrix.py` 是把**文献 D 值**换成格点模型的受控换算器（`--selftest` 5/5），同样不是 DMI 计算能力。**P4.2**（kagome 的真实 J/T_N，需真实非共线 DFT）**只有操作手册**（[P4_2_KAGOME_RUNBOOK.md](P4_2_KAGOME_RUNBOOK.md)），物理层仍未跑；**P2′**（CrOCl 弱铁磁倾斜）已落地为**系数层 + 反解器**（`solve_J_crect_cant.py` + 44 项契约测试）——但 θ 是**输入参数**、一次倾斜 SCF 定不出唯一 (J, D) ⇒ 同样**不是**物理能力（见局限 17）；**P5** 已按用户指示落地为**识别层 + 标量序参量**（几何判据 + `--order sublattice:<mask>`，无能带 ⇒ 不构成物理能力，见局限 16）。
 - **可以带发布**：无 CHANGELOG；无 `docs/`（说明集中在 README/WORKFLOW/KNOWN_ISSUES/NEW_TYPES_PLAN 四份，内容自洽）；`templates/` 里放的是扩展骨架（`material_preset.json` / `new_lattice_checklist.md` / `README.md`，**不参与运行**，见该目录自述）；仓库根那份 3 MB 的 `.pptx` 是汇报稿、被 `.gitignore` 的 `*.pptx` 覆盖，且**从未进过版本库**（`git log --all -- "*.pptx"` 为空）⇒ 不存在"要单独开一次提交删掉"这回事（如仍想瘦身可 `git gc --prune=now`）。**已消项**（原列在这里的两条已解决）：CLI 现有 `--version`；FSS 标度图与 FGT 图已有纯 Pillow 兜底（局限 12）。
-- **版本控制状态（2026-10 收尾时已核对完成）**：P0–P4.1、P2′、P4.2（工具链）、P5 与 P6 的改动**已全部提交**——提交 `4839bf8`，`65 files changed, 18063 insertions(+), 438 deletions(-)`（26 个 `M` + 39 个 `A`，无删除），此时仓库共 **97 个已跟踪文件**，`git status --porcelain` 为空。该提交含 `templates/`、`DMI_MTI_MEMO.md`、`P4_2_KAGOME_RUNBOOK.md`、`NEW_TYPES_PLAN.md`、P4.1 的 kagome 三件套、P4.2 工具链（`scripts/ingest_dft.py` + `scripts/dft_handoff.py` + `scripts/k_convergence.py`）、P5 的 `scripts/altermagnet_check.py` + `tests/test_altermagnet.py`、P2′ 的 `scripts/solve_J_crect_cant.py` + `tests/test_crect_cant.py`，以及 0.1 期间勘察留下的探针**已被清理、未进提交**。核对方式就是两条只读命令：`git log -1 --stat` 与 `git status --porcelain`（后者应为空）。注意 `git add`/`git commit` 必须在**普通 shell** 里跑：本仓的开发沙箱会拒绝子进程写 `.git/`（`fatal: Unable to create '.git/index.lock': Permission denied`，连 `git add -n` 也一样）。**只要没提交，`git clone` 出来的分发包就缺掉方形/C 心矩形/非共线/kagome 整条链**——这正是「安装与依赖声明」之外最容易被忽略的发布阻塞项（本轮已消除）。
+- **版本控制状态（2026-10）**：P0–P4.1、P2′、P4.2（工具链）、P5 与 P6 的改动**已全部提交**——功能提交 `4839bf8`（`65 files changed, 18063 insertions(+), 438 deletions(-)`，26 个 `M` + 39 个 `A`，无删除），其后是文档状态更新提交 `b371946`；仓库共 **97 个已跟踪文件**。该提交含 `templates/`、`DMI_MTI_MEMO.md`、`P4_2_KAGOME_RUNBOOK.md`、`NEW_TYPES_PLAN.md`、P4.1 的 kagome 三件套、P4.2 工具链（`scripts/ingest_dft.py` + `scripts/dft_handoff.py` + `scripts/k_convergence.py`）、P5 的 `scripts/altermagnet_check.py` + `tests/test_altermagnet.py`、P2′ 的 `scripts/solve_J_crect_cant.py` + `tests/test_crect_cant.py`；0.1 期间勘察留下的探针已清理、未进提交。
+- **发布前这一轮（尚未提交，`git status --porcelain` 为 6 个 `M` + 2 个未跟踪目录）**：新增 `examples/`（27 个文件的样例产物快照，见 `examples/README.md`）与 `.github/workflows/ci.yml`（CI：windows-latest + Python 3.12，只跑不需要 VASP 的 smoke + 8 个契约测试），以及 `README.md` / `WORKFLOW.md` / `dsh/2d-magnet/SKILL.md` / `NEW_TYPES_PLAN.md` / `run_2d_magnet.py` / `scripts/solve_J_kagome.py` 的文案、文档索引与提示修正（含元素参数表兜底提示、CrSBr/GdI₂ 两处科学限定词）。收尾提交：
+  ```powershell
+  cd 2d_magnet_pipeline
+  git add -A
+  git commit -m "发布前总检: examples 样例产物 + CI + 文档/提示修正"
+  ```
+  注意 `git add`/`git commit` 必须在**普通 shell** 里跑：本仓的开发沙箱会拒绝子进程写 `.git/`（`fatal: Unable to create '.git/index.lock': Permission denied`，连 `git add -n` 也一样）。**只要没提交，`git clone` 出来的分发包就缺掉方形/C 心矩形/非共线/kagome 整条链**——这正是「安装与依赖声明」之外最容易被忽略的发布阻塞项。
 
 ## License
 
