@@ -1842,6 +1842,34 @@ if True:
         finally:
             shutil.rmtree(_td28, ignore_errors=True)
 
+# ---------------------------------------------------------------------------
+# [29] Obsidian 阅读版备份: 与 README 同源 (readme_to_obsidian.py --check)
+# ---------------------------------------------------------------------------
+if True:
+    print("\n[29] Obsidian 阅读版备份 (README.obsidian.md)")
+
+    _r2o29 = os.path.join(SCRIPTS, "readme_to_obsidian.py")
+    check("obs: scripts/readme_to_obsidian.py 存在", os.path.isfile(_r2o29))
+
+    _ob29 = os.path.join(HERE, "README.obsidian.md")
+    _txt29 = ""
+    if os.path.isfile(_ob29):
+        with open(_ob29, encoding="utf-8") as _f:
+            _txt29 = _f.read()
+    check("obs: README.obsidian.md 有 YAML properties + 内链目录 + mermaid 管线图",
+          _txt29.startswith("---\n") and "source: README.md" in _txt29
+          and "[[#" in _txt29 and "```mermaid" in _txt29)
+    check("obs: 备份正文与 README 逐字一致（README 全文都在备份里）",
+          bool(_txt29) and open(os.path.join(HERE, "README.md"), encoding="utf-8").read().rstrip("\n") in _txt29)
+
+    if os.path.isfile(_r2o29):
+        _c29 = run(sys.executable, _r2o29, "--check")
+        check("obs: --check 判定同步 (README 改过就必须重新生成)",
+              _c29.returncode == 0 and "[OK]" in _c29.stdout)
+        _s29 = run(sys.executable, _r2o29, "--selftest")
+        check("obs: 生成器 --selftest ALL PASS",
+              _s29.returncode == 0 and "ALL PASS" in _s29.stdout)
+
 print("\n全部通过" if not fails else f"\n{len(fails)} 个失败: {fails}")
 
 sys.exit(1 if fails else 0)

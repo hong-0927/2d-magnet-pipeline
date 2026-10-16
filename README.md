@@ -22,6 +22,10 @@
 | 7 | [`DMI_MTI_MEMO.md`](DMI_MTI_MEMO.md) | DMI / MTI 为什么**不进主链**：能说与不能说的清单 |
 
 > 只想先看产物长什么样：直接看 [`examples/`](examples/)（合成/文献 J 的样例产物，不需要 VASP、也不需要装依赖）。
+>
+> 想用 [Obsidian](https://obsidian.md) 读（内链目录 / mermaid 管线图 / callout / 导出 PDF）：
+> 把 `2d_magnet_pipeline` 整个目录当 vault 打开，然后打开 [`README.obsidian.md`](README.obsidian.md)——
+> 它是本 README 的**生成物备份**（正文逐字一致，由 `scripts/readme_to_obsidian.py` 生成，`--check` 保证不漂移）。
 
 ---
 
@@ -200,10 +204,11 @@ python scripts/magnetic_orders.py --emit-spec rect_crsbr --dry-run   # 预览某
                           #   altermagnet_check.py = 交变磁体几何判据（P5：两套亚晶格的连接操作是平移/反演还是旋转）
                           #   solve_J_crect_cant.py = CrOCl 弱铁磁倾斜反解（P2'：闭式 sin²θ 标度 + 倾斜家族 + 自由度审计）
                           #   k_convergence.py  = P4.2：k 点收敛抽查（生成 <序>@<网格> 变体 + 回收后判定"多密才够"）
+                          #   readme_to_obsidian.py = 生成本 README 的 Obsidian 阅读版备份（确定性转换 + --check 同步闸门）
                           #   __init__.py 使其可作包安装; literature_J.json 已迁入此处作为包数据
   dsh/2d-magnet/SKILL.md  # agent skill
   dsh/bin/2d-magnet.cmd   # Windows 封装
-  tests/                  # smoke_test.py + test_magnetic_orders.py + test_fgt_e2e.py + test_square_cases.py + test_crect_cases.py + test_kagome_cases.py + test_altermagnet.py + test_crect_cant.py + test_ingest.py（fixtures/ 内置，无外部路径依赖）
+  tests/                  # smoke_test.py + test_magnetic_orders.py + test_fgt_e2e.py + test_square_cases.py + test_crect_cases.py + test_kagome_cases.py + test_altermagnet.py + test_crect_cant.py + test_ingest.py + check_sdist.py（sdist 内容闸门，不是测试；fixtures/ 内置，无外部路径依赖）
                           #   fixtures/ 里另有 GdI2 / K2NiF4 / La2CuO4 / CrOCl / CrSBr / Nb3I8 / Fe3GeTe2 / Fe3Sn 的 POSCAR 与
                           #   gdi2_nc_soc_120deg.INCAR.norm（非共线 120° 的 INCAR 快照基准）
   NEW_TYPES_PLAN.md       # 新磁性格点类型（方形/kagome/交变磁体…）的扩展计划与工期
@@ -211,6 +216,7 @@ python scripts/magnetic_orders.py --emit-spec rect_crsbr --dry-run   # 预览某
   P4_2_KAGOME_RUNBOOK.md  # P4.2 手册：kagome 真实非共线 DFT 的装配/提交/判定/回收/反解/验收（不是结果）
   WORKFLOW.md             # 阶段与脚本来源说明
   KNOWN_ISSUES.md         # 已知问题 / error catalog（doctor 子命令联动的「症状→修复」表）
+  README.obsidian.md      # 本 README 的 Obsidian 阅读版备份（**生成物**：正文逐字一致 + properties/内链目录/mermaid 管线图）
   LICENSE                 # MIT
   examples/               # 样例产物快照（见 examples/README.md）：方形 La2CuO4 文献-J 全程 + kagome 合成 dry-run（不需要 VASP）
   templates/              # 扩展骨架（不参与运行）：material_preset.json + new_lattice_checklist.md
@@ -232,10 +238,10 @@ python tests/test_fgt_e2e.py          # FGT 双亚晶格反解链路端到端（
 python tests/test_altermagnet.py      # P5：几何判据分支 / 容差语义 / 真 fixture 结论 / mc_2d 掩码序参量接线（83 项）
 python tests/test_crect_cant.py       # P2'：弱铁磁倾斜的闭式 θ 标度 / 倾斜家族自由度审计 / 反解器与产物契约（44 项）
 python tests/test_ingest.py           # P4.2：回收通道 ingest_dft.py 的 11 条硬闸门 / 原子性（不过就一件不写）/ --dry-run / --lenient
-python tests/check_sdist.py "dist\*.tar.gz"  # 发布闸门：sdist 里该有的 20 项都在、且没混入 __pycache__/_tmp_/_probe_
+python tests/check_sdist.py "dist\*.tar.gz"  # 发布闸门：sdist 里该有的 22 项都在、且没混入 __pycache__/_tmp_/_probe_
 ```
 
-九个都**自带直跑入口，不需要 pytest**（本机环境可能没装）。测试 fixture 已内置在 `tests/fixtures/`，不依赖本机任何绝对路径；可用环境变量
+九个测试都**自带直跑入口，不需要 pytest**（本机环境可能没装；`tests/check_sdist.py` 不是测试，是 sdist 内容闸门，需接一个 `.tar.gz` 路径）。测试 fixture 已内置在 `tests/fixtures/`，不依赖本机任何绝对路径；可用环境变量
 `MAGNET_FIXTURES` / `MAGNET_FGT_CASES` / `MAGNET_TEST_TMP` 覆盖。
 
 ### 脚本级自检（不跑 DFT、秒级、与测试互为交叉核对）
@@ -263,6 +269,9 @@ python scripts/build_crect_cases.py --selftest      # 免参数快检：用仓�
 python scripts/assemble_dft.py --selftest          # 共线/非共线/--soc/--all-orders 四条路径（18/18）
 python scripts/assemble_dft_tri.py --selftest      # 三角薄适配层：转调结果与 INCAR 内容（10/10）
 python scripts/k_convergence.py --selftest         # P4.2：k 点收敛抽查的网格解析/只换 KPOINTS/闸门/判定（29/29）
+
+# 文档 / 发布闸门
+python scripts/readme_to_obsidian.py --check       # README ↔ README.obsidian.md（Obsidian 阅读版备份）是否同步；--selftest 11/11
 
 # 反解器（--demo 需一个 cases 目录；用上面构建器刚生成的目录即可）
 python scripts/solve_J_square.py ../_selfcheck/sq --demo --ref la2cuo4
@@ -342,13 +351,13 @@ python scripts/solve_J_kagome.py ../_selfcheck/kag --demo --synthetic 3 -0.4 0.1
 - **许可**：[MIT](LICENSE)（`pyproject.toml` 的 `license` 与之同源，作者署名一致）。
 - **P0–P4.1 能力状态**：P0 规格层 / P1 方形 / P2 C 心矩形 / **P3 非共线 + SOC** / **P4.1 kagome 系数层** 均已落地并通过自检与回归（见「路线图」与「脚本级自检」）。**P3 与 P4.1 都是「能力已实现」，不是「物理已验证」**：没有任何真实非共线 DFT 能量，P3 的验收止于 INCAR/MAGMOM 内容 + 快照回归 + mock-OUTCAR 闭环回解 J（smoke §21），P4.1 的验收止于系数矩阵/条件数 + 合成能量回解 + 配位数判据（smoke §23，68 项契约测试），详见局限 8 与局限 14。**P6** 随后落地，但**只是识别层**（判据 + 边界 + 备忘，见 [DMI_MTI_MEMO.md](DMI_MTI_MEMO.md) 与局限 15）——它**不产生 D、不做拓扑判定**，所以不构成任何物理能力；随它落盘的 `scripts/dmi_matrix.py` 是把**文献 D 值**换成格点模型的受控换算器（`--selftest` 5/5），同样不是 DMI 计算能力。**P4.2**（kagome 的真实 J/T_N，需真实非共线 DFT）**只有操作手册**（[P4_2_KAGOME_RUNBOOK.md](P4_2_KAGOME_RUNBOOK.md)），物理层仍未跑；**P2′**（CrOCl 弱铁磁倾斜）已落地为**系数层 + 反解器**（`solve_J_crect_cant.py` + 44 项契约测试）——但 θ 是**输入参数**、一次倾斜 SCF 定不出唯一 (J, D) ⇒ 同样**不是**物理能力（见局限 17）；**P5** 已按用户指示落地为**识别层 + 标量序参量**（几何判据 + `--order sublattice:<mask>`，无能带 ⇒ 不构成物理能力，见局限 16）。
 - **可以带发布**：无 CHANGELOG；无 `docs/`（说明集中在 README/WORKFLOW/KNOWN_ISSUES/NEW_TYPES_PLAN 四份，内容自洽）；`templates/` 里放的是扩展骨架（`material_preset.json` / `new_lattice_checklist.md` / `README.md`，**不参与运行**，见该目录自述）；仓库根那份 3 MB 的 `.pptx` 是汇报稿、被 `.gitignore` 的 `*.pptx` 覆盖，且**从未进过版本库**（`git log --all -- "*.pptx"` 为空）⇒ 不存在"要单独开一次提交删掉"这回事（如仍想瘦身可 `git gc --prune=now`）。**已消项**（原列在这里的两条已解决）：CLI 现有 `--version`；FSS 标度图与 FGT 图已有纯 Pillow 兜底（局限 12）。
-- **版本控制状态（2026-10）**：P0–P4.1、P2′、P4.2（工具链）、P5 与 P6 的改动**已全部提交**——功能提交 `4839bf8`（`65 files changed, 18063 insertions(+), 438 deletions(-)`，26 个 `M` + 39 个 `A`，无删除），随后是文档状态更新提交 `b371946`，再到发布前总检提交 **`6215c64`**（`发布前总检: examples 样例产物 + CI + 文档/提示修正`，2026-10-16 13:12 +0800，`34 files changed, 1573 insertions(+), 15 deletions(-)`：`examples/` 27 个文件 + `.github/workflows/ci.yml` + 六份文件的文案/提示修正）。仓库共 **125 个已跟踪文件**，该提交后工作树是干净的（`git status --porcelain` 无输出）。功能提交含 `templates/`、`DMI_MTI_MEMO.md`、`P4_2_KAGOME_RUNBOOK.md`、`NEW_TYPES_PLAN.md`、P4.1 的 kagome 三件套、P4.2 工具链（`scripts/ingest_dft.py` + `scripts/dft_handoff.py` + `scripts/k_convergence.py`）、P5 的 `scripts/altermagnet_check.py` + `tests/test_altermagnet.py`、P2′ 的 `scripts/solve_J_crect_cant.py` + `tests/test_crect_cant.py`；0.1 期间勘察留下的探针已清理、未进提交。
-- **打包闸门（sdist/wheel，本轮的待提交项）**：`pyproject.toml` 的 wheel **只装** `run_2d_magnet.py` + `scripts/`（含 `package-data` 的 json），文档、手册、agent skill、样例产物、测试夹具、扩展骨架全靠 [`MANIFEST.in`](MANIFEST.in) 进 sdist——「clone 里有、sdist 里没有」这类发布事故不会被任何运行测试抓到，因此单独立了一道闸门 [`tests/check_sdist.py`](tests/check_sdist.py)（**20 条必须项**用 `endswith` 匹配，并拦下混入 `__pycache__/` / `*.pyc` / `_tmp_` / `_probe_` / `*.egg-info/` 的脏物），CI 的 `package` 作业跑 `python -m build` → 在别处只装 wheel 跑一次 smoke（`2d-magnet --version` + 读 `scripts/literature_J.json`）→ `python tests/check_sdist.py "dist\*.tar.gz"`。**诚实声明**：本机没有 `setuptools`（系统 Python 3.12 与 DSH 内置 3.12.14 都没有）且 PyPI 不可达 ⇒ **`python -m build` 没在本地跑过**，这道闸门只有 CI 会实跑；能本地核对的都核了——全部源码在 `ast.parse(feature_version=(3, 9))` 下零语法错（`requires-python = ">=3.9"` 只做到这一层，实际只在 3.12 上跑过）。
-- **本轮（打包闸门，尚未提交；`git status --porcelain` 为 2 个 `M` + 2 个未跟踪文件）**：新增 [`MANIFEST.in`](MANIFEST.in) 与 [`tests/check_sdist.py`](tests/check_sdist.py)，并改 [`.github/workflows/ci.yml`](.github/workflows/ci.yml)（新增 `package` 作业）与 `tests/smoke_test.py`（新增 §28「发布闸门」：`MANIFEST.in`/CI 关键字检查、`check_sdist` 的 20 条必须项在仓库里真实存在、以及用**合成 tar.gz** 反向验证闸门本身——完整包判通过、缺项判失败并点名、混入 `__pycache__` 判失败）。收尾提交：
+- **版本控制状态（2026-10）**：P0–P4.1、P2′、P4.2（工具链）、P5 与 P6 的改动**已全部提交**——功能提交 `4839bf8`（`65 files changed, 18063 insertions(+), 438 deletions(-)`，26 个 `M` + 39 个 `A`，无删除），随后是文档状态更新提交 `b371946`，再到发布前总检提交 **`6215c64`**（`发布前总检: examples 样例产物 + CI + 文档/提示修正`，2026-10-16 13:12 +0800，`34 files changed, 1573 insertions(+), 15 deletions(-)`：`examples/` 27 个文件 + `.github/workflows/ci.yml` + 六份文件的文案/提示修正），最后是打包闸门提交 **`84132f6`**（`发布闸门: MANIFEST.in + check_sdist 校验 + CI package 作业`，2026-10-16 13:23 +0800，`5 files changed, 218 insertions(+), 6 deletions(-)`：`MANIFEST.in` + `tests/check_sdist.py` + CI `package` 作业 + smoke §28）。仓库共 **127 个已跟踪文件**，`84132f6` 提交后工作树是干净的（`git status --porcelain` 无输出；此后只有本轮 Obsidian 阅读版备份的 5 个文件未提交，见下一条）。功能提交含 `templates/`、`DMI_MTI_MEMO.md`、`P4_2_KAGOME_RUNBOOK.md`、`NEW_TYPES_PLAN.md`、P4.1 的 kagome 三件套、P4.2 工具链（`scripts/ingest_dft.py` + `scripts/dft_handoff.py` + `scripts/k_convergence.py`）、P5 的 `scripts/altermagnet_check.py` + `tests/test_altermagnet.py`、P2′ 的 `scripts/solve_J_crect_cant.py` + `tests/test_crect_cant.py`；0.1 期间勘察留下的探针已清理、未进提交。
+- **打包闸门（sdist/wheel，已提交 `84132f6`）**：`pyproject.toml` 的 wheel **只装** `run_2d_magnet.py` + `scripts/`（含 `package-data` 的 json），文档、手册、agent skill、样例产物、测试夹具、扩展骨架全靠 [`MANIFEST.in`](MANIFEST.in) 进 sdist——「clone 里有、sdist 里没有」这类发布事故不会被任何运行测试抓到，因此单独立了一道闸门 [`tests/check_sdist.py`](tests/check_sdist.py)（**22 条必须项**用 `endswith` 匹配，并拦下混入 `__pycache__/` / `*.pyc` / `_tmp_` / `_probe_` / `*.egg-info/` 的脏物；smoke §28 用**合成 tar.gz** 反向验证闸门本身会拦缺项与脏物），CI 的 `package` 作业跑 `python -m build` → 在别处只装 wheel 跑一次 smoke（`2d-magnet --version` + 读 `scripts/literature_J.json`）→ `python tests/check_sdist.py "dist\*.tar.gz"`。**诚实声明**：本机没有 `setuptools`（系统 Python 3.12 与 DSH 内置 3.12.14 都没有）且 PyPI 不可达 ⇒ **`python -m build` 没在本地跑过**，这道闸门只有 CI 会实跑；能本地核对的都核了——全部源码在 `ast.parse(feature_version=(3, 9))` 下零语法错（`requires-python = ">=3.9"` 只做到这一层，实际只在 3.12 上跑过）。**诚实声明**：本机没有 `setuptools`（系统 Python 3.12 与 DSH 内置 3.12.14 都没有）且 PyPI 不可达 ⇒ **`python -m build` 没在本地跑过**，这道闸门只有 CI 会实跑；能本地核对的都核了——全部源码在 `ast.parse(feature_version=(3, 9))` 下零语法错（`requires-python = ">=3.9"` 只做到这一层，实际只在 3.12 上跑过）。
+- **本轮（Obsidian 阅读版备份，尚未提交；`git status --porcelain` 为 3 个 `M` + 2 个未跟踪文件）**：新增 [`README.obsidian.md`](README.obsidian.md)（本 README 的 Obsidian 阅读版**生成物**：正文逐字一致 + YAML properties + 内链目录 + mermaid 管线图 + callout）与 [`scripts/readme_to_obsidian.py`](scripts/readme_to_obsidian.py)（确定性生成器 + `--check` 同步闸门 + `--selftest` 11/11；**沙箱下生成器不能覆盖仓库内文件**，本机是生成到临时目录再复制进来的）；另改 [`README.md`](README.md)、`tests/smoke_test.py`（新增 §29「Obsidian 备份同步」5 项）、[`tests/check_sdist.py`](tests/check_sdist.py)（REQUIRED 20 → 22 项，把备份与生成器也纳入 sdist 闸门）。收尾提交：
   ```powershell
   cd 2d_magnet_pipeline
   git add -A
-  git commit -m "发布闸门: MANIFEST.in + check_sdist 校验 + CI package 作业"
+  git commit -m "README 的 Obsidian 阅读版备份 + 同步闸门 (smoke §29)"
   ```
   注意 `git add`/`git commit` 必须在**普通 shell** 里跑：本仓的开发沙箱会拒绝子进程写 `.git/`（`fatal: Unable to create '.git/index.lock': Permission denied`，连 `git add -n` 也一样）。**只要没提交，`git clone` 出来的分发包就缺掉方形/C 心矩形/非共线/kagome 整条链**——这正是「安装与依赖声明」之外最容易被忽略的发布阻塞项。
 
