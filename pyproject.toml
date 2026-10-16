@@ -18,6 +18,13 @@ dependencies = [
     "requests>=2.31",
 ]
 
+[project.optional-dependencies]
+# Pillow 是可选兜底渲染器：matplotlib 在 import 期就要 pyparsing/cycler/contourpy/fontTools/kiwisolver,
+# 缺任何一个（或离线装不上）时, 超胞图/簇磁体图/三角图/MC 曲线图会自动改走纯 Pillow 的等价路径
+# （见 KNOWN_ISSUES.md 的 fig_backend 条）。这里与 requirements.txt 的 Pillow>=9.0 对齐:
+# 走 `pip install -r requirements.txt` 会默认装, 走 `pip install .` 想带上就写 `pip install ".[render-fallback]"`。
+render-fallback = ["Pillow>=9.0"]
+
 [project.scripts]
 2d-magnet = "run_2d_magnet:main"
 

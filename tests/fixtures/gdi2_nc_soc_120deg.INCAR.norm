@@ -1,0 +1,29 @@
+# 非共线 + SOC 的 INCAR 快照 (三角 GdI2, 120deg 磁序), 由 tests/smoke_test.py §21 回归。
+# 生成方式: 驱动 `dft --model gdi2 --poscar tests/fixtures/GdI2_POSCAR --soc`;
+# MAGMOM 行被换成 <n_atoms/ncomp/n_mag/|m|/angles> 描述符, 其余逐字保留 (以 # 开头的行不参与比对)。
+# 变更此处前先确认物理没写错: LNONCOLLINEAR+LSORBIT 必须同时开, GGA_COMPAT 必须关, 不能有 ISPIN。
+SYSTEM   = Gd I monolayer magnetic order (noncollinear-SOC)
+PREC     = Normal
+ENCUT    = 520.0
+EDIFF    = 1E-6
+ALGO     = Normal
+NELM     = 200
+ISMEAR   = 0
+SIGMA    = 0.05
+
+LNONCOLLINEAR = .TRUE.
+LSORBIT  = .TRUE.
+GGA_COMPAT = .FALSE.      ! SOC 必须关掉 GGA 的兼容模式
+MAGMOM = <n_atoms=75 ncomp=3 n_mag=25 |m|=7.000000 angles=[0.0, 120.0, 240.0]>
+
+LDAU     = .TRUE.
+LDAUTYPE = 2
+LDAUL    = 3 -1
+LDAUU    = 6.0 0.0
+LDAUJ    = 0.0 0.0
+LMAXMIX  = 4
+
+LREAL    = .FALSE.
+LWAVE    = .FALSE.
+LCHARG   = .FALSE.
+NPAR     = 4

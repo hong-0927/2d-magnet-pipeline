@@ -82,6 +82,9 @@ def main():
     ap.add_argument("poscar")
     ap.add_argument("--vacuum", type=float, default=15.0)
     ap.add_argument("-o", "--out", default=None)
+    # POSCAR 第 1 行只是注释 (VASP 忽略), 但它会进产物被人读 —— 默认值不再写死材料名,
+    # 由 driver 按 --model 的化学式传入 (否则 CrOCl 的 POSCAR 会自称 MnPS3)。
+    ap.add_argument("--comment", default="monolayer (reoriented, vacuum)")
     args = ap.parse_args()
 
     lat, atoms, coords = parse_poscar(args.poscar)
@@ -128,7 +131,7 @@ def main():
     print(f"新 c = ({c2[0]:.4f}, {c2[1]:.4f}, {c2[2]:.4f})  |c|={np.linalg.norm(c2):.4f}")
 
     out = args.out or (args.poscar + ".reorient")
-    write_poscar(out, new_lat, atoms, frac, "MnPS3 monolayer (reoriented, vacuum)")
+    write_poscar(out, new_lat, atoms, frac, args.comment)
     print(f"写出: {out}")
 
 

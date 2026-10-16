@@ -195,6 +195,25 @@ def main():
         with open(os.path.join(d, "magmom.txt"), "w") as f:
             f.write(f"MAGMOM = {' '.join(mag_parts)}\n")
 
+    # P0.3 自描述块: 让「系数行 ↔ 磁序 ↔ 壳定义」可被下游机器复查 (poscar_to_mc3 --jfile 用它)
+    _rules = {
+        "fm": "sigma_i = +1 (全同向)",
+        "afm_a": "sigma = (-1)^n0 (沿 a 反平行条纹)",
+        "afm_b": "sigma = (-1)^n1 (沿 b 反平行条纹)",
+        "afm_diag": "sigma = (-1)^(n0+n1) (棋盘)",
+    }
+    order_spec = [dict(name=nm, kind="collinear", rule=_rules[nm],
+                       coeffs=[float(x) for x in coeff[nm]]) for nm in orders]
+    model_spec = dict(
+        schema="model_spec/1", lattice="rectangular", label="矩形单离子",
+        element=args.element, nonmag=list(args.nonmag), spin=args.spin, S2=args.spin ** 2,
+        supercell=[int(x) for x in sc], policy="shift_search", nshift=1,
+        noncollinear=False, n_mag=n,
+        shells=[dict(name="J1", d=d_nn, tol=0.3, pair=None),
+                dict(name="J2", d=d_nnn, tol=0.3, pair=None),
+                dict(name="J3", d=d_3rd, tol=0.3, pair=None)],
+    )
+
     report = {
         "input": args.poscar, "supercell": sc, "n_atoms": len(atoms_sc),
         "n_mag": n, "element": args.element, "nonmag": args.nonmag,
@@ -205,6 +224,8 @@ def main():
         "coefficients_per_cell": {k: list(v) for k, v in coeff.items()},
         "coefficients_per_mag": {k: [c / n for c in v] for k, v in coeff.items()},
         "inversion_matrix_per_cell": Ainv.tolist(),
+        "order_spec": order_spec,
+        "model_spec": model_spec,
     }
     with open(os.path.join(args.outdir, "magnetic_orders.json"), "w") as f:
         json.dump(report, f, indent=2)

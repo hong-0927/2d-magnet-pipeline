@@ -24,18 +24,21 @@ import os
 import re
 import sys
 
-TOTEN = re.compile(r"free\s+energy\s+TOTEN\s*=\s*(-?\d+\.\d+)")
+# P3.17: OUTCAR 的 TOTEN 正则与取法统一在 `dft_energy.py`（原地的 TOTEN 正则已删除）
 MAGHEAD = "magnetization (x)"
 SIGMA = re.compile(r"sigma=([+-]?\d+)")
 
 
 def read_energy(run_dir):
-    """OUTCAR 的最后一个 free energy TOTEN; 否则 E.txt 第一个数。"""
+    """OUTCAR 的最后一个 free energy TOTEN（口径统一在 `dft_energy.py`, P3.17）;
+    否则 E.txt 第一个数（早期手工提交留下的兜底格式）。"""
     p = os.path.join(run_dir, "OUTCAR")
     if os.path.exists(p):
-        v = TOTEN.findall(open(p, encoding="utf-8", errors="ignore").read())
-        if v:
-            return float(v[-1])
+        from dft_energy import read_toten
+        try:
+            return read_toten(p)
+        except ValueError:
+            pass
     p = os.path.join(run_dir, "E.txt")
     if os.path.exists(p):
         t = open(p, encoding="utf-8", errors="ignore").read().split()

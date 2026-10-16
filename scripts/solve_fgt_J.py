@@ -26,13 +26,15 @@ EV2MEV = 1000.0
 
 
 def read_energy(run_dir):
-    """优先 OUTCAR 的最后一个 'free  energy   TOTEN  ='; 否则读 E.txt 里的单个数字。"""
+    """优先 OUTCAR 的 'free energy TOTEN'（口径统一在 `dft_energy.py`, P3.17）;
+    否则读 E.txt 里的单个数字（早期手工提交留下的兜底格式）。"""
     outcar = os.path.join(run_dir, "OUTCAR")
     if os.path.exists(outcar):
-        pat = re.compile(r"free\s+energy\s+TOTEN\s*=\s*(-?\d+\.\d+)")
-        vals = pat.findall(open(outcar, encoding="utf-8", errors="ignore").read())
-        if vals:
-            return float(vals[-1]), "OUTCAR"
+        from dft_energy import read_toten
+        try:
+            return read_toten(outcar), "OUTCAR"
+        except ValueError:
+            pass
     e = os.path.join(run_dir, "E.txt")
     if os.path.exists(e):
         txt = open(e, encoding="utf-8").read().strip().split()

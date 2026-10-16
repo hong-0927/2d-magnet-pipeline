@@ -19,13 +19,11 @@ import json
 import os
 
 import numpy as np
-import matplotlib
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt
-from matplotlib.lines import Line2D
 
-plt.rcParams["font.sans-serif"] = ["Microsoft YaHei", "SimHei", "DejaVu Sans"]
-plt.rcParams["axes.unicode_minus"] = False
+# 刻意不在模块顶层 import matplotlib: 本模块的纯辅助函数 (parse_poscar / pairwise_distances /
+# cluster_shells / load_order_meta / coef_label) 要被 render_supercell_pil.py 在没有可用
+# matplotlib 的机器上复用 (本机 matplotlib 3.11.1 缺 pyparsing/cycler/... 顶层 import 即失败),
+# 所以 matplotlib 只在 main() 里 import。
 
 C_UP = "#d62728"
 C_DN = "#1f77b4"
@@ -125,7 +123,36 @@ def coef_label(coeff):
     return "(" + ",".join(names) + ")=(" + ",".join(f"{c:g}" for c in coeff) + ")"
 
 
+def match_projected_shells(spec_dists, obs_dists, tol=SHELL_TOL):
+    """把规格层壳距对齐到俯视投影实际量到的壳距 (按次序配对)。
+
+    为什么需要: 规格层 (build_*_cases.py 的 magnetic_shells) 量的是 **3D** 键长,
+    本脚本是俯视投影, 量到的是 **面内** 距离。1 磁原子/胞的网两者一致; 但 2 磁原子/胞的
+    C 心矩形网 (CrOCl) 规格层 J1 = 3.0347 Å (含 1.71 Å 面外起伏), 投影只有 2.506 Å,
+    差 0.53 Å > tol —— 直接按距离配壳会把 J1 的键整条漏掉。两套口径的键拓扑相同
+    (per_site_bonds 已在流水线里校验过), 故按次序配对是安全的。
+
+    返回 (draw_dists, spec_alt): draw_dists 用于键归壳 (投影口径);
+    spec_alt[i] 是第 i 个壳与规格层不一致时的规格层距离, 否则 None (供图例同时标出两值)。
+    """
+    spec = [float(s) for s in (spec_dists or [])]
+    obs = [float(d) for d in (obs_dists or [])]
+    if not spec or len(obs) < len(spec):
+        return spec, [None] * len(spec)
+    draw = obs[:len(spec)]
+    spec_alt = [s if abs(s - o) > tol else None for s, o in zip(spec, draw)]
+    return draw, spec_alt
+
+
 def main():
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    from matplotlib.lines import Line2D
+
+    plt.rcParams["font.sans-serif"] = ["Microsoft YaHei", "SimHei", "DejaVu Sans"]
+    plt.rcParams["axes.unicode_minus"] = False
+
     ap = argparse.ArgumentParser()
     ap.add_argument("--root", default=os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     ap.add_argument("--orders", nargs="+", default=["fm", "neel", "zigzag", "stripy"])
@@ -155,6 +182,8 @@ def main():
 
     # 跨面板统一壳距: 若未从 json 得到, 从第一个 order 的结构自动聚壳
     resolved = shell_dists
+    spec_alt = [None] * (len(shell_dists) if shell_dists else 0)
+    aligned = shell_dists is None
     for ax, order in zip(axes, args.orders):
         d = os.path.join(cases_dir, order)
         lat, symbols, coords = parse_poscar(os.path.join(d, "POSCAR"))
@@ -173,6 +202,10 @@ def main():
 
         if resolved is None:
             resolved = cluster_shells(ds)[:args.shells]
+        elif not aligned:
+            # 规格层是 3D 键长, 本脚本量的是面内投影: 按次序对齐 (见 match_projected_shells)
+            resolved, spec_alt = match_projected_shells(resolved, cluster_shells(ds, tol=SHELL_TOL))
+            aligned = True
 
         a1, a2 = lat2[0], lat2[1]
         crxy = xy[mag_idx]
@@ -239,8 +272,10 @@ def main():
     for k in range(len(resolved)):
         _, color, ls, lw, alias = SHELL_STYLES[k % len(SHELL_STYLES)]
         name = f"J{k + 1}" if k < 3 else f"J{k + 1}"
-        handles.append(Line2D([], [], color=color, ls=ls, lw=2.0,
-                              label=f"{name} ({alias}) {resolved[k]:.2f} Å"))
+        lab = f"{name} ({alias}) {resolved[k]:.2f} Å"
+        if k < len(spec_alt) and spec_alt[k]:
+            lab += f" [规格层 {spec_alt[k]:.2f} Å]"
+        handles.append(Line2D([], [], color=color, ls=ls, lw=2.0, label=lab))
     fig.legend(handles=handles, loc="lower center", ncol=4, frameon=False,
                fontsize=9, bbox_to_anchor=(0.5, 0.055))
     fig.suptitle(f"{args.label} 单层 2×2×1 超胞：四种共线磁序俯视图", fontsize=15, y=0.975)

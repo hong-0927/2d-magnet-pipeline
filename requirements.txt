@@ -2,3 +2,7 @@ numpy>=1.24
 numba>=0.59
 matplotlib>=3.7
 requests>=2.31
+# Pillow: 可选。matplotlib 不可用时 (它 import 期就需要 pyparsing/cycler/contourpy/fontTools/kiwisolver)
+# 磁序图与 MC 曲线图会自动改走纯 Pillow 的等价渲染器 (render_supercell_pil.py /
+# render_cluster_orders_pil.py / render_tri_orders_pil.py / mc_2d.py 的 _plot_mt_png), 装了才有图。
+Pillow>=9.0

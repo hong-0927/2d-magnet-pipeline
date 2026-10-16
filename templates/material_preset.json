@@ -1,0 +1,32 @@
+{
+  "_about": "MODEL_PRESETS 单条目骨架: 把下面这段（去掉 _about/_howto 两个下划线键）粘进 run_2d_magnet.py 的 MODEL_PRESETS 即成一个 --model 预设。字段含义与约束见同目录 README.md 的表格。",
+  "_howto": [
+    "1) 确认 scripts/literature_J.json 里有同名条目（或删掉 literature 键）",
+    "2) element/nonmag/S/moment/U 必须与文献条目逐项一致, 否则 check_presets() 报 preset_mismatch",
+    "3) desc 必须写清 J 的核实状态: 未核实 => 跑 mc/report 必须显式 --J1/--J2/--J3",
+    "4) 加完跑: python scripts/magnetic_orders.py --regress 与 python tests/smoke_test.py"
+  ],
+  "example_key": "crsbr",
+  "preset": {
+    "formula": "CrSBr",
+    "element": "Cr",
+    "nonmag": ["S", "Br"],
+    "lattice": "rectangular",
+    "S": 1.5,
+    "moment": 3.0,
+    "U": 4.0,
+    "literature": "CrSBr",
+    "desc": "矩形铁磁, Cr3+ S=3/2 (Yang&Wu PRB 104,144416 (2021): 距离壳升序 J1(a)=2.79/J2(b)=2.12/J3(对角)=3.88 meV, 单层 T_C≈175 K)"
+  },
+  "blank": {
+    "formula": "<化学式, 如 CrSCl>",
+    "element": "<磁性元素, 如 Cr>",
+    "nonmag": ["<非磁元素1>", "<非磁元素2>"],
+    "lattice": "<honeycomb|triangular|square|rectangular|rect_centered|cluster>",
+    "S": 1.5,
+    "moment": 3.0,
+    "U": 4.0,
+    "literature": "<literature_J.json 里的键, 没有就删掉这一行>",
+    "desc": "<一句话说明> + (文献 J 已核实: 来源 / 文献 J 待核实 ⇒ 必须显式 --J1/--J2/--J3)"
+  }
+}

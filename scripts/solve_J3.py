@@ -23,14 +23,13 @@ LIT = dict(J1=-0.79, J2=-0.04, J3=-0.23)
 
 
 def read_toten(path):
-    tot = None
-    with open(path) as f:
-        for line in f:
-            if "TOTEN" in line and "free" in line:
-                tot = float(line.split()[-2])
-    if tot is None:
-        raise ValueError(f"no 'free energy TOTEN' in {path}")
-    return tot
+    """取 OUTCAR 的总能量 (eV)。
+
+    P3.17: 口径统一到 `dft_energy.py` —— 一律 `free energy TOTEN`、取**最后一次**出现、
+    缺了就报错（不静默改用 energy(sigma->0)）。这里只转发, 不再各写一份。
+    """
+    from dft_energy import read_toten as _rt
+    return _rt(path)
 
 
 def main():

@@ -16,13 +16,19 @@ import json
 import os
 
 import numpy as np
-import matplotlib
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt
-from matplotlib.lines import Line2D
 
-plt.rcParams["font.sans-serif"] = ["Microsoft YaHei", "SimHei", "DejaVu Sans"]
-plt.rcParams["axes.unicode_minus"] = False
+
+def _plt():
+    """延迟 import matplotlib: 让本模块的几何辅助函数 (parse_poscar / find_clusters /
+    cluster_centroids / SHELL_STYLES ...) 能在**没有 matplotlib** 的环境里被
+    render_cluster_orders_pil.py 复用 (本机 matplotlib 缺依赖, 见该文件头)。"""
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    from matplotlib.lines import Line2D
+    plt.rcParams["font.sans-serif"] = ["Microsoft YaHei", "SimHei", "DejaVu Sans"]
+    plt.rcParams["axes.unicode_minus"] = False
+    return plt, Line2D
 
 C_UP = "#d62728"
 C_DN = "#1f77b4"
@@ -134,6 +140,7 @@ def main():
     ap.add_argument("-o", "--out", default=None)
     args = ap.parse_args()
 
+    plt, Line2D = _plt()
     root = os.path.abspath(args.root)
     cases_dir = os.path.join(root, "02_supercell", "cases")
 

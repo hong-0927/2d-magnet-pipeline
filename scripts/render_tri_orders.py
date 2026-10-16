@@ -16,13 +16,19 @@ import json
 import os
 
 import numpy as np
-import matplotlib
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt
-from matplotlib.lines import Line2D
 
-plt.rcParams["font.sans-serif"] = ["Microsoft YaHei", "SimHei", "DejaVu Sans"]
-plt.rcParams["axes.unicode_minus"] = False
+
+def _plt():
+    """延迟 import matplotlib: 让本模块的几何辅助函数 (parse_poscar / min_image_2d /
+    SHELL_STYLES / TITLES ...) 能在**没有 matplotlib** 的环境里被
+    render_tri_orders_pil.py 复用 (本机 matplotlib 缺依赖, 见该文件头)。"""
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    from matplotlib.lines import Line2D
+    plt.rcParams["font.sans-serif"] = ["Microsoft YaHei", "SimHei", "DejaVu Sans"]
+    plt.rcParams["axes.unicode_minus"] = False
+    return plt, Line2D
 
 C_UP = "#d62728"
 C_DN = "#1f77b4"
@@ -85,9 +91,13 @@ def main():
     ap.add_argument("--element", required=True)
     ap.add_argument("--nonmag", nargs="+", default=[])
     ap.add_argument("--label", default=None)
+    ap.add_argument("--title", default=None,
+                    help="整条标题覆盖（默认 '<label> 三角晶格磁序俯视图（含 120° 非共线）'）。"
+                         "kagome 等复用本渲染器的晶格由驱动传自己的标题，避免标题张冠李戴。")
     ap.add_argument("-o", "--out", default=None)
     args = ap.parse_args()
 
+    plt, Line2D = _plt()
     root = os.path.abspath(args.root)
     cases_dir = os.path.join(root, "02_supercell", "cases")
 
@@ -172,9 +182,15 @@ def main():
                        linewidths=1.4, zorder=4)
         ncz = np.where(~collinear)[0]
         if len(ncz):
-            ax.quiver(mn_xy[ncz, 0], mn_xy[ncz, 1], spins[ncz, 0], spins[ncz, 1],
-                      angles="xy", scale_units="xy", scale=0.9, width=0.02, color="#1a1a1a",
-                      zorder=5, headwidth=5, headlength=6)
+            # 面内自旋只画**方向** (统一长度 0.30*|a|), 不按 |S| 缩放:
+            # 原作 quiver(scale_units="xy", scale=0.9) 在 |S|=5 时会画出 5/0.9 ≈ 5.6 A
+            # 的长箭头, 在 a≈4.2 A 的三角晶格上互相纠缠。PIL 版同几何 (见 render_tri_orders_pil.py)。
+            l_arr = 0.30 * float(np.linalg.norm(a1))
+            for t in ncz:
+                u = np.array([spins[t, 0], spins[t, 1]]) / max(float(inplane[t]), 1e-12)
+                ax.annotate("", xy=mn_xy[t] + u * l_arr, xytext=mn_xy[t],
+                            arrowprops=dict(arrowstyle="-|>", color="#1a1a1a", lw=1.4,
+                                            mutation_scale=12), zorder=5)
 
         ax.plot([0, a1[0], a1[0] + a2[0], a2[0], 0],
                 [0, a1[1], a1[1] + a2[1], a2[1], 0], color="black", lw=1.0, ls="--", zorder=5)
@@ -206,7 +222,7 @@ def main():
     fig.legend(handles=handles, loc="lower center", ncol=len(handles), frameon=False,
                fontsize=8.5, bbox_to_anchor=(0.5, 0.02))
     label = args.label or args.element
-    fig.suptitle(f"{label} 三角晶格磁序俯视图（含 120° 非共线）", fontsize=14, y=0.99)
+    fig.suptitle(args.title or f"{label} 三角晶格磁序俯视图（含 120° 非共线）", fontsize=14, y=0.99)
     fig.text(0.5, 0.012,
              f"俯视沿 c (z)。红/蓝 = 自旋 ↑/↓；箭头 = 面内自旋；键按 J1/J2/J3 壳着色。"
              f"数据: 02_supercell/cases/*/POSCAR + magmom.txt + magnetic_orders.json",

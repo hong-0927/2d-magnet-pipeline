@@ -17,6 +17,7 @@ U4(T) 曲线在 T_C 附近交于一点; 交点温度随 L 增大收敛到真实 
       --tmin 5 --tmax 60 --nt 30 --therm 2500 --meas 6000 --seeds 2 --cool --out fss
 
 输出: <out>_fss.csv (T 与各尺寸 U4 宽表) + <out>_fss.png + 控制台 T_C 估计。
+      matplotlib 不可用时 <out>_fss.png 自动改由纯 Pillow 兜底渲染 (见 pil_fig.py)。
 """
 import argparse
 import json
@@ -27,12 +28,66 @@ import numpy as np
 import mc_2d
 
 
+COLOR_CYCLE = ("#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd", "#8c564b",
+               "#e377c2", "#7f7f7f", "#bcbd22", "#17becf")   # matplotlib tab10
+C_REF = "#808080"   # 参考线 (gray)
+C_TC = "#d62728"    # T_C 竖线 (tab:red)
+
+
+def _plot_fss_png(curves, sizes, meta, tc_mark, png):
+    """纯 Pillow 兜底渲染 Binder U4(T) 标度图 (本机 matplotlib 缺依赖时走这里)。
+
+    与 matplotlib 版同图同信息: 每尺寸一条圆点折线 + U4=0.4/0.0 灰点线参考 +
+    T_C/T_N 红虚线 + 图内图例。画布按 pil_fig 约定 (figsize*200dpi, 2x 超采样后
+    LANCZOS 缩小)——mpl 版此处用 dpi=150, 故像素尺寸更大但版面一致。
+    唯一文本差异: mpl 的 LaTeX 下标 "Binder $U_4$" 写成 "Binder U4" (Pillow 无排版)。
+    """
+    import sys as _sys
+    _sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import pil_fig as P
+    from PIL import Image, ImageDraw
+
+    W, H = int(round(7 * P.DPI)), int(round(5 * P.DPI))
+    Wd, Hd = W * P.SS, H * P.SS
+    img = Image.new("RGB", (Wd, Hd), "white")
+    dr = ImageDraw.Draw(img)
+
+    T_grid = np.asarray(curves[sizes[0]][0], dtype=float)
+    ulo = min([0.0] + [float(np.min(np.asarray(curves[L][1], dtype=float))) for L in sizes])
+    uhi = max([0.4] + [float(np.max(np.asarray(curves[L][1], dtype=float))) for L in sizes])
+    xr, xR = float(T_grid.min()), float(T_grid.max())
+    if xR <= xr:
+        xr, xR = xr - 1.0, xr + 1.0
+    px, py = 0.03 * (xR - xr), 0.05 * max(uhi - ulo, 1e-6)
+    box = (0.125 * Wd, 0.12 * Hd, 0.775 * Wd, 0.77 * Hd)   # mpl 默认 axes rect
+    T = P.chart_axes(img, box, (xr - px, xR + px), (ulo - py, uhi + py),
+                     xlabel="T (K)", ylabel="Binder U4",
+                     title=f"{meta['element']} FSS (Binder U4 crossing)",
+                     nticks=(7, 5), xfmt="{:.0f}", yfmt="{:.1f}")
+    for yv in (0.4, 0.0):
+        P.draw_seg(dr, T((xr - px, yv)), T((xR + px, yv)), C_REF, ":", 0.8)
+    for i, L in enumerate(sizes):
+        P.plot_series(dr, T, curves[L][0], curves[L][1], COLOR_CYCLE[i % len(COLOR_CYCLE)],
+                      ls="-", lw=1.5, marker="o", ms_pt=4.0)
+    if tc_mark is not None:
+        P.draw_seg(dr, T((tc_mark, ulo - py)), T((tc_mark, uhi + py)), C_TC, "--", 1.0)
+    entries = [(COLOR_CYCLE[i % len(COLOR_CYCLE)], "-", f"L={L}") for i, L in enumerate(sizes)]
+    if tc_mark is not None:
+        entries.append((C_TC, "--", f"T_C={tc_mark:.1f} K"))
+    # mpl 的 loc="best": U4 曲线从左上降到右下, 右上角必空 => 固定摆轴内右上角
+    bw, _bh = P.legend_size(entries)
+    P.legend_box(dr, (box[0] + box[2] - bw - P.pt2px(8), box[1] + P.pt2px(8)), entries)
+    img = img.resize((W, H), Image.LANCZOS)
+    os.makedirs(os.path.dirname(os.path.abspath(png)) or ".", exist_ok=True)
+    img.save(png, "PNG", optimize=True)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("model")
     ap.add_argument("--sizes", type=int, nargs="+", required=True,
                     help="至少两个线性尺寸 L (方晶格 LxL), 如 12 18 24 30")
-    ap.add_argument("--order", choices=["auto", "staggered", "total"], default="auto")
+    ap.add_argument("--order", default="auto", help=mc_2d.ORDER_HELP)
     ap.add_argument("--tmin", type=float, default=5.0)
     ap.add_argument("--tmax", type=float, default=150.0)
     ap.add_argument("--nt", type=int, default=30)
@@ -54,15 +109,28 @@ def main():
     meta = model["meta"]
 
     # 序参量选择: 同 mc_2d.py 的 auto 逻辑 (J 求和符号定铁磁/反铁磁)
-    if args.order == "auto":
+    try:
+        o_kind, o_mask = mc_2d.parse_order_spec(args.order)
+    except ValueError as e:
+        raise SystemExit(f"[error] {e}")
+    if o_kind not in ("auto", "staggered", "total", "cv", "sublattice"):
+        raise SystemExit(f"[error] 未知 --order {args.order!r}: 可用 {mc_2d.ORDER_HELP}")
+    if o_kind == "cv":
+        raise SystemExit("[error] FSS 用 U4 交点定临界温度, 没有 U4 的比热路径不适用 "
+                         "(与 mc_2d.py 的 --order cv 不同)")
+    if o_kind == "auto":
         if "J1_meV" in meta:
             jsum = float(meta["J1_meV"])
         else:
             jsum = sum(-float(it["J"][0][0]) for it in model.get("interactions", []))
         order = 1 if jsum < 0 else 0
+        kind = "交错 (反铁磁, T_N)" if order == 1 else "总磁化 (铁磁, T_C)"
+    elif o_kind == "sublattice":
+        order = 1
+        kind = f"逐子晶格 Néel 矢量 |L| (A = 子晶格 {sorted(set(o_mask))}, B = 其余)"
     else:
-        order = 1 if args.order == "staggered" else 0
-    kind = "交错 (反铁磁, T_N)" if order == 1 else "总磁化 (铁磁, T_C)"
+        order = 1 if o_kind == "staggered" else 0
+        kind = "交错 (反铁磁, T_N)" if order == 1 else "总磁化 (铁磁, T_C)"
     print(f"序参量: {kind}")
 
     prefix = args.out or (os.path.splitext(os.path.basename(args.model))[0] + "_fss")
@@ -74,12 +142,27 @@ def main():
     curves = {}  # L -> (T, U4)
     for L in args.sizes:
         # neighbors/J/onsite/num_basis 与种子无关, 先建一次; 各种子只重建初始自旋。
+        # 交错序参量要子晶格 ±1 符号: num_basis==1 的方形/矩形必须图二着色 ——
+        # 老代码按 `i % num_basis` 分会退化成单侧为空 (cb==0) 而除零。
         _s, neighbors, J, onsite, num_basis = mc_2d.build_arrays(model, (L, L), spin_seed=0)
+        stag = np.zeros(_s.shape[0], dtype=np.float64)
+        if order == 1:
+            if o_kind == "sublattice":
+                try:
+                    stag = mc_2d.sublattice_signs(num_basis, (L, L), o_mask)
+                except ValueError as e:
+                    raise SystemExit(f"[error] --order {args.order}: {e}")
+            else:
+                stag = mc_2d.stag_signs(neighbors, J, num_basis)
+                if stag is None:
+                    raise SystemExit(
+                        f"序参量=交错 需要二分子晶格, 但该模型 (num_basis={num_basis}) 无法二分着色"
+                        f" (受挫/非二分晶格) —— 请改用 `--order total` 用 U4 交点定 T_C")
         all_res = []
         for k in range(n_seeds):
             spins, _, _, _, _ = mc_2d.build_arrays(model, (L, L), spin_seed=args.seed + k)
             res = mc_2d.run_sweep(spins, neighbors, J, onsite, T_list, args.therm,
-                                  args.meas, num_basis, order, seed=args.seed + k)
+                                  args.meas, stag, order, seed=args.seed + k)
             all_res.append(res[np.argsort(res[:, 0])])
         res = np.mean(np.stack(all_res), axis=0)
         curves[L] = (res[:, 0], res[:, 3])  # T, U4
@@ -171,6 +254,11 @@ def main():
                    "crossings": [[int(a), int(b), float(t)] for a, b, t in crossings]},
                   f, ensure_ascii=False, indent=2)
 
+    # 图上标出的转变温度口径与上面打印的一致 (两两交点优先, 否则 collapse)。
+    # 必须在 try 之前算出来: 否则 matplotlib 一失败, 兜底渲染器就拿不到它
+    # (mc_2d.py 的 cv_peak 踩过同一个坑)。
+    tc_mark = tc if crossings else T_collapse
+    png = prefix + "_fss.png"
     try:
         import matplotlib
         matplotlib.use("Agg")
@@ -180,7 +268,6 @@ def main():
             ax.plot(curves[L][0], curves[L][1], "o-", ms=4, label=f"L={L}")
         ax.axhline(0.4, color="gray", ls=":", lw=0.8)
         ax.axhline(0.0, color="gray", ls=":", lw=0.8)
-        tc_mark = tc if crossings else T_collapse
         if tc_mark is not None:
             ax.axvline(tc_mark, color="tab:red", ls="--", lw=1,
                        label=f"$T_C$={tc_mark:.1f} K")
@@ -189,11 +276,15 @@ def main():
         ax.set_title(f"{meta['element']} FSS (Binder U4 crossing)")
         ax.legend()
         ax.grid(alpha=0.3)
-        png = prefix + "_fss.png"
         fig.savefig(png, dpi=150, bbox_inches="tight")
         print(f">>> 图存至 {png}")
     except Exception as e:
-        print(f"[warn] 画图跳过: {e}")
+        print(f"[warn] matplotlib 画图不可用 ({e}); 改用纯 Pillow 兜底")
+        try:
+            _plot_fss_png(curves, sizes, meta, tc_mark, png)
+            print(f">>> 图存至 {png} (纯 Pillow 兜底)")
+        except Exception as e2:
+            print(f"[warn] 画图跳过: {e2}")
 
 
 if __name__ == "__main__":

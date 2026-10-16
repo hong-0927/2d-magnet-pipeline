@@ -101,6 +101,69 @@ def min_image(d, lat):
     return float(np.linalg.norm(d @ lat))
 
 
+def _fgt_visibility_offsets(mag_sc, sub_sc, frac, fe_prim, n_cell):
+    """B 位"竖直对"的面内可见性偏移: 俯视图里同一面内位置的两个 B 完全重叠, 按上/下
+    成员横向错开, 让各自的 ↑/↓ 都看得见 (仅为可见性, 不代表真实面内位移)。"""
+    dx = np.zeros(len(mag_sc))
+    for k in range(len(mag_sc)):
+        if sub_sc[k] == "B":
+            base = int(mag_sc[k]) // n_cell
+            dx[k] = 0.45 if frac[fe_prim[base]][2] > 0.5 else -0.45
+    return dx
+
+
+def _plot_fgt_png(png, configs, sigma, xy, sub_sc, dx, cell=None):
+    """纯 Pillow 兜底渲染 FGT 磁序俯视图 (本机 matplotlib 缺依赖时走这里)。
+
+    与 matplotlib 版同图同信息: 每个磁序一格; 圆 = A(2c), 方 = B(4e); 格内 ↑/↓ = 自旋;
+    B 竖直对按 dx 做面内错位以便同时可见。画布走 pil_fig 约定 (figsize*200dpi, 2x 超采样
+    后 LANCZOS 缩小)。与 mpl 版的两点差异: 总标题/脚注改成 draw_titles 的换行排版
+    (mpl 版是一行超长 suptitle), 点内箭头字号按点径取 7pt (mpl 的 11pt 明显溢出色点)。
+    """
+    import sys as _sys
+    _sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import pil_fig as P
+    from PIL import Image, ImageDraw
+
+    n = max(1, len(configs))
+    W, H = int(round(3.1 * n * P.DPI)), int(round(3.4 * P.DPI))
+    Wd, Hd = W * P.SS, H * P.SS
+    img = Image.new("RGB", (Wd, Hd), "white")
+    dr = ImageDraw.Draw(img)
+
+    xy = np.asarray(xy, dtype=float)
+    pts = xy + np.column_stack([np.asarray(dx, dtype=float), np.zeros(len(xy))])
+    corners = np.asarray(cell, dtype=float) if cell is not None else pts
+    boxes = P.panel_grid(1, n, Wd, Hd, left=0.02, right=0.98, top=0.17, bottom=0.80,
+                         wspace=0.05)
+    r_mag = P.marker_radius(34)          # mpl scatter s=34
+    f_glyph = P.font(P.pt2px(7.0))
+    for b, kind in enumerate(configs):
+        x0, y0, pw, ph = boxes[b]
+        T = P.panel_transform(x0, y0, pw, ph, corners, 0.3)
+        s = sigma(kind)
+        dr.rectangle([x0, y0, x0 + pw, y0 + ph], outline=(204, 204, 204),
+                     width=max(1, int(round(P.pt2px(0.8)))))
+        for k in range(len(pts)):
+            up = s[k] > 0
+            P.marker_shape(dr, T(tuple(pts[k])), r_mag,
+                           ("o" if sub_sc[k] == "A" else "s"),
+                           fill=("#1f77b4" if sub_sc[k] == "A" else "#d62728"),
+                           edge="black", width=P.pt2px(0.4))
+            dr.text(T(tuple(pts[k])), "↑" if up else "↓", font=f_glyph,
+                    fill=("white" if up else "black"), anchor="mm")
+        dr.text((x0 + pw / 2.0, y0 - P.pt2px(6)), kind, font=P.font(P.pt2px(11)),
+                fill="black", anchor="md")
+    foot = ("圆 = A (2c) Fe I, 方 = B (4e) Fe II; 点内 ↑/↓ = 自旋; "
+            "B 的竖直对按面内偏移画开以便同时可见 (不代表真实面内位移)。\n"
+            "数据: 02_supercell/cases/*/POSCAR + magmom.txt + magnetic_orders.json\n"
+            "(纯 Pillow 渲染: 本机 matplotlib 缺依赖, 由 build_fgt_cases.py 出图)")
+    P.draw_titles(dr, Wd, Hd, "Fe3GeTe2 two-sublattice magnetic orders", foot)
+    img = img.resize((W, H), Image.LANCZOS)
+    os.makedirs(os.path.dirname(os.path.abspath(png)) or ".", exist_ok=True)
+    img.save(png, "PNG", optimize=True)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("poscar",
@@ -421,6 +484,14 @@ NPAR     = 4
           f"runs/fm/ 另存 INCAR.relax, 因为 runs/fm/INCAR 是静态的)")
 
     # --- 图 ---
+    figd = os.path.join(args.outdir, "figures")
+    os.makedirs(figd, exist_ok=True)
+    png = os.path.join(figd, "fgt_supercell_orders.png")
+    cart = sc_frac @ new_lat
+    xy_mag = cart[mag_sc][:, :2]                       # 磁性原子的面内坐标 (A)
+    dx_mag = _fgt_visibility_offsets(mag_sc, sub_sc, frac, fe_prim, n_cell)
+    cell2 = np.array([[0.0, 0.0], new_lat[0, :2], new_lat[0, :2] + new_lat[1, :2],
+                      new_lat[1, :2]])
     try:
         import matplotlib
         matplotlib.use("Agg")
@@ -428,17 +499,12 @@ NPAR     = 4
         fig, axes = plt.subplots(1, len(CONFIGS), figsize=(3.1 * len(CONFIGS), 3.4))
         for ax, kind in zip(np.atleast_1d(axes), CONFIGS):
             s = sigma(kind)
-            cart = sc_frac @ new_lat
             ax.set_title(kind, fontsize=11)
             for k, i in enumerate(mag_sc):
                 up = s[k] > 0
                 # B 位是"竖直对"(同一面内位置), 俯视图会完全重叠 -> 按上/下成员做面内偏移
                 # 让两个成员与各自的 ↑/↓ 都看得见 (仅为可见性, 不代表真实面内位移)。
-                dx = 0.0
-                if sub_sc[k] == "B":
-                    base = int(mag_sc[k]) // n_cell
-                    dx = 0.45 if frac[fe_prim[base]][2] > 0.5 else -0.45
-                x, y = cart[i, 0] + dx, cart[i, 1]
+                x, y = cart[i, 0] + dx_mag[k], cart[i, 1]
                 ax.scatter(x, y, s=34,
                            c=("tab:blue" if sub_sc[k] == "A" else "tab:red"),
                            marker=("o" if sub_sc[k] == "A" else "s"),
@@ -454,13 +520,15 @@ NPAR     = 4
                      "the two B of each vertical pair are offset in-plane for visibility)",
                      fontsize=11)
         fig.tight_layout()
-        figd = os.path.join(args.outdir, "figures")
-        os.makedirs(figd, exist_ok=True)
-        fig.savefig(os.path.join(figd, "fgt_supercell_orders.png"), dpi=150,
-                    bbox_inches="tight")
-        print(f"图 -> {figd}/fgt_supercell_orders.png")
-    except Exception as e:  # pragma: no cover
-        print("[warn] 画图跳过:", e)
+        fig.savefig(png, dpi=150, bbox_inches="tight")
+        print(f"图 -> {png}")
+    except Exception as e:
+        print(f"[warn] matplotlib 画图不可用 ({e}); 改用纯 Pillow 兜底")
+        try:
+            _plot_fgt_png(png, CONFIGS, sigma, xy_mag, sub_sc, dx_mag, cell2)
+            print(f"图 -> {png} (纯 Pillow 兜底)")
+        except Exception as e2:  # pragma: no cover
+            print("[warn] 画图跳过:", e2)
 
     # --- 哈密顿卡片 ---
     h = [f"# Fe3GeTe2 单层 双亚晶格 Heisenberg 哈密顿量", "",
