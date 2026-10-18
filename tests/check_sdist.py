@@ -45,8 +45,8 @@ REQUIRED = [
     "examples/kagome_fe3sn_dryrun/02_supercell/cases/ingest_report.md",
 ]
 
-# 明确**不该**出现的（本地脏物 / 缓存 / 探针）
-FORBIDDEN_SUFFIXES = ("__pycache__/", ".pyc", ".pyo", ".egg-info/", "_tmp_", "_probe_", ".git/")
+# 明确**不该**出现的（本地脏物 / 缓存 / 探针 / 笔记软件工作区）
+FORBIDDEN_SUFFIXES = ("__pycache__/", ".pyc", ".pyo", ".egg-info/", "_tmp_", "_probe_", ".git/", ".obsidian/", ".trash/")
 
 
 def resolve(spec: str) -> str:

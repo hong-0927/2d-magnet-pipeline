@@ -177,6 +177,16 @@ try:
 finally:
     shutil.rmtree(td, ignore_errors=True)
 
+# ---- 5b. 比热能量的口径: _energy 必须含单离子各向异性 (P0-1 回归) ----
+#     旧 _energy 只算交换项、把 onsite 丢掉; 而 Metropolis 的 dE 含各向异性
+#     -> 抽样含 A / 测量不含 A -> Cv 少一块、T_N 系统偏移, 退出码仍是 0。
+r = run(sys.executable, os.path.join(SCRIPTS, "mc_2d.py"), "--selftest")
+check("mc_2d --selftest 退出码 0", r.returncode == 0)
+check("mc_2d --selftest 三项全 PASS (含 A / A=0 / onsite 有贡献)",
+      r.stdout.count("[PASS]") == 3 and "[FAIL]" not in r.stdout)
+if r.returncode != 0:
+    print(r.stdout[-1500:], r.stderr[-1500:])
+
 # ---- 6. 多亚晶格铁磁网络的误判警告 (Fe3GeTe2 类: 3 个 Fe/胞 被几何并成 1 簇) ----
 td = mktmp("_tmp_fgt_")
 try:

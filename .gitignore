@@ -13,3 +13,7 @@ _tmp_*/
 
 # 演示/汇报产物 (可再生成)
 *.pptx
+
+# Obsidian: 把本目录当 vault 打开时生成的配置/工作区缓存 (README.obsidian.md 是生成物, 要提交; 配置不要)
+.obsidian/
+.trash/

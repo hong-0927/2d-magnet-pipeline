@@ -22,6 +22,7 @@ import argparse
 import json
 import math
 import os
+import sys
 
 import numpy as np
 from numba import njit
@@ -53,6 +54,14 @@ def build_arrays(model, size, spin_seed=0):
                 i = (cx * Ly + cy) * num_basis + b1
                 tc = (np.array([cx, cy]) + off) % np.array([Lx, Ly])
                 j = (tc[0] * Ly + tc[1]) * num_basis + b2
+                if j == i:
+                    # 周期性回绕把这条相互作用映射回了它自己 (offset 是该轴尺寸的整数倍)。
+                    # 不拦的话该格点的"自作用"会被当成近邻累加进能量/序参量, 静默错。
+                    raise SystemExit(
+                        f"[error] 相互作用 ({b1}->{b2}, offset="
+                        f"({int(off[0])},{int(off[1])})) 在 --size {Lx} {Ly} 下回绕回同一"
+                        f"格点 (cell {cx},{cy}); --size 太小。每个轴的尺寸必须严格大于该轴"
+                        f"上 offset 的绝对值 (例如 offset (2,0) 需要 Lx>=3)。")
                 nb[i].append(j); jm[i].append(J)
                 nb[j].append(i); jm[j].append(J.T)
 
@@ -282,10 +291,18 @@ def _run_T_fast(spins, neighbors, J, onsite, T, n_therm, n_meas, state, order, s
 
 @njit
 def _energy(spins, neighbors, J, onsite):
-    """总能量/格点 (交换 + 单离子)。有向键和双计, 除 2。"""
+    """总能量/格点 (交换 + 单离子各向异性), 单位 meV。
+
+    两项的双计约定**不同**, 不能合并后统一乘 0.5:
+      * 交换项: 有向键 (i->j 与 j->i 各存一条) 都数了一遍 -> 乘 0.5;
+      * 单离子项: 每个格点只数一次 -> **不**乘 0.5。
+    必须与 _run_T_cv 里 Metropolis 的 dE 用同一个哈密顿量 (那边 onsite 也是每格点
+    一次), 否则抽样含各向异性、测量不含 -> 比热 Cv 的能量涨落少一块 -> T_N 系统
+    偏移, 而且退出码仍然是 0 (静默错)。
+    """
     N = spins.shape[0]
     M = neighbors.shape[1]
-    E = 0.0
+    E_ex = 0.0
     for i in range(N):
         for k in range(M):
             j = neighbors[i, k]
@@ -293,10 +310,90 @@ def _energy(spins, neighbors, J, onsite):
                 break
             Jm = J[i, k]
             sx = spins[j, 0]; sy = spins[j, 1]; sz = spins[j, 2]
-            E += spins[i, 0] * (Jm[0, 0] * sx + Jm[0, 1] * sy + Jm[0, 2] * sz) \
-               + spins[i, 1] * (Jm[1, 0] * sx + Jm[1, 1] * sy + Jm[1, 2] * sz) \
-               + spins[i, 2] * (Jm[2, 0] * sx + Jm[2, 1] * sy + Jm[2, 2] * sz)
-    return 0.5 * E / N
+            E_ex += spins[i, 0] * (Jm[0, 0] * sx + Jm[0, 1] * sy + Jm[0, 2] * sz) \
+                  + spins[i, 1] * (Jm[1, 0] * sx + Jm[1, 1] * sy + Jm[1, 2] * sz) \
+                  + spins[i, 2] * (Jm[2, 0] * sx + Jm[2, 1] * sy + Jm[2, 2] * sz)
+    E_on = 0.0
+    for i in range(N):
+        A = onsite[i]
+        sx = spins[i, 0]; sy = spins[i, 1]; sz = spins[i, 2]
+        E_on += sx * (A[0, 0] * sx + A[0, 1] * sy + A[0, 2] * sz) \
+              + sy * (A[1, 0] * sx + A[1, 1] * sy + A[1, 2] * sz) \
+              + sz * (A[2, 0] * sx + A[2, 1] * sy + A[2, 2] * sz)
+    return 0.5 * E_ex / N + E_on / N
+
+
+def _brute_energy(spins, neighbors, J, onsite):
+    """纯 Python 暴力求值, 只当作 _energy 的对照 (同一组数组、同一套双计约定)。"""
+    N = spins.shape[0]
+    M = neighbors.shape[1]
+    e_ex = 0.0
+    for i in range(N):
+        for k in range(M):
+            j = neighbors[i, k]
+            if j == -1:
+                break
+            e_ex += float(spins[i] @ J[i, k] @ spins[j])
+    e_on = 0.0
+    for i in range(N):
+        e_on += float(spins[i] @ onsite[i] @ spins[i])
+    return 0.5 * e_ex / N + e_on / N
+
+
+def _selftest():
+    """比热能量的自检: _energy 必须等于暴力求和, 且**含单离子各向异性**。
+
+    回归的缺陷 (P0-1): 旧 _energy 只算交换项、把 onsite 整个丢掉; 而 Metropolis 的
+    dE 含各向异性 -> 抽样含 A、测量不含 A -> Cv 的能量涨落少一块 -> T_N 系统偏移,
+    且退出码仍是 0 (静默错)。这里用非对角/非对称的随机 J 与随机易轴 A 把两种算法
+    摆在一起比, 三项都过才算通过。
+    """
+    rng = np.random.default_rng(20250516)
+    L = 3
+    N = L * L
+    M = 4
+    spins = rng.normal(size=(N, 3))
+    spins /= np.linalg.norm(spins, axis=1)[:, None]
+    neighbors = np.full((N, M), -1, dtype=np.int32)
+    Jarr = np.zeros((N, M, 3, 3))
+    on = np.zeros((N, 3, 3))
+    for cx in range(L):
+        for cy in range(L):
+            i = cx * L + cy
+            for k, (dx, dy) in enumerate([(1, 0), (0, 1), (2, 0), (0, 2)]):
+                neighbors[i, k] = ((cx + dx) % L) * L + ((cy + dy) % L)
+                Jarr[i, k] = rng.normal(size=(3, 3)) * 1.5
+            on[i] = np.diag(rng.normal(size=3) * 1.0)   # 随机易轴, 各格点不同
+
+    fails = []
+    e_fast = float(_energy(spins, neighbors, Jarr, on))
+    e_ref = _brute_energy(spins, neighbors, Jarr, on)
+    if abs(e_fast - e_ref) > 1e-9:
+        fails.append(f"含 A 时不一致: _energy={e_fast:.12f} != 暴力 {e_ref:.12f}")
+    else:
+        print(f"  [PASS] 含 A: _energy 与暴力求和一致 (E/N={e_fast:.6f} meV/格点)")
+
+    zero = np.zeros_like(on)
+    e0_fast = float(_energy(spins, neighbors, Jarr, zero))
+    e0_ref = _brute_energy(spins, neighbors, Jarr, zero)
+    if abs(e0_fast - e0_ref) > 1e-9:
+        fails.append(f"A=0 时不一致: _energy={e0_fast:.12f} != 暴力 {e0_ref:.12f}")
+    else:
+        print(f"  [PASS] A=0: _energy 与暴力求和一致 (E/N={e0_fast:.6f} meV/格点)")
+
+    d_e = e_fast - e0_fast
+    if abs(d_e) < 1e-6:
+        fails.append("A 与 A=0 的能量完全相同 -> onsite 项仍没被算进去")
+    else:
+        print(f"  [PASS] onsite 项确实进入能量: A=0 -> {e0_fast:.6f}, "
+              f"含 A -> {e_fast:.6f} (差 {d_e:+.6f} meV/格点)")
+
+    if fails:
+        for msg in fails:
+            print(f"  [FAIL] {msg}")
+        return 1
+    print("mc_2d 自检: 比热能量 (交换 + 单离子各向异性) OK")
+    return 0
 
 
 @njit
@@ -372,6 +469,8 @@ def run_sweep_cv(spins, neighbors, J, onsite, T_list, therm, meas, seed=0):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("model")
+    ap.add_argument("--selftest", action="store_true",
+                    help="只跑比热能量自检 (交换 + 单离子各向异性), 不需要 model")
     ap.add_argument("--order", default="auto", help=ORDER_HELP)
     ap.add_argument("--size", type=int, nargs=2, default=[30, 30])
     ap.add_argument("--tmin", type=float, default=5.0)
@@ -385,6 +484,9 @@ def main():
     ap.add_argument("--seeds", type=int, default=1,
                     help="独立种子数 N: 跑 N 次不同初态并平均, 报告峰位标准差 (误差棒)")
     ap.add_argument("--out", default=None)
+    # --selftest 不读模型: 预扫描一次, 免得 argparse 因为缺 model 位置参数而报错
+    if "--selftest" in sys.argv[1:]:
+        return _selftest()
     args = ap.parse_args()
 
     # 必须显式 utf-8: Windows 默认用区域编码 (GBK), 模型 JSON 里若含非 ASCII
@@ -780,4 +882,5 @@ def _plot_mt_png(res, meta, png, order, use_cv, cv_peak, cv_edge,
 
 
 if __name__ == "__main__":
-    main()
+    # sys.exit 而不是裸 main(): 让 --selftest 的失败能变成非零退出码
+    sys.exit(main())
