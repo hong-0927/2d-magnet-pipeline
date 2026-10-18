@@ -32,7 +32,7 @@
 让人自己判断是「真的没有」还是「弛豫/写文件精度差一点」。
 
 **不可判定**: k 分辨自旋劈裂(能带层面) —— 那需要自旋分辨能带计算, 属研究问题, 不在本流水线契约内
-(见 README 已知局限 16 / WORKFLOW.md 局限 1g)。本脚本永远不会输出「这是交变磁体」这种结论。
+(见 README 已知局限 13 / WORKFLOW.md 局限 1g)。本脚本永远不会输出「这是交变磁体」这种结论。
 
 用法:
     python scripts/altermagnet_check.py --poscar tests/fixtures/Fe3Sn_POSCAR --element Fe

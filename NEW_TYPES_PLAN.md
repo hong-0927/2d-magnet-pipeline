@@ -40,7 +40,7 @@
 | 类型 | G1 | G2 | G3 | G4 | G5 | G6 | 判定 | 关键依据（一句话） |
 |---|---|---|---|---|---|---|---|---|
 | 方形 K2NiF4 | ✅ | ✅ | ✅（共线，模板现成） | ✅（`staggered`） | ✅ | ✅ | **进主链（P1，✅ 已完成）** | 单磁性子晶格 + J1/J2/J3 三个距离壳，a=b 时 x/y 键长简并、合并到同壳**物理上正确** |
-| 矩形 / oxyhalide | ✅ | ✅ | ⚠（弱倾斜需 SOC） | ✅ | ⚠ | ✅ | **进主链（P2，✅ 已完成）**；弱 FM 倾斜 → **P2′ 已落地**（系数层 + 反解器；θ 是输入参数、无真实 SOC 能量，见 `README.md` 局限 17 与 §P2′） | 原判据（「复用已通的 `build_rectangular_cases.py`，增量只是元素/化学计量预设」）**被实测推翻**：CrOCl 是 **(½,½) C 心矩形网、2 个磁原子/胞**，且两 Cr 只差 3.03 Å < 簇判据 ⇒ 实际做法 = 修 `detect_lattice` 簇判据 + 新写 `build_crect_cases.py` / `solve_J_crect.py`（详见 §P2） |
+| 矩形 / oxyhalide | ✅ | ✅ | ⚠（弱倾斜需 SOC） | ✅ | ⚠ | ✅ | **进主链（P2，✅ 已完成）**；弱 FM 倾斜 → **P2′ 已落地**（系数层 + 反解器；θ 是输入参数、无真实 SOC 能量，见 `README.md` 局限 14 与 §P2′） | 原判据（「复用已通的 `build_rectangular_cases.py`，增量只是元素/化学计量预设」）**被实测推翻**：CrOCl 是 **(½,½) C 心矩形网、2 个磁原子/胞**，且两 Cr 只差 3.03 Å < 簇判据 ⇒ 实际做法 = 修 `detect_lattice` 簇判据 + 新写 `build_crect_cases.py` / `solve_J_crect.py`（详见 §P2） |
 | 六角 kagome | ✅ | ⚠（q=0 与 √3×√3 需非共线） | ⚠（7 个内置序只需 `--noncollinear`；分离 J1/J1′ 才需 SOC） | ⚠（序参量需核对） | ✅ | ✅ | **系数层已进主链（P4.1 ✅）；物理层 = 手册 + 等真实非共线 DFT 机时（P4.2）** | 3 位 basis 在 `reduce_to_primitive`/`find_bonds` 下自然成立，卡点是 **J1 与 J1′ 在同距离上被 3 壳模型合并**（取平均）—— 要分离需要更细的构型 + SOC，本轮**不做**（见 `P4_2_KAGOME_RUNBOOK.md` §2/§9） |
 | 交变磁体 | ✅ | ⚠ | ✅ | ✅（P5：`--order sublattice:<mask>` 逐子晶格 Néel 矢量） | ⚠ | ⚠ | **进识别层（P5 ✅）：几何判别 + 标量序参量，不给 k 分辨自旋劈裂结论** | 需要逐子晶格 Néel 矢量/掩码序参量；且「是否交变磁体」的 k 分辨自旋劈裂判别属研究问题，不属本流水线契约 |
 | 体相 DMI | ✅（3×3 J 可编码） | ❌（3 分量 D 矢量拟合成本高） | ⚠（P3 已有 `--lsorbit`；仍无自旋螺旋构型生成器） | ❌（无拓扑荷序参量） | ⚠ | ❌ | **只识别 + 路由，不进主链（P6 ✅ 已做识别层 + 判据备忘）** | 即使算完，主链目标函数是 T_C，DMI 产出物对不上契约；须另立 DMI/skyrmion 子链 |
@@ -79,7 +79,7 @@
 > 另外两个**陷阱**（与 P1 的陷阱不同源）：C 心键连的是**同一胞内**两个 basis ⇒ basis 符号对一切 (n0,n1)-奇偶序**完全不可见**（`afm_c_a == afm_a` 等逐位相同），母序与其 basis 翻倍版**同选必使 det=0**（脚本硬拒）；J1=3.0347 与 J2=3.1980 只差 0.1632 Å ⇒ `magnetic_shells(tol=0.2)` 会**静默并壳**，`build_crect_cases.py` 默认 `--shell-tol 0.05`。弱 FM 倾斜（需 SOC/DMI）显式留给 P3。
 12. `run_2d_magnet.py`：oxyhalide 元素/参数预设（Fe/V/Cr 的 U、S、moment）+ 预设自检。→ **已完成**（`crocl` 预设：Cr / nonmag `O Cl` / lattice `rect_centered` / S=1.5 / moment=3.0 / U=4.0；新增 `--lattice rect_centered` 与 `--crect-supercell`；`sq_centered` 显式报错）。
 13. `scripts\build_rectangular_cases.py`：层状 vdW 间隙与非磁元素（O/X）占位检查、化学计量校验（小改）。→ **改为新写 `scripts\build_crect_cases.py`**（同号 13 的意图用新脚本实现：要求原胞**恰好 2 个**磁性原子，非磁 O/Cl 由 `--nonmag` 给；超胞前两维须为偶数且 ≥2；`det<1e-6` 与 `cond>1e4` 硬报错；**非磁元素占位与化学计量校验**（`--nonmag` 漏写胞内元素、或写了胞里没有的元素 ⇒ 硬报错，不静默错位；每胞计量必须为整数并落进 `stoichiometry_per_cell` / `formula_per_cell`，CrOCl 为 Cr2O2Cl2）；`--selftest` 8 项 = basis 简并不变式 / fm 与 afm_c 只差 c1 / 退化组合 det 须为 0 / 7 序互异 / 合成 J 反解 / 4×4×1 解析理想值 / 与规格层逐位交叉校验 / cond 闸门）。`build_rectangular_cases.py` 本身除了 MAGMOM 顺序修正外**未被改动**，保持对 1 磁原子/胞材料的兼容。
-14. 技能文档：oxyhalide 归入矩形族的说明 + 与 CrSBr 路径的差异表。→ **已完成**（`WORKFLOW.md` §4 步骤表/§5 目录树/§6 继承表/§7 局限 1d/§8 接手清单 + `README.md` 支持列表与预设表与局限 11 + 本节；差异表 = 「同一个正交网家族，但胞内磁原子数 1 vs 2 ⇒ 判簇判据、壳容差、`afm_c` 序三者全部不同」）。
+14. 技能文档：oxyhalide 归入矩形族的说明 + 与 CrSBr 路径的差异表。→ **已完成**（`WORKFLOW.md` §4 步骤表/§5 目录树/§6 继承表/§7 局限 1d/§8 接手清单 + `README.md` 支持列表与预设表与局限 9 + 本节；差异表 = 「同一个正交网家族，但胞内磁原子数 1 vs 2 ⇒ 判簇判据、壳容差、`afm_c` 序三者全部不同」）。
 15. `scripts\solve_J_crect.py`（**计划外新增**）：C 心矩形反解，`--ref`/`--synthetic` 互斥且 `--demo` 必须给其一；由 fm 行导出的每格点配位数必须等于 4/2/2，否则 SystemExit 并提示「壳很可能被 `tol=0.2` 静默合并」；`--demo` PASS = 往返误差 <1e-6 meV 且 z 对 且 cond<1e4。CrOCl 的文献 J 未核实 ⇒ 该脚本**拒绝**用 null 或他材料的值当锚点。
 
 **M2 端到端实测**（无 VASP；J 用 `--synthetic` 合成，**只验证管路**）：`--model crocl` 判别为 `rect_centered` → 4×4×1 / 96 原子 / 32 Cr / cond(A)=64.02 / det=524288 → MC(合成 J1=5, J2=−0.5, J3=0.2 meV) 得 χ 峰 **T ≈ 90.00 K**。**这不是 CrOCl 的物理结果**（J 是编的），合成 J 产生的 `J_result.json`/`05_mc/`/`hamiltonian.md` 已从仓库删除以免误读。要真数需走 DFT+MC 或找到可复核的文献 J。
@@ -122,7 +122,7 @@
 >
 > 24. `scripts\mc_2d.py`：`--order sublattice:<mask>`（逐子晶格 Néel 矢量序参量，Binder U4 同构）。→ **已完成**，且做法比计划**更省**：不改模型 JSON、不加列，只加一个符号数组构造器 `sublattice_signs(num_basis, size, mask)`（`mask = {0}` 与老的 `stag_signs` 在 `num_basis >= 2` 时**逐位一致** ⇒ 蜂窝/FGT 数值不动，是天然回归锚点；`num_basis >= 3` 时能取任意子晶格组合，而老路径只会把 basis 1..n−1 并成一组）。产物仍是 4 列 `T_Kelvin,order_param,Susceptibility,Binder_U4` ⇒ `summarize_mc` / `mc_fss` 的列契约**零破坏**；`mc_fss.py` 同步支持（并显式拒绝 `cv`：U4 是它的判据）；driver 新增 `--mc-order` 透传（默认仍按 lattice 自动选）。掩码空 / 越界 / 覆盖全部子晶格（B 组为空 ⇒ `mbx/cb` 除零）全部硬报错。
 > 25. 交变磁体**识别层检查清单**（零净磁化 + 子晶格反平行 + 晶体旋转连接）——只出报告，不下结论。→ **已完成**：新脚本 `scripts\altermagnet_check.py`（`--selftest` 15/15）：把「连接操作」定义成**必须同时是晶体对称操作**（把全部原子按元素映射回原位），再按旋转部分分类：平移 ⇒ 常规共线反铁磁、反演（非共面）⇒ 宇称禁止、旋转/镜面 ⇒ **几何候选**；报告永远带「不可判定：k 分辨自旋劈裂」一行。
-> 26. 技能文档：明确「可算 = 子晶格 Néel 的 T_N；不可算 = k 分辨自旋劈裂验证」。→ **已完成**：`dsh\2d-magnet\SKILL.md` 新增「分支：交变磁体（P5）——只做几何判别」节 + 局限追加一条；`README.md` 局限 16 + 路线图 P5 标 ✅ + 脚本/测试清单；`WORKFLOW.md` 目录树 + 继承表 + 局限 `1g.`；smoke §25。
+> 26. 技能文档：明确「可算 = 子晶格 Néel 的 T_N；不可算 = k 分辨自旋劈裂验证」。→ **已完成**：`dsh\2d-magnet\SKILL.md` 新增「分支：交变磁体（P5）——只做几何判别」节 + 局限追加一条；`README.md` 局限 13 + 路线图 P5 标 ✅ + 脚本/测试清单；`WORKFLOW.md` 目录树 + 继承表 + 局限 `1g.`；smoke §25。
 >
 > ① 偏差（实施中发现并修掉两个**真问题**，都不在原计划里）：
 > (a) **容差语义错了**：初版判据用「分数坐标四舍六入后查元组」，而真实结构文件里同一条对称关系两侧坐标常在第 6~7 位小数上不同 —— 实测 MnPS3 / CrOCl 的 fixture 因此被**静默误报**成「没有任何晶体对称操作连接两套亚晶格」（真实残差只有 0.012 / 0.503 mÅ）。改成按**Å 距离**判定（`nearest_same_element`），并在「无连接」时报告**最接近的候选操作与残差**，让人自己判断是「真的没有」还是「弛豫/写文件精度差一点」；`--tol` 因此以 Å 为单位。
