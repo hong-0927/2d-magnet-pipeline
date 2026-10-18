@@ -51,10 +51,11 @@ python tests/check_sdist.py "dist\*.tar.gz"    # sdist 必须项闸门
 
 ## 附件
 
-- `2d-magnet-pipeline-0.1.0.tar.gz`（源码包，132 个文件）/ `.zip`
+- `2d-magnet-pipeline-0.1.0.tar.gz`（源码包，136 个文件）/ `.zip`
 - `SHA256SUMS`（两个包的 sha256）
 - 许可：MIT License © 2026 吴思泓（见 [LICENSE](LICENSE)）
 
-> 注意：本版本**不是** PyPI 上的分发包。源码包由 `git archive`/等价方式从仓库打出来；
-> PyPI 式 sdist/wheel（`python -m build`）由 CI 的 `package` 作业产出，本机没有 `setuptools` 且离线，
-> 所以没有在本地跑过 —— 第一次 push 后请到 Actions 确认该作业。
+> 注意：本版本**不是** PyPI 上的分发包。源码包由仓库自带的 [`scripts/make_release.py`](scripts/make_release.py)
+> 打出（名单取 `git ls-files --cached --others --exclude-standard`，固定前缀/uid/mtime，同一棵树重复构建字节一致）；
+> 产物在 `dist/`，不进仓库。PyPI 式 sdist/wheel（`python -m build`）由 CI 的 `package` 作业产出，本机没有
+> `setuptools` 且离线，所以没有在本地跑过 —— 第一次 push 后请到 Actions 确认该作业。
