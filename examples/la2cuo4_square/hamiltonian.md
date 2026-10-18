@@ -53,6 +53,6 @@ H = - J1 · Σ_{⟨ij⟩} S_i·S_j
 
 - 原胞矢量 (Å): `[[3.7992, 0.0], [0.0, 3.7992]]`
 - 基矢位点 (分数坐标): `[[0.0, 0.0]]`
-- 源 POSCAR: `C:\Users\吴\AppData\Local\Temp\dsh-HxaRfu\la2_example\01_structure\POSCAR`
+- 源 POSCAR: `01_structure/POSCAR`（快照里改成相对路径，原绝对路径来自临时目录）
 
 > 局限: 纯各向同性 Heisenberg + 单离子 MAE；二维 Mermin-Wagner 下临界温度为有限尺寸伪相变估计。

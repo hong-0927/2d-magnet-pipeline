@@ -12,6 +12,10 @@
 `workflow.md`（逐步阶段报告）与 `02_supercell/cases/<序>/{POSCAR,magmom.txt}`（送 DFT 的输入），
 为节省仓库体积没有快照进来。
 
+> 路径字段说明：快照是在临时目录跑出来的，其中的绝对路径（`magnetic_orders.json` 的 `input`、
+> `J_result*.json` 的 `source_runs` / `manifest`、`ingest_report.md` 与 `hamiltonian.md` 的来源行）
+> 已全部改写成工程内相对路径，`tests/smoke_test.py` §28 有一道闸门禁止再把它带回来。
+
 ## 这个流水线会产出什么（有 / 没有 / 为什么）
 
 | 产物 | 谁写 | 落在哪 | 说明 |

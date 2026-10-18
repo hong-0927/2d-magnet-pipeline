@@ -112,7 +112,7 @@
   "dft_provenance": {
     "schema": "dft_ingest/v1",
     "generated_utc": "2026-10-16T04:55:59+00:00",
-    "source_runs": "C:\\Users\\吴\\AppData\\Local\\Temp\\dsh-HxaRfu\\_dryrun_runs_10cudyn1",
+    "source_runs": "_dryrun_runs",
     "energy_convention": "free energy TOTEN (eV)",
     "lenient": [
       "accuracy",
@@ -170,7 +170,7 @@
       "sq3_alt": "b1dcc2fb1087de325eb0b2b1be40d48eb6e9b1a290844b3b6efbff7a4a826cd7",
       "sq3_updntri": "572108faa5ec35d42bc02a961989a166caa0aa96bc2ff04ed3c94d55b6b3da81"
     },
-    "manifest": "C:\\Users\\吴\\AppData\\Local\\Temp\\dsh-HxaRfu\\kag_example\\02_supercell\\cases\\ingest_manifest.json",
+    "manifest": "02_supercell/cases/ingest_manifest.json",
     "note": "凭证只证明 OUTCAR 过了格式/收敛/结构/口径闸门, **不证明 J 与 T_C 的物理正确性**"
   }
 }

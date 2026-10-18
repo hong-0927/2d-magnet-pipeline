@@ -1,8 +1,9 @@
 # DFT 回收报告 (ingest_dft.py)
 
 - 生成时间 (UTC): `2026-10-16T04:55:59+00:00`
-- 来源 runs: `C:\Users\吴\AppData\Local\Temp\dsh-HxaRfu\_dryrun_runs_10cudyn1`
-- 目标 cases: `C:\Users\吴\AppData\Local\Temp\dsh-HxaRfu\kag_example\02_supercell\cases`
+- 来源 runs: `_dryrun_runs`
+- 目标 cases: `02_supercell/cases`
+- （快照整理说明：原报告里的绝对路径已改成相对路径——这份快照是在临时目录跑出来的，绝对路径与本机无关，不保留。）
 - 能量口径: `free energy TOTEN (eV)` (混口径容差 0.001 eV)
 - **本报告只证明 OUTCAR 过了格式/收敛/结构/口径闸门, 不证明 J/T_N 的物理正确性。**
 

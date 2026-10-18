@@ -2241,6 +2241,23 @@ if True:
                   and "已知局限" in _trn28)
     check("pkg: RELEASE_NOTES_v0.1.0.md 有「明确不做什么」段并引用 capabilities.json", _rno28)
 
+    # 发布树里不许出现本机绝对路径 (快照产物最容易带出来)
+    _abs28 = []
+    for _root28, _dirs28, _files28 in os.walk(HERE):
+        _dirs28[:] = [d for d in _dirs28 if d not in (".git", "__pycache__", "dist")]
+        for _n28 in _files28:
+            if not _n28.endswith((".md", ".json", ".py", ".txt", ".yml", ".yaml", ".cff", ".in")):
+                continue
+            _p28 = os.path.join(_root28, _n28)
+            try:
+                with open(_p28, encoding="utf-8") as _f28:
+                    _t28 = _f28.read()
+            except (UnicodeDecodeError, OSError):
+                continue
+            if "C:\\Users\\" in _t28 or "AppData\\Local" in _t28:
+                _abs28.append(os.path.relpath(_p28, HERE))
+    check("pkg: 发布树里没有本机绝对路径 (C:\\Users\\… / AppData\\Local\\…) 泄漏进文档/样例", not _abs28)
+
 # ---------------------------------------------------------------------------
 # [29] Obsidian 阅读版备份: 与 README 同源 (readme_to_obsidian.py --check)
 # ---------------------------------------------------------------------------
