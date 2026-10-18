@@ -124,7 +124,10 @@ driver 会往 **stderr 打警告**（`--quiet` 下同样可见），并在 `work
    #      但 VASP 照样写 CONTCAR(与 POSCAR 逐位相同) —— 不报错却让整个反解前提失效。
    python scripts/fgt_relax_backfill.py <outdir>\02_supercell\cases   # 会打印最大坐标位移
    # 3) 跑 5 个磁态的静态自洽 (INCAR.static) —— 唯一需要 VASP 的一步
-   # 4) 反解前先核对每个磁态真的收敛到目标 sigma (逐原子比符号):
+   # 4) 反解前核对每个磁态真的收敛到目标 sigma (逐原子比符号)。
+   #    ⚠ 通用版 `scripts/verify_states.py` 现在由 driver 的 solve 阶段**自动**当硬闸门跑
+   #      (fail-close, 覆盖全部共线晶格), 正常情况下这一步已经替你做了;
+   #      FGT 链的专用版仍然可用 (同一个判据, 打印更贴合 FGT 的 5 个磁态):
    python scripts/fgt_verify_states.py <outdir>\02_supercell\cases
    # 5) 反解 J1..J4 (+E0):
    python scripts/solve_fgt_J.py <outdir>\02_supercell\cases --runs <outdir>\runs --spin 1.0
@@ -138,6 +141,13 @@ driver 会往 **stderr 打警告**（`--quiet` 下同样可见），并在 `work
    与 `magmom.txt`，出 `VERDICT: FAIL` 并退出码 1。
    `fgt_relax_backfill.py` 同理是**防"假弛豫"的闸门**：它打印最大坐标位移，位移 ≈0 时警告
    `CONTCAR 与 POSCAR 逐位相同 ... IBRION` —— 那是静态自洽的产物，结构没动过。
+
+   **这道核对现在对全部共线晶格自动生效**：通用版 `scripts/verify_states.py`，driver 的 `solve`
+   阶段先跑它（`--json` 写 `02_supercell/cases/states_verification.json`），不通过就不往下反解
+   （exit 1）。它比 FGT 版多做一件关键事：**坍缩检测** —— 两个磁态实际收敛到同一个态时它们的
+   能量相同 ⇒ 残差 ≈ 0 ⇒ `j_result.confidence_of` 会判 **high**，而这个高置信度是假的（它只看
+   residual/cond，看不到磁矩）。确实要在未核对下看数只能显式 `--allow-unverified-states`，此时
+   `J_result.json` 会留下 `states_verification.verdict = FAIL` + `note`，不会被误当成已验证。
    模型 = A(Fe I@2c, 1/胞) + B(Fe II@4e, 2/胞)，壳层从结构实测：
    **J1 A–B 2.63 Å (6 键/胞)、J2 B–B 2.55 Å (1, 胞内竖直对)、J3 A–A 3.99 Å (3)、J4 B–B 3.99 Å (6)**；
    5 个磁态 (fm / afm_ab / afm_b_vert / afm_a / afm_b_plane) 与系数矩阵 **cond ≈ 178**，可逆性好。
@@ -518,8 +528,10 @@ J 来源、MAE、有限尺寸、单层 vs 体相、U/k 网格假设；三角/簇
 会明确报错退出（超胞内只有 1 个簇）。**要用专用的双亚晶格反解工具链**
 （`build_fgt_cases.py` + `fgt_relax_backfill.py` + `fgt_verify_states.py` + `solve_fgt_J.py`，
 见上文专节）；不要拿文献的 per-Fe J 去凑单胞塌缩模型。
-另：**反解出 J 之前必须过 `fgt_verify_states.py`** —— 磁态没收敛到指定 σ 时能量映射是错的，
-且不会自己报错（该脚本自检与 mock 端到端测试都在 `tests/test_fgt_e2e.py` 里覆盖）。
+另：**反解出 J 之前必须过 `verify_states.py`**（通用版；driver 的 `solve` 阶段已自动当硬闸门跑，
+FGT 链另有专用版 `fgt_verify_states.py`）—— 磁态没收敛到指定 σ、或两个磁态坍缩成同一个态时，
+能量映射是错的，且**不会自己报错**（残差可能更小、置信度反而更高）。
+自检与端到端覆盖：`verify_states.py --selftest` + `tests/smoke_test.py` §5c。
 另：**矩形晶格铁磁（CrSBr/CrSCl 类）已有独立分支**（`detect_lattice` 先查 a⊥b 且 a≠b → `rectangular`），
 走 `build_rectangular_cases.py`（4 共线态）+ `solve_J_rect.py`；注意 J 按**距离壳升序**给（J1=a 轴 2.79 / J2=b 轴 2.12 / J3=对角 3.88），
 与论文原始命名（J1=对角）不同，别照抄。

@@ -187,6 +187,94 @@ check("mc_2d --selftest 三项全 PASS (含 A / A=0 / onsite 有贡献)",
 if r.returncode != 0:
     print(r.stdout[-1500:], r.stderr[-1500:])
 
+# ---- 5c. 反解前的磁态硬闸门: verify_states (P0-2 回归) ----
+#     能量映射的前提是"每个磁态真的收敛到指定 sigma"。两个磁态坍缩成同一个态时它们的能量
+#     相等 -> 残差 0 -> j_result.confidence_of 还会判 high (它从来看不到磁矩)。
+#     旧流程只有 FGT 链有人肉核对(靠"记得跑"), 其余 7 类晶格零覆盖。
+r = run(sys.executable, os.path.join(SCRIPTS, "verify_states.py"), "--selftest")
+check("vs: verify_states --selftest 退出码 0", r.returncode == 0)
+check("vs: 自检三项全 PASS (符号不一致 / 坍缩对 / 缺 OUTCAR 的放行)",
+      r.stdout.count("[PASS]") == 3 and "自检 OK" in r.stdout)
+if r.returncode != 0:
+    print(r.stdout[-1500:], r.stderr[-1500:])
+
+_drv5c = os.path.join(HERE, "run_2d_magnet.py")
+_drv5c_src = open(_drv5c, encoding="utf-8").read()
+check("vs: driver 的 solve 阶段真的调用 verify_states (硬闸门, 不是只写在文档里)",
+      "verify_states.py" in _drv5c_src and "--allow-unverified-states" in _drv5c_src)
+
+td = mktmp("_tmp_vstates_")
+try:
+    # 端到端: 真 build 出 cases -> 造"磁矩=目标、能量=已知 J"的 OUTCAR -> 驱动 solve
+    _r5c = run(sys.executable, _drv5c, "build", "--model", "la2cuo4",
+               "--poscar", LACUO, "--outdir", td)
+    check("vs: driver build (方形 La2CuO4) 退出 0", _r5c.returncode == 0)
+    _cases5c = os.path.join(td, "02_supercell", "cases")
+    _m5c = json.load(open(os.path.join(_cases5c, "magnetic_orders.json"), encoding="utf-8"))
+    _coeff5c = _m5c["coefficients_per_cell"]
+    _J5c = [40.0, -5.0, -1.0]
+
+    def _targets5c(st):
+        txt = open(os.path.join(_cases5c, st, "magmom.txt"), encoding="utf-8").read()
+        return [float(x) for x in txt.split("=", 1)[1].split()] if "=" in txt else []
+
+    def _outcar5c(path, moms, energy):
+        L = ["  vasp.6.4.2  (synthetic, smoke)", "   ISPIN  =  2",
+             "   LNONCOLLINEAR = F", "   LSORBIT = F", "",
+             "  DAVID: aborting loop because EDIFF is reached",
+             "  free  energy   TOTEN  =      %+.8f eV" % energy,
+             " magnetization (x)", "",
+             " # of ion       s       p       d       tot",
+             " ------------------------------------------"]
+        L += ["     %d      0.000   0.000   0.000   %8.3f" % (i + 1, m)
+              for i, m in enumerate(moms)]
+        L += [" ------------------------------------------",
+              "    tot           0.000   0.000   0.000   %8.3f" % sum(moms), ""]
+        with open(path, "w", encoding="utf-8") as f:
+            f.write("\n".join(L) + "\n")
+
+    def _fill5c(collapse=False):
+        # 能量口径: E = E0 + Σ C_k * J~_k, J~ = J*S^2 (J 用 meV 给, 能量要 eV)
+        _s2_5c = float(_m5c.get("S2") or 0.25)
+        for st in _m5c["selected_orders"]:
+            src = "fm" if collapse else st
+            moms = [m + (0.02 if m > 0 else -0.02) if abs(m) > 1e-9 else 0.0
+                    for m in _targets5c(src)]
+            e = -100.0 + sum(c * (j / 1000.0) * _s2_5c
+                             for c, j in zip(_coeff5c[st], _J5c))
+            _outcar5c(os.path.join(_cases5c, st, "OUTCAR"), moms, e)
+
+    _fill5c()
+    _r5c = run(sys.executable, _drv5c, "solve", "--outdir", td, "--model", "la2cuo4")
+    check("vs: 磁矩与目标一致时 solve 退出 0 (闸门 PASS, 不是硬拒所有输入)",
+          _r5c.returncode == 0)
+    _jr5c = os.path.join(_cases5c, "J_result.json")
+    _d5c = json.load(open(_jr5c, encoding="utf-8")) if os.path.exists(_jr5c) else {}
+    _st5c = _d5c.get("states_verification") or {}
+    check("vs: J_result.json 盖了 states_verification (verdict=PASS, allowed=False)",
+          _st5c.get("verdict") == "PASS" and _st5c.get("allowed_unverified") is False)
+    _jgot5c = _d5c.get("J_meV") or {}
+    check("vs: 反解出的 J 与合成的 (40, -5, -1) meV 一致 (误差 < 0.5 meV)",
+          all(abs(_jgot5c.get("J%d" % (i + 1), 1e9) - _J5c[i]) < 0.5 for i in range(3)))
+
+    _fill5c(collapse=True)   # 四个态全坍缩到 fm
+    _r5c = run(sys.executable, _drv5c, "solve", "--outdir", td, "--model", "la2cuo4")
+    check("vs: 四个磁态坍缩成一个态时 solve 被拒 (exit != 0)", _r5c.returncode != 0)
+    _vs5c = json.load(open(os.path.join(_cases5c, "states_verification.json"),
+                           encoding="utf-8"))
+    check("vs: 坍缩证据写进 states_verification.json (collapse_pairs 非空)",
+          bool(_vs5c.get("collapse_pairs")) and _vs5c.get("verdict") == "FAIL")
+
+    _r5c = run(sys.executable, _drv5c, "solve", "--outdir", td, "--model", "la2cuo4",
+               "--allow-unverified-states")
+    _d5c = json.load(open(_jr5c, encoding="utf-8")) if os.path.exists(_jr5c) else {}
+    _st5c = _d5c.get("states_verification") or {}
+    check("vs: --allow-unverified-states 放行, 但 J_result 留下 verdict=FAIL + note",
+          _r5c.returncode == 0 and _st5c.get("verdict") == "FAIL"
+          and _st5c.get("allowed_unverified") is True and bool(_st5c.get("note")))
+finally:
+    shutil.rmtree(td, ignore_errors=True)
+
 # ---- 6. 多亚晶格铁磁网络的误判警告 (Fe3GeTe2 类: 3 个 Fe/胞 被几何并成 1 簇) ----
 td = mktmp("_tmp_fgt_")
 try:

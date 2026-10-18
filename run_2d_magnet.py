@@ -263,6 +263,39 @@ def run(pyfile, args, cwd=None):
             sys.exit(r.returncode)
 
 
+def stamp_states_verification(cases, vs_json, allowed_unverified):
+    """把磁态核对结论盖进 J_result.json 的 provenance。
+
+    反解产物必须自带"这些磁态到底核对过没有"——否则一个坍缩过的系数矩阵也能产出
+    confidence=high 的 J_result.json, 而读它的人无从分辨。
+    """
+    jr = os.path.join(cases, "J_result.json")
+    if not os.path.exists(jr):
+        return None
+    try:
+        with open(jr, encoding="utf-8") as f:
+            d = json.load(f)
+        with open(vs_json, encoding="utf-8") as f:
+            vs = json.load(f)
+    except (OSError, ValueError):
+        return None
+    stamp = {
+        "file": os.path.relpath(vs_json, os.path.dirname(cases)).replace("\\", "/"),
+        "verdict": vs.get("verdict"),
+        "counts": vs.get("counts"),
+        "collapse_pairs": vs.get("collapse_pairs") or [],
+        "applicable": vs.get("applicable", True),
+        "allowed_unverified": bool(allowed_unverified),
+    }
+    if allowed_unverified and vs.get("verdict") != "PASS":
+        stamp["note"] = ("磁态逐位点核对未通过, J 是在 --allow-unverified-states 下算出的: "
+                         "不满足能量映射的前提, 数值不可作为物理结论")
+    d["states_verification"] = stamp
+    with open(jr, "w", encoding="utf-8") as f:
+        json.dump(d, f, indent=2, ensure_ascii=False)
+    return stamp
+
+
 def try_mp_fetch(outdir, formula, mp_id):
     """跑 mp_fetch_2d.py (MP 下载 + 剥单层); 成功返回选中 POSCAR 路径, 失败返回 None (不退出)。"""
     fetch_dir = os.path.join(outdir, "_fetch_tmp")
@@ -1061,6 +1094,11 @@ def main():
                     help="ingest: 四态之间要求的最小能量差 eV (防四个序其实是同一个构型)")
     ap.add_argument("--ingest-lenient", nargs="+", default=None, metavar="CHECK",
                     help="ingest: 把指定硬闸门降级为警告 (如 ionic_steps); 慎用, 会削弱 J 的可信度")
+    ap.add_argument("--allow-unverified-states", action="store_true",
+                    help="solve: 磁态逐位点核对(verify_states)不通过也继续反解 —— 本次 J 记"
+                         "为**未验证**; 证据留在 02_supercell/cases/states_verification.json。"
+                         "默认 fail-close (两个磁态坍缩成同一个态时能量相等, 反解会给出看着很"
+                         "高置信度的错结果)")
     ap.add_argument("--skip-dft", action="store_true")
     ap.add_argument("--skip-mc", action="store_true")
     ap.add_argument("--noncollinear", action="store_true",
@@ -1336,6 +1374,28 @@ def main():
         cases = os.path.join(outdir, "02_supercell", "cases")
         if not os.path.exists(os.path.join(cases, "magnetic_orders.json")):
             raise SystemExit("solve 需要 02_supercell/cases (先跑 build 或全流水线, 再跑 VASP 填 OUTCAR)")
+        # ---- P0-2 硬闸门: 反解 J 之前先逐位点核对每个磁态真的收敛到了目标 sigma ----
+        # 能量映射的前提是"每个磁态就是指定的那个自旋模式"; VASP 只照初始 MAGMOM 起跑,
+        # 最后落在哪个态由它自己定。两个磁态坍缩到同一个态时能量会相等 -> 残差 0 ->
+        # j_result.confidence_of 甚至因为 residual 小而判 high (它看不到磁矩)。
+        # 以前这条核对只存在于 FGT 链且靠人记得去调, 现在对全部共线晶格 fail-close。
+        vs_json = os.path.join(cases, "states_verification.json")
+        vs_args = [cases, "--json", vs_json]
+        if args.allow_unverified_states:
+            vs_args += ["--report-only", "--allow-missing"]
+            print("[warn] --allow-unverified-states: 磁态核对不通过也继续反解, 本次 J 视为"
+                  "**未验证** (证据: 02_supercell/cases/states_verification.json)",
+                  file=sys.stderr)
+        run("verify_states.py", vs_args, cwd=outdir)
+        try:
+            _vs = json.load(open(vs_json, encoding="utf-8"))
+            _c = _vs.get("counts", {})
+            log(f"[solve] 磁态核对 {_vs.get('verdict')}: OK {_c.get('ok', 0)}/"
+                f"{_c.get('states', 0)}, 不一致 {_c.get('mismatch', 0)}, "
+                f"缺 OUTCAR {_c.get('missing', 0)}, 坍缩 {len(_vs.get('collapse_pairs') or [])}"
+                f" 组 -> {vs_json}")
+        except (OSError, ValueError):
+            pass
         if lattice == "cluster":
             run("solve_cluster_J.py", [cases], cwd=outdir)
         elif lattice == "triangular":
@@ -1355,6 +1415,10 @@ def main():
             run("solve_J_kagome.py", [cases], cwd=outdir)
         else:
             run("solve_J3.py", [cases], cwd=outdir)
+        _stamp = stamp_states_verification(cases, vs_json, args.allow_unverified_states)
+        if _stamp:
+            log(f"[solve] J_result.json 已记录磁态核对: verdict={_stamp['verdict']}, "
+                f"allowed_unverified={_stamp['allowed_unverified']}")
         print(f"\n[run] solve 完成 (lattice={lattice}, cases={cases})")
         return
 

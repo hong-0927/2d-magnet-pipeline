@@ -34,6 +34,7 @@ REQUIRED = [
     "run_2d_magnet.py",
     "scripts/literature_J.json",
     "scripts/magnetic_orders.py",
+    "scripts/verify_states.py",
     "scripts/readme_to_obsidian.py",
     "README.obsidian.md",
     "tests/smoke_test.py",
