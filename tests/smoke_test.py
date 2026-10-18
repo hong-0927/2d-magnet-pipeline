@@ -2207,6 +2207,40 @@ if True:
         finally:
             shutil.rmtree(_td28, ignore_errors=True)
 
+    # 发布加分项: CHANGELOG / CITATION.cff / RELEASE_NOTES 三件套必须存在且与版本一致
+    _cl28 = os.path.join(HERE, "CHANGELOG.md")
+    _clo28 = False
+    if os.path.isfile(_cl28):
+        with open(_cl28, encoding="utf-8") as _f:
+            _tcl28 = _f.read()
+        _clo28 = ("## [0.1.0]" in _tcl28 and "已知局限" in _tcl28
+                  and "physical_verified" in _tcl28)
+    check("pkg: CHANGELOG.md 有当前版本段 [0.1.0] 且点名「已知局限」与 physical_verified", _clo28)
+
+    _cf28 = os.path.join(HERE, "CITATION.cff")
+    _cfo28 = False
+    if os.path.isfile(_cf28):
+        with open(_cf28, encoding="utf-8") as _f:
+            _tcf28 = _f.read()
+        _ver28 = ""
+        with open(os.path.join(HERE, "pyproject.toml"), encoding="utf-8") as _f:
+            for _ln in _f:
+                if _ln.strip().startswith("version"):
+                    _ver28 = _ln.split("=", 1)[1].strip().strip("\"'")
+                    break
+        _cfo28 = all(k in _tcf28 for k in ("cff-version:", "authors:", "type: software",
+                                           "license: MIT", 'version: "%s"' % _ver28))
+    check("pkg: CITATION.cff 是 CFF 1.2.0 元数据, 且 version 与 pyproject.toml 一致", _cfo28)
+
+    _rn28 = os.path.join(HERE, "RELEASE_NOTES_v0.1.0.md")
+    _rno28 = False
+    if os.path.isfile(_rn28):
+        with open(_rn28, encoding="utf-8") as _f:
+            _trn28 = _f.read()
+        _rno28 = ("明确不做什么" in _trn28 and "capabilities.json" in _trn28
+                  and "已知局限" in _trn28)
+    check("pkg: RELEASE_NOTES_v0.1.0.md 有「明确不做什么」段并引用 capabilities.json", _rno28)
+
 # ---------------------------------------------------------------------------
 # [29] Obsidian 阅读版备份: 与 README 同源 (readme_to_obsidian.py --check)
 # ---------------------------------------------------------------------------

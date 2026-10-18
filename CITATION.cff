@@ -1,0 +1,25 @@
+cff-version: 1.2.0
+message: "如果这个工具对你的工作有帮助，请按下面的信息引用；也请同时注明所用的版本号（version）。"
+title: "2d-magnet-pipeline: 二维磁体磁交换耦合与 Monte Carlo 临界温度流水线"
+abstract: >-
+  一个面向二维磁性单层的流水线：结构 -> 磁交换耦合常数 J -> 经典 Heisenberg Monte Carlo 的
+  临界温度 T_C / T_N。八种磁性格点（蜂窝 / 三角 / 分子簇 / 双亚晶格铁磁网络 / 矩形 / C 心矩形 /
+  方形 / 六角 kagome）共用一套规格层与统一产物，J 可来自文献值（正向 MC）或 DFT 多磁态能量反解。
+  本软件不包含任何 DFT 计算结果：所有 J、T_C/T_N 均为系数层或 MC 估算，物理边界以机器可读的
+  capabilities.json 声明，physical_verified 一律为 false。
+authors:
+  - family-names: "吴"
+    given-names: "思泓"
+type: software
+version: "0.1.0"
+date-released: "2026-10-18"
+license: MIT
+keywords:
+  - 二维磁性
+  - 磁交换耦合
+  - 海森堡模型
+  - Monte Carlo
+  - 临界温度
+  - VASP
+  - kagome
+  - 高通量
