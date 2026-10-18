@@ -1,0 +1,147 @@
+{
+  "schema": "capabilities/1",
+  "generated_by": "scripts/capabilities.py",
+  "note": "机器可读的能力边界。physical_verified=false 的条目只能当「工具链 / 系数层」能力用，不得当作材料物理结论引用。把它改成 true 需要真实 DFT 结果与实验对照，改字面量会被 scripts/capabilities.py --check 与 tests/smoke_test.py 同时拒绝。",
+  "lattices": {
+    "honeycomb": {
+      "builder": "scripts/build_magnetic_cases3.py",
+      "solver": "scripts/solve_J3.py",
+      "shells": 3,
+      "noncollinear": false,
+      "orders": "四共线 (fm + 三个波矢态)",
+      "physical_verified": false,
+      "why": "例: CrI3 / MnPS3; 系数层可用, T_C 只是 MC 估算 (无实验对照)"
+    },
+    "triangular": {
+      "builder": "scripts/build_magnetic_cases_tri.py",
+      "solver": "scripts/solve_J_tri.py",
+      "shells": 3,
+      "noncollinear": true,
+      "orders": "含 120° 非共线序; MC 走 --mc-order cv (比热峰)",
+      "physical_verified": false,
+      "why": "序参量只支持 FM/Néel; 120° 序的量热判据是 Cv 峰, 单离子各向异性必须显式给 --MAE"
+    },
+    "cluster": {
+      "builder": "scripts/build_cluster_cases.py",
+      "solver": "scripts/solve_cluster_J.py",
+      "shells": 3,
+      "noncollinear": false,
+      "orders": "簇内 J_intra + J1/J2/J3",
+      "physical_verified": false,
+      "why": "簇磁体 (如 Mo3Cl8 类); 簇内耦合与簇间壳分开反解, 但仍是系数层"
+    },
+    "rectangular": {
+      "builder": "scripts/build_rectangular_cases.py",
+      "solver": "scripts/solve_J_rect.py",
+      "shells": 3,
+      "noncollinear": false,
+      "orders": "四共线 (fm/afm/stripe 家族)",
+      "physical_verified": false,
+      "why": "正交 a≠b 单离子磁体 (如 CrSBr)"
+    },
+    "square": {
+      "builder": "scripts/build_square_cases.py",
+      "solver": "scripts/solve_J_square.py",
+      "shells": 3,
+      "noncollinear": false,
+      "orders": "四共线, 含周期 4 的 p4 序 (J3 与 E0 可分离的前提)",
+      "physical_verified": false,
+      "why": "a≈b 单离子磁体 (如 La2CuO4 / K2NiF4)"
+    },
+    "rect_centered": {
+      "builder": "scripts/build_crect_cases.py",
+      "solver": "scripts/solve_J_crect.py",
+      "solver_extra": ["scripts/solve_J_crect_cant.py"],
+      "shells": 3,
+      "noncollinear": false,
+      "orders": "四共线 (fm/afm_c/afm_a/afm_b); --cant-theta 时另出倾斜家族",
+      "physical_verified": false,
+      "why": "C 心矩形双 basis (如 CrOCl); 弱磁倾斜只到「系数层」—— θ 是输入参数, 基态 θ 要 SOC 总能量极小, 本流水线不算",
+      "solver_extra_when": "仅当给了 --cant-theta 才改派 solve_J_crect_cant.py"
+    },
+    "kagome": {
+      "builder": "scripts/build_kagome_cases.py",
+      "solver": "scripts/solve_J_kagome.py",
+      "shells": 3,
+      "noncollinear": false,
+      "orders": "七磁态, selected = fm/q0_120/sq3_updntri/sq3_alt (rank 4)",
+      "physical_verified": false,
+      "why": "角共享三角形 (如 Fe3Sn); J1 与 J1' 同距离不同亚晶格对, 3 壳模型取平均 —— 要分开需降对称超胞 (P4.2)",
+      "known_limits": [
+        "q=0 一族对 J1/J2 简并; 只用 q=0 序反解会得到 (J1+J2)/2 的任意分配 —— builder 的 selected 已含 √3×√3 序把 rank 提到 4, solve 端 rank<4 直接报错",
+        "J1/J1' 分离、k 分辨劈裂、能带、Z2 都不在能力范围内"
+      ]
+    }
+  },
+  "chains": {
+    "fgt": {
+      "builder": "scripts/build_fgt_cases.py",
+      "solver": "scripts/solve_fgt_J.py",
+      "physical_verified": false,
+      "why": "FGT 专用链 (双 basis 蜂窝, 含 -U 自洽与磁态核对); 仍需真实 OUTCAR 才有物理意义"
+    }
+  },
+  "quantities": {
+    "J_meV": {
+      "level": "coefficient",
+      "physical_verified": false,
+      "why": "由 E(磁序) 线性反解。前提: 每条磁序的逐位点磁矩与目标一致 (solve 已内置 verify_states 硬闸门)、壳划分正确、S 与 S² 归一化口径一致。没有真实 DFT 能量时 (source=demo/dryrun) J 只是自洽性检查值, 不是材料常数。"
+    },
+    "T_C_T_N_K": {
+      "level": "estimate",
+      "physical_verified": false,
+      "why": "MC 峰判据 (χ / |dm/dT| / Cv)。误差由有限尺寸 + 采样量决定; 峰落温度窗口边界即「未分辨」, 该值不得引用 (mc_2d 会打 [warn])。"
+    },
+    "MAE_meV": {
+      "level": "input",
+      "physical_verified": false,
+      "why": "单离子各向异性是输入参数 (--MAE, 默认 0), 不从 SOC 总能量极小提取; 比热 Cv 已含该输入项 (复审 P0-1)。"
+    },
+    "S_eff": {
+      "level": "input",
+      "physical_verified": false,
+      "why": "有效自旋是输入 (--S / 预设 / 文献条目); 元素参数表故意不列 Fe 等变价元素, 猜值会静默给出错的物理。"
+    },
+    "DMI_D_meV": {
+      "level": "not_extracted",
+      "physical_verified": false,
+      "why": "DMI 只到「识别 + 系数层」: 能判 DMI 是否允许某序、能算 D 矩阵的候选, 但不从 OUTCAR 反解 D 值。"
+    },
+    "band_splitting_k_resolved": {
+      "level": "not_computed",
+      "physical_verified": false,
+      "why": "不做 k 分辨的能带/劈裂; 只给 q=0 或若干磁序的总能差与系数。"
+    },
+    "Z2_topological": {
+      "level": "not_computed",
+      "physical_verified": false,
+      "why": "不判拓扑不变量。"
+    }
+  },
+  "not_supported": [
+    {"item": "结构弛豫 (relax)", "why": "只装配静态输入; INCAR.relax 是模板, 本流水线不读弛豫结果也不回写结构。"},
+    {"item": "真实 DFT 能量", "why": "不运行 VASP; ingest 只校验用户自己跑出的 OUTCAR 过格式/收敛/结构/口径闸门, 不证明物理正确。"},
+    {"item": "SOC 自洽与非共线能量", "why": "非共线/倾斜只到参数化 (θ 输入 + 系数层), 能量仍需用户自算。"},
+    {"item": "kagome J1 / J1' 分离", "why": "3 壳模型取平均; 分离需降对称超胞 (P4.2 手册, 未自动)。"},
+    {"item": "交变磁体 (altermagnet)", "why": "只到「用子晶格掩码识别序」这一层; 不自证自旋分裂。"},
+    {"item": "DMI / MTI 的 D 值", "why": "见 quantities.DMI_D_meV。"},
+    {"item": "自动材料筛选", "why": "没有数据库检索与批量工作流; 一条管线一个结构。"}
+  ],
+  "gates": [
+    {"name": "磁态逐位点核对", "script": "scripts/verify_states.py", "fails_closed": true,
+     "scope": "共线磁态 (solve 阶段自动跑); 非共线/SOC 判 SKIP; --allow-unverified-states 会降级但 J_result 留 FAIL 记录"},
+    {"name": "OUTCAR 入口闸门", "script": "scripts/ingest_dft.py", "fails_closed": true,
+     "scope": "格式 / 收敛 / 结构一致性 / 能量口径; 宽松开关 --lenient / --ingest-force 必须显式给"},
+    {"name": "S² 归一化", "script": "scripts/ingest_dft.py", "fails_closed": true,
+     "scope": "J·S² 与模型里声明的 S 不一致直接拒 (否则 J 会差 S² 倍)"},
+    {"name": "壳划分与秩", "script": "scripts/magnetic_orders.py", "fails_closed": true,
+     "scope": "kagome rank<4 / 壳合并 / cond(A) 病态: solve 端复核, 不静默"},
+    {"name": "文档同步 (README ↔ Obsidian)", "script": "scripts/readme_to_obsidian.py", "fails_closed": true,
+     "scope": "sdist 内容闸门 tests/check_sdist.py + smoke §28/§29; 不是物理闸门"}
+  ],
+  "release": {
+    "version": "0.1.0",
+    "physical_verified": false,
+    "why": "本版本没有真实 DFT 结果与实验对照进入仓库 (examples/ 是 source=demo 的自洽性样例), 因此所有物理量都是系数层/估算层。"
+  }
+}

@@ -210,6 +210,8 @@ def _run_T_fast(spins, neighbors, J, onsite, T, n_therm, n_meas, state, order, s
     s1 = 0.0
     s2 = 0.0
     s4 = 0.0
+    acc = 0
+    m_series = np.empty(n_meas, dtype=np.float64)
     for it in range(n_therm + n_meas):
         for _ in range(N):
             i = int(_xorshift64(state) * N)
@@ -250,6 +252,7 @@ def _run_T_fast(spins, neighbors, J, onsite, T, n_therm, n_meas, state, order, s
                 spins[i, 0] = nx
                 spins[i, 1] = ny
                 spins[i, 2] = nz
+                acc += 1
         if it >= n_therm:
             if order == 1:  # staggered: 子晶格符号由 stag 给出 (= +/-1)
                 max_ = 0.0; may = 0.0; maz = 0.0
@@ -276,6 +279,7 @@ def _run_T_fast(spins, neighbors, J, onsite, T, n_therm, n_meas, state, order, s
             s1 += m
             s2 += m * m
             s4 += m * m * m * m
+            m_series[it - n_therm] = m
     mean_m = s1 / n_meas
     m2_mean = s2 / n_meas
     var = m2_mean - mean_m * mean_m
@@ -287,7 +291,7 @@ def _run_T_fast(spins, neighbors, J, onsite, T, n_therm, n_meas, state, order, s
         u4 = 1.0 - (s4 / n_meas) / ((5.0 / 3.0) * m2_mean * m2_mean)
     else:
         u4 = 0.4  # 完全有序极限
-    return mean_m, chi, u4
+    return mean_m, chi, u4, acc / float((n_therm + n_meas) * N), m_series
 
 
 @njit
@@ -396,6 +400,79 @@ def resolve_auto_order(model, size):
     return _resolve_auto(neighbors, J, onsite, size, num_basis)
 
 
+def _tau_int(series):
+    """积分自相关时间 τ_int (单位: 一个测量步), 用初始正序列 (Sokal) 截断。
+
+    定义 τ_int = 1/2 + Σ_{t=1..W} ρ(t): 纯白噪声 ρ(t)=0 (t>=1) ⇒ τ=0.5, 即每次采样
+    都算一个独立样本; 强关联时 τ 大, 有效独立样本数 n_eff = n / (2*τ) 远小于 n。
+    截断规则: 在 ρ(t) 首次降到 0 以下**且 t >= 5** 时停 (Sokal 的自动窗口; 只取首个
+    负值而不留窗口会系统性低估 τ)。
+
+    返回 (tau, window)。样本 < 16 或方差为 0 时退化为 (0.5, 0) —— 此时 n_eff = n。
+    """
+    x = np.asarray(series, dtype=float).ravel()
+    n = x.size
+    if n < 16:
+        return 0.5, 0
+    x = x - x.mean()
+    var = float(np.dot(x, x) / n)
+    if var <= 1e-300:
+        return 0.5, 0
+    tmax = min(n // 2, 20000)
+    tau = 0.5
+    window = 0
+    for t in range(1, tmax + 1):
+        rho = float(np.dot(x[:n - t], x[t:]) / (n - t) / var)
+        if rho <= 0.0 and t >= 5:
+            break
+        tau += rho
+        window = t
+    return max(0.5, float(tau)), window
+
+
+def _binning_sem(series, n_bins=None):
+    """把序列切成 n_bins 块、用块均值的标准误估 SEM (自动吸收相关性)。
+
+    比 naive SEM (std/sqrt(n)) 稳健: 有相关性时 naive 会**低估**误差 (序列越相关
+    低估越多), 而块均值在块长 >> τ_int 时近似独立。返回 (sem, n_bins, block_len);
+    样本太少 (< 16) 时返回 (nan, 0, 0)。
+    """
+    x = np.asarray(series, dtype=float).ravel()
+    n = x.size
+    if n < 16:
+        return float("nan"), 0, 0
+    nb = int(n_bins) if n_bins else max(2, min(32, n // 8))
+    blk = n // nb
+    if blk < 2 or nb < 2:
+        return float("nan"), 0, 0
+    means = x[:blk * nb].reshape(nb, blk).mean(axis=1)
+    sem = float(means.std(ddof=1) / np.sqrt(nb))
+    return sem, nb, blk
+
+
+def _naive_sem(series):
+    """不扣相关性的 SEM (std/sqrt(n)) —— 只用来给「低估了多少倍」提供对照。"""
+    x = np.asarray(series, dtype=float).ravel()
+    if x.size < 2:
+        return float("nan")
+    return float(x.std(ddof=1) / np.sqrt(x.size))
+
+
+def _diag_row(series, accept, therm, meas):
+    """单温度的采样诊断: 接受率 / τ_int / 有效样本 / 两种 SEM。
+
+    `series` 是测量期的序参量 (或能量) 时间序列, 步长 = 一次测量 (= N 次单自旋尝试)。
+    """
+    tau, win = _tau_int(series)
+    n = len(series)
+    neff = n / (2.0 * tau) if tau > 0 else float(n)
+    sem_b, nb, blk = _binning_sem(series)
+    return {"accept": float(accept), "tau_int": float(tau), "window": int(win),
+            "n_eff": float(neff), "sem_naive": _naive_sem(series),
+            "sem_binned": float(sem_b), "n_bins": int(nb), "block": int(blk),
+            "n_meas": int(n), "n_therm": int(therm), "n_total": int(meas)}
+
+
 def _selftest():
     """比热能量的自检: _energy 必须等于暴力求和, 且**含单离子各向异性**。
 
@@ -448,7 +525,52 @@ def _selftest():
         for msg in fails:
             print(f"  [FAIL] {msg}")
         return 1
-    print("mc_2d 自检: 比热能量 (交换 + 单离子各向异性) OK")
+
+    # ---- P1-4: 采样诊断的估计量本身也要自检 (τ_int / binning SEM) ----
+    rng2 = np.random.default_rng(7)
+    phi = 0.8
+    n = 20000
+    noise = rng2.normal(size=n)
+    ar = np.empty(n)
+    ar[0] = noise[0]
+    for i in range(1, n):
+        ar[i] = phi * ar[i - 1] + noise[i]
+    tau_ar, _ = _tau_int(ar)
+    tau_expect = 0.5 + phi / (1.0 - phi)   # AR(1): ρ(t)=φ^t ⇒ τ = 1/2 + φ/(1-φ) = 4.5
+    ok = abs(tau_ar - tau_expect) < 1.5
+    print(("  [PASS] " if ok else "  [FAIL] ")
+          + f"AR(1) φ={phi} 的 τ_int {tau_ar:.2f} ≈ 理论 {tau_expect:.2f}")
+    if not ok:
+        fails.append(f"τ_int 估计偏差过大: {tau_ar:.2f} vs 理论 {tau_expect:.2f}")
+
+    tau_wn, _ = _tau_int(rng2.normal(size=n))
+    ok = 0.5 <= tau_wn <= 1.2
+    print(("  [PASS] " if ok else "  [FAIL] ")
+          + f"白噪声的 τ_int {tau_wn:.2f} ≈ 0.5 (每次采样近似独立)")
+    if not ok:
+        fails.append(f"白噪声 τ_int 应 ≈0.5, 实得 {tau_wn:.2f}")
+
+    sem_ar, _, _ = _binning_sem(ar)
+    ratio_ar = sem_ar / max(_naive_sem(ar), 1e-300)
+    ok = ratio_ar > 2.0
+    print(("  [PASS] " if ok else "  [FAIL] ")
+          + f"强相关序列: binning SEM / naive SEM = {ratio_ar:.2f} (>2 ⇒ naive 确实低估)")
+    if not ok:
+        fails.append(f"相关序列上 binning SEM 应远大于 naive, 实得 {ratio_ar:.2f}x")
+
+    wn = rng2.normal(size=n)
+    ratio_wn = _binning_sem(wn)[0] / max(_naive_sem(wn), 1e-300)
+    ok = 0.5 <= ratio_wn <= 2.0
+    print(("  [PASS] " if ok else "  [FAIL] ")
+          + f"白噪声: binning SEM / naive SEM = {ratio_wn:.2f} (≈1 ⇒ 两者一致)")
+    if not ok:
+        fails.append(f"白噪声上两种 SEM 应一致, 实得 {ratio_wn:.2f}x")
+
+    if fails:
+        for msg in fails:
+            print(f"  [FAIL] {msg}")
+        return 1
+    print("mc_2d 自检: 比热能量 (交换 + 单离子各向异性) + 采样诊断 (τ_int/binning SEM) OK")
     return 0
 
 
@@ -462,6 +584,8 @@ def _run_T_cv(spins, neighbors, J, onsite, T, n_therm, n_meas, state):
     beta = 1.0 / (0.08617333262 * T)
     e1 = 0.0
     e2 = 0.0
+    acc = 0
+    e_series = np.empty(n_meas, dtype=np.float64)
     for it in range(n_therm + n_meas):
         for _ in range(N):
             i = int(_xorshift64(state) * N)
@@ -492,32 +616,52 @@ def _run_T_cv(spins, neighbors, J, onsite, T, n_therm, n_meas, state):
                    + oldz * A[2, 0] * oldx + oldz * A[2, 1] * oldy + oldz * A[2, 2] * oldz)
             if dE <= 0.0 or _xorshift64(state) < math.exp(-beta * dE):
                 spins[i, 0] = nx; spins[i, 1] = ny; spins[i, 2] = nz
+                acc += 1
         if it >= n_therm:
             e = _energy(spins, neighbors, J, onsite)
             e1 += e
             e2 += e * e
+            e_series[it - n_therm] = e
     mean_e = e1 / n_meas
     cv = (e2 / n_meas - mean_e * mean_e) * N / (0.08617 * T * T)
-    return mean_e, cv
+    return mean_e, cv, acc / float((n_therm + n_meas) * N), e_series
 
 
-def run_sweep(spins, neighbors, J, onsite, T_list, therm, meas, stag, order, seed=0):
+def run_sweep(spins, neighbors, J, onsite, T_list, therm, meas, stag, order, seed=0,
+              diag=None):
+    """逐温度扫一遍, 返回 (nt, 4) 数组 [T, m, chi, U4]。
+
+    `diag` 给一个 dict 时会**顺手填**采样诊断 (P1-4: 接受率 / τ_int / 有效样本 / SEM),
+    键为 "T"/"accept"/"tau_int"/"n_eff"/"sem_naive"/"sem_binned"/"window"/"n_bins",
+    每项都是按 T_list 顺序的 list。不传就完全不算 (对 mc_fss 这类老调用方零开销)。
+    """
     state = np.array([np.uint64(seed if seed != 0 else 88172645463325252)], dtype=np.uint64)
     results = []
     for T in T_list:
-        mean_m, chi, u4 = _run_T_fast(spins, neighbors, J, onsite, float(T), therm, meas,
-                                      state, order, stag)
+        mean_m, chi, u4, acc, mser = _run_T_fast(spins, neighbors, J, onsite, float(T), therm,
+                                                  meas, state, order, stag)
         results.append([T, mean_m, chi, u4])
+        if diag is not None:
+            row = _diag_row(mser, acc, therm, meas)
+            row["T"] = float(T)
+            for key, val in row.items():
+                diag.setdefault(key, []).append(val)
         print(f"  T={T:6.1f} K | m={mean_m:.4f} | chi={chi:.4f} | U4={u4:.4f}", flush=True)
     return np.array(results)
 
 
-def run_sweep_cv(spins, neighbors, J, onsite, T_list, therm, meas, seed=0):
+def run_sweep_cv(spins, neighbors, J, onsite, T_list, therm, meas, seed=0, diag=None):
+    """比热路径的逐温度扫描, 返回 (nt, 3) 数组 [T, E/N, Cv]; `diag` 语义同 run_sweep。"""
     state = np.array([np.uint64(seed if seed != 0 else 88172645463325252)], dtype=np.uint64)
     results = []
     for T in T_list:
-        mean_e, cv = _run_T_cv(spins, neighbors, J, onsite, float(T), therm, meas, state)
+        mean_e, cv, acc, eser = _run_T_cv(spins, neighbors, J, onsite, float(T), therm, meas, state)
         results.append([T, mean_e, cv])
+        if diag is not None:
+            row = _diag_row(eser, acc, therm, meas)
+            row["T"] = float(T)
+            for key, val in row.items():
+                diag.setdefault(key, []).append(val)
         print(f"  T={T:6.1f} K | E/N={mean_e:.4f} | Cv={cv:.4f}", flush=True)
     return np.array(results)
 
@@ -650,16 +794,19 @@ def main():
     # 多种子: 每个种子独立初态 + 独立 MC 状态, 事后平均曲线 + 收集峰位 -> 误差棒。
     n_seeds = max(1, int(args.seeds))
     all_res = []
+    diags = []
     peaks = {"chi": [], "dm": [], "cv": []}
     for k in range(n_seeds):
         spins, _, _, _, _ = build_arrays(model, args.size, spin_seed=args.seed + k)
         sd = args.seed + k
+        dk = {}
         if use_cv:
             res = run_sweep_cv(spins, neighbors, J, onsite, T_list, args.therm, args.meas,
-                               seed=sd)
+                               seed=sd, diag=dk)
         else:
             res = run_sweep(spins, neighbors, J, onsite, T_list, args.therm, args.meas,
-                            stag, order, seed=sd)
+                            stag, order, seed=sd, diag=dk)
+        diags.append(dk)
         res = res[np.argsort(res[:, 0])]
         all_res.append(res)
         if use_cv:
@@ -708,6 +855,44 @@ def main():
         if chi_edge or dm_edge:
             print(">>> [warn] 峰判据落在温度窗口边界: 请收窄 --tmin/--tmax、加密 --nt "
                   "(低温侧加 --cool); 该值不能当作 T_C/T_N")
+
+    # ---- 采样诊断 (P1-4): 接受率 / 积分自相关时间 / 有效独立样本 / 两种 SEM ----
+    # 没有这些量时, 「峰位差 1 K」「种子间 ±0.5 K」都无法判断是物理还是统计噪声。
+    warns = []
+    diag = {}
+    if diags and diags[0]:
+        for _key in diags[0]:
+            diag[_key] = np.mean(np.array([d[_key] for d in diags], dtype=float), axis=0)
+        Td = diag["T"]; dacc = diag["accept"]; dtau = diag["tau_int"]; dneff = diag["n_eff"]
+        sn, sb = diag["sem_naive"], diag["sem_binned"]
+        i_pk = int(np.argmax(res[:, 2]))
+        # 峰落在窗口边界时, 上面已报「未分辨」; 再拿该点的 τ_int/接受率说事只是噪声
+        # (端点温度往往太低, 自旋本来就冻住) —— 那一行诊断会被用户当成「再调参就能救」。
+        pk_edge = i_pk in (0, len(res) - 1)
+        ratio = (float(np.nanmedian(sb)) / max(float(np.nanmedian(sn)), 1e-300)
+                 if np.isfinite(np.nanmedian(sn)) and np.isfinite(np.nanmedian(sb)) else float("nan"))
+        print(f"\n>>> 采样诊断 (每温度 {args.meas} 次测量 x {N} 次单自旋尝试/步):")
+        print(f"    接受率 {float(np.min(dacc)):.2f}..{float(np.max(dacc)):.2f} | "
+              f"τ_int 最大 {float(np.max(dtau)):.2f} 步 (T={Td[int(np.argmax(dtau))]:.1f} K) | "
+              f"有效独立样本 n_eff 最小 {float(np.min(dneff)):.0f}/{args.meas}")
+        print(f"    SEM: naive 中位 {float(np.nanmedian(sn)):.3g} vs binning 中位 "
+              f"{float(np.nanmedian(sb)):.3g} (naive 低估 {ratio:.2f}x)" if np.isfinite(ratio)
+              else "    SEM: 样本不足, 未估计")
+        if pk_edge:
+            print(f"    (峰在窗口边界 T={Td[i_pk]:.2f} K, 该点的 τ_int/接受率不单独告警 —— "
+                  f"先解决「峰未分辨」再谈采样量)")
+        if dneff[i_pk] < 100 and not pk_edge:
+            warns.append(f"峰处 T={Td[i_pk]:.2f} K 的有效独立样本只有 {dneff[i_pk]:.0f} < 100 "
+                         f"(τ_int={dtau[i_pk]:.1f} 步): 峰位/峰高的统计误差大 —— 把 --meas 提到 "
+                         f">= {int(200 * (1.0 + 2.0 * dtau[i_pk]))}, 或增加 --seeds 做多种子平均")
+        if dacc[i_pk] < 0.05 and not pk_edge:
+            warns.append(f"峰处 T={Td[i_pk]:.2f} K 的 Metropolis 接受率只有 {dacc[i_pk]:.2f}: "
+                         f"自旋基本被冻在原地, 该点的序参量/比热不可信 (检查 --size/--tmin)")
+        if np.isfinite(ratio) and ratio > 3.0:
+            warns.append(f"naive SEM 比 binning SEM 小 {ratio:.1f}x: 序列强相关, "
+                         f"误差棒必须用 binning 那个 (n_eff={float(np.min(dneff)):.0f})")
+        for _w in warns:
+            print(f">>> [warn] {_w}", file=sys.stderr)
 
     png = f"{prefix}_mt.png"
     tc_label = "T_N" if order == 1 else "T_C"
@@ -764,6 +949,23 @@ def main():
             print(f">>> 图存至 {png} (纯 Pillow 兜底)")
         except Exception as e2:
             print(f"[warn] 画图跳过: {e2}")
+
+    # ---- 诊断落盘: 机器可读 (供 driver/report 引用, 也让复核时不必重跑) ----
+    if diag:
+        dj = {"schema": "mc_diag/1", "script": "mc_2d.py", "order": str(args.order),
+              "use_cv": bool(use_cv), "size": [int(x) for x in args.size],
+              "n_mag": int(N), "n_therm": int(args.therm), "n_meas": int(args.meas),
+              "seeds": int(n_seeds),
+              "note": "tau_int/n_eff 按测量步计 (1 步 = N 次单自旋尝试); "
+                      "误差棒请用 sem_binned (naive 在相关序列上会低估)",
+              "warnings": warns, "columns": ["T", "accept", "tau_int", "n_eff",
+                                             "sem_naive", "sem_binned", "window", "n_bins"]}
+        for _k in dj["columns"]:
+            dj[_k] = [float(x) for x in np.atleast_1d(diag[_k])]
+        fn_diag = f"{prefix}_diag.json"
+        with open(fn_diag, "w", encoding="utf-8") as f:
+            json.dump(dj, f, ensure_ascii=False, indent=1)
+        print(f">>> 采样诊断存至 {fn_diag}")
 
 
 def _pil_font(size_px):

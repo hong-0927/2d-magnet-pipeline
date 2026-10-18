@@ -182,8 +182,8 @@ finally:
 #     -> 抽样含 A / 测量不含 A -> Cv 少一块、T_N 系统偏移, 退出码仍是 0。
 r = run(sys.executable, os.path.join(SCRIPTS, "mc_2d.py"), "--selftest")
 check("mc_2d --selftest 退出码 0", r.returncode == 0)
-check("mc_2d --selftest 三项全 PASS (含 A / A=0 / onsite 有贡献)",
-      r.stdout.count("[PASS]") == 3 and "[FAIL]" not in r.stdout)
+check("mc_2d --selftest 七项全 PASS (能量三项 + τ_int/binning SEM 四项)",
+      r.stdout.count("[PASS]") == 7 and "[FAIL]" not in r.stdout)
 if r.returncode != 0:
     print(r.stdout[-1500:], r.stderr[-1500:])
 
@@ -448,6 +448,99 @@ open(%r, "w", encoding="utf-8").write(json.dumps(m))
           and "--order sublattice" in _all5f2)
 finally:
     shutil.rmtree(td, ignore_errors=True)
+
+# ---- 5g. MC 的采样诊断: τ_int / 有效样本 / 两种 SEM / mc_diag.json (P1-4 回归) ----
+#     没有这些量, 「峰位差 1 K」是物理还是统计噪声无从判断; 旧版只有默认 therm/meas
+#     两个魔数, 参数对不对全靠用户猜。
+td = mktmp("_tmp_diag_")
+try:
+    _p5g = r'''
+import json
+diag = lambda j: [[j, 0.0, 0.0], [0.0, j, 0.0], [0.0, 0.0, j]]
+m = {"primitive_vectors": [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 20.0]],
+     "basis_frac": [[0.0, 0.0, 0.0]],
+     "onsite": [[[0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0]]],
+     "interactions": [
+         {"b1": 0, "b2": 0, "offset": [1, 0], "J": diag(-2.0)},
+         {"b1": 0, "b2": 0, "offset": [0, 1], "J": diag(-2.0)},
+         {"b1": 0, "b2": 0, "offset": [1, 1], "J": diag(0.5)}],
+     "meta": {"S": 1.0, "J1_meV": -2.0, "J2_meV": 0.5}}
+open(%r, "w", encoding="utf-8").write(json.dumps(m))
+''' % (os.path.join(td, "m.json"))
+    run(sys.executable, "-c", _p5g)
+    _pref5g = os.path.join(td, "mt")
+    _r5g = run(sys.executable, os.path.join(SCRIPTS, "mc_2d.py"),
+               os.path.join(td, "m.json"), "--order", "auto", "--size", "4", "4",
+               "--tmin", "2", "--tmax", "6", "--nt", "3",
+               "--therm", "30", "--meas", "60", "--seeds", "2", "--out", _pref5g)
+    check("diag: MC 跑通并打印采样诊断段", _r5g.returncode == 0
+          and "采样诊断" in (_r5g.stdout or ""))
+    _d5g_path = _pref5g + "_diag.json"
+    _d5g = {}
+    if os.path.exists(_d5g_path):
+        with open(_d5g_path, encoding="utf-8") as f:
+            _d5g = json.load(f)
+    _keys5g = ("schema", "T", "accept", "tau_int", "n_eff", "sem_naive", "sem_binned")
+    check("diag: 落下 mc_diag.json 且含 T/accept/τ_int/n_eff/两种 SEM",
+          all(k in _d5g for k in _keys5g)
+          and len(_d5g.get("T") or []) == len(_d5g.get("tau_int") or []) == 3)
+    _tau5g = [float(x) for x in (_d5g.get("tau_int") or [])]
+    check("diag: τ_int 有限且 >= 0.5 (理论与白噪声下限), 接受率在 0..1",
+          bool(_tau5g) and all(abs(t - t) < 1e9 and t >= 0.5 for t in _tau5g)
+          and all(0.0 <= float(a) <= 1.0 for a in (_d5g.get("accept") or [])))
+    # driver 的 summarize_diag 必须把 mc_2d 的 warnings 转到 stderr, 并回一行摘要
+    _od5g = os.path.join(td, "proj")
+    os.makedirs(os.path.join(_od5g, "05_mc"), exist_ok=True)
+    with open(os.path.join(_od5g, "05_mc", "mc_diag.json"), "w", encoding="utf-8") as f:
+        json.dump({"schema": "mc_diag/1", "T": [2.0, 4.0], "accept": [0.1, 0.4],
+                   "tau_int": [3.0, 1.2], "n_eff": [20.0, 50.0], "n_meas": 60,
+                   "sem_naive": [0.01, 0.01], "sem_binned": [0.02, 0.015],
+                   "warnings": ["峰处 T=2.00 K 的有效独立样本只有 20 < 100"]}, f)
+    _p5g2 = ("import sys; sys.path.insert(0, %r); import run_2d_magnet as R; "
+             "print(R.summarize_diag(%r) or 'NONE')" % (HERE, _od5g))
+    _r5g2 = run(sys.executable, "-c", _p5g2)
+    check("diag: driver 的 summarize_diag 回摘要并把 warnings 转到 stderr",
+          _r5g2.returncode == 0 and "采样诊断" in (_r5g2.stdout or "")
+          and "有效独立样本只有 20" in (_r5g2.stderr or ""))
+    # --quiet 下这份摘要是结论级信息, 必须走 stderr (不能被 log() 吞掉)
+    _p5g3 = ("import sys; sys.path.insert(0, %r); import run_2d_magnet as R; "
+             "R.QUIET = True; print(R.emit_diag(%r) or 'NONE')" % (HERE, _od5g))
+    _r5g3 = run(sys.executable, "-c", _p5g3)
+    check("diag: --quiet 下诊断摘要走 stderr (log 被静默也不丢)",
+          _r5g3.returncode == 0 and "采样诊断" in (_r5g3.stderr or ""))
+finally:
+    shutil.rmtree(td, ignore_errors=True)
+
+# ---- 5h. 机器可读的能力边界: capabilities.json + capabilities.py (P1-5 回归) ----
+#     边界原本只在 README/SKILL 的散文里; agent 会读代码、跑命令, 不会记得散文。
+_cap5h = os.path.join(HERE, "capabilities.json")
+_r5h = run(sys.executable, os.path.join(SCRIPTS, "capabilities.py"), "--check")
+check("cap: capabilities.json --check 退出 0 且自洽",
+      _r5h.returncode == 0 and "[OK] capabilities.json 自洽" in (_r5h.stdout or ""))
+_r5h2 = run(sys.executable, os.path.join(SCRIPTS, "capabilities.py"), "--show")
+check("cap: --show 列出 7 类晶格与物理实证列",
+      _r5h2.returncode == 0 and "物理实证" in (_r5h2.stdout or "")
+      and all(k in (_r5h2.stdout or "") for k in ("kagome", "square", "triangular")))
+td = mktmp("_tmp_cap_")
+try:
+    with open(_cap5h, encoding="utf-8") as f:
+        _d5h = json.load(f)
+    _d5h["lattices"]["kagome"]["physical_verified"] = True
+    _bad5h = os.path.join(td, "bad.json")
+    with open(_bad5h, "w", encoding="utf-8") as f:
+        json.dump(_d5h, f, ensure_ascii=False)
+    _r5h3 = run(sys.executable, os.path.join(SCRIPTS, "capabilities.py"),
+                "--check", "--json", _bad5h, "--quiet")
+    _all5h = (_r5h3.stdout or "") + (_r5h3.stderr or "")
+    check("cap: 谁把 physical_verified 改成 true, 闸门就拒 (不能靠改字面量宣称物理结论)",
+          _r5h3.returncode != 0 and "必须显式 false" in _all5h)
+finally:
+    shutil.rmtree(td, ignore_errors=True)
+_src5h = open(_cap5h, encoding="utf-8").read()
+check("cap: 能力表里点名 verify_states 闸门, 且 README 引用 capabilities.json",
+      "verify_states.py" in _src5h
+      and "capabilities.json" in open(os.path.join(HERE, "README.md"),
+                                       encoding="utf-8").read())
 
 # ---- 6. 多亚晶格铁磁网络的误判警告 (Fe3GeTe2 类: 3 个 Fe/胞 被几何并成 1 簇) ----
 td = mktmp("_tmp_fgt_")

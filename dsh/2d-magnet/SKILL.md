@@ -495,6 +495,13 @@ Néel 矢量方向** ⇒ 交变磁体的序参量判据仍属未覆盖。掩码�
 
 ## 约定（务必遵守）
 
+- **报任何 J / T_C / D / 能带 / Z₂ 结论前，先看 `capabilities.json`**：那是机器可读的能力边界
+  （7 类晶格各自到哪一层、7 个物理量的 level、7 条根本不支持的事）。判定口诀：
+  `quantities.J_meV.level == "coefficient"` ⇒ J 只能作为**系数**报，不能说「材料常数」；
+  `T_C_T_N_K.level == "estimate"` ⇒ 必须带窗口/格距/`n_eff`；
+  `DMI_D_meV` / `band_splitting_k_resolved` / `Z2_topological` 的 level 是 `not_extracted`/`not_computed`
+  ⇒ 报告里**不许出现**对应数值。`physical_verified` 在本版本一律 `false`，写成 `true` 会被
+  `scripts/capabilities.py --check` 与 smoke §5h 拒；`python scripts/capabilities.py --show` 可打印人读表。
 - **J 符号**：`H = -J Σ S·S`，**J>0=铁磁，J<0=反铁磁**。文献多用 `H = +J S·S`，转过来**要变号**。
 - **MAE 默认 0** → 二维无真正相变（Mermin-Wagner），T_C/T_N 是有限尺寸伪相变估计。
 - 三角螺旋磁体（MnI2/NiI2）的基态序与 T_N 是 J2/J3 竞争的后果，120° 枚举只用于反解 J。
@@ -544,6 +551,10 @@ Néel 矢量方向** ⇒ 交变磁体的序参量判据仍属未覆盖。掩码�
 
 J 来源、MAE、有限尺寸、单层 vs 体相、U/k 网格假设；三角/簇的 J 未跑 DFT 前非本项目计算值。
 另：**报 T_C/T_N 时必须带温度窗口/格距，并说明峰是否真落在窗口内部**（落边界 = 未分辨）。
+另：**误差棒只能用 binning SEM，不能用 naive SEM**：`05_mc/mc_diag.json` 里逐温度给了接受率、
+`τ_int`、`n_eff = n_meas/(1+2τ)` 与两种 SEM；naive/binning 比值 `> 3x` 说明链强相关（naive 低估），
+峰位处 `n_eff < 100` 或接受率 `< 0.05` 说明这组 `--therm/--meas` 不够，先把 `--meas` 提到
+`200(1+2τ)` 再说结论。这几个量 driver 也会打一行 `[mc] 采样诊断: …`（`--quiet` 下同样可见）。
 另：**多亚晶格铁磁网络（Fe₃GeTe₂/Fe₃GaTe₂/Fe₅GeTe₂）不能用通用分支**：它们会被几何并簇
 误判成「分子簇」，警告会发（双侧，因 Nb3I8 与 FGT 签名相同），随后 `build_cluster_cases.py`
 会明确报错退出（超胞内只有 1 个簇）。**要用专用的双亚晶格反解工具链**

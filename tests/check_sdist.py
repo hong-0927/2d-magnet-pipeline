@@ -32,6 +32,8 @@ REQUIRED = [
     "P4_2_KAGOME_RUNBOOK.md",
     "DMI_MTI_MEMO.md",
     "run_2d_magnet.py",
+    "capabilities.json",
+    "scripts/capabilities.py",
     "scripts/literature_J.json",
     "scripts/magnetic_orders.py",
     "scripts/verify_states.py",

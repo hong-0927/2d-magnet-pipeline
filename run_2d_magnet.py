@@ -814,6 +814,49 @@ def summarize_mc(outdir, mc_order):
         return None
 
 
+def summarize_diag(outdir):
+    """读 05_mc/mc_diag.json, 回一行采样诊断 (P1-4), 并把 mc_2d 的警告转到 stderr。
+
+    这些量在 `--quiet` 下尤其重要: 峰位差 1 K 是物理还是统计噪声, 只能看 τ_int/n_eff。
+    诊断文件里的 `warnings` 由 mc_2d 判定 (峰值处 n_eff < 100 / 接受率 < 0.05 / naive SEM
+    低估 > 3x), 这里原样转 stderr —— 不重复判定, 免得两处阈值漂移。
+    """
+    p = os.path.join(outdir, "05_mc", "mc_diag.json")
+    if not os.path.exists(p):
+        return None
+    try:
+        with open(p, encoding="utf-8") as f:
+            d = json.load(f)
+    except Exception:
+        return None
+    tau = d.get("tau_int") or []
+    neff = d.get("n_eff") or []
+    acc = d.get("accept") or []
+    sn = d.get("sem_naive") or []
+    sb = d.get("sem_binned") or []
+    for w in d.get("warnings") or []:
+        print(f"[warn] {w}", file=sys.stderr)
+    if not (tau and neff and acc):
+        return None
+    # 比值要按同一批温度点比 (中位比), 不能用不同温度的最大值/最小值相除
+    _med = lambda v: sorted(v)[len(v) // 2] if v else float("nan")
+    ratio = (_med(sb) / max(_med(sn), 1e-300)) if (sb and sn) else float("nan")
+    return (f"[mc] 采样诊断: 接受率 {min(acc):.2f}..{max(acc):.2f} | "
+            f"τ_int 最大 {max(tau):.2f} 步 | n_eff 最小 {min(neff):.0f}/{d.get('n_meas')} | "
+            f"naive SEM 中位低估 {ratio:.1f}x (误差棒用 binning)")
+
+
+def emit_diag(outdir):
+    """打印采样诊断摘要: 交互模式走 log(), `--quiet` 下走 stderr (结论级信息不能吞)。"""
+    msg = summarize_diag(outdir)
+    if msg:
+        if QUIET:
+            print(msg, file=sys.stderr)
+        else:
+            log(msg)
+    return msg
+
+
 def load_literature(key):
     with open(LIT, encoding="utf-8") as f:
         tab = json.load(f)
@@ -1715,6 +1758,7 @@ def main():
         mc_refine = refine_mc_peak(outdir, model, mc_order, args.mc_size,
                                    args.mc_refine_nt, args.mc_refine_max,
                                    enabled=not args.no_mc_refine, seeds=args.mc_seeds)
+        _diag_msg = emit_diag(outdir)
         # 可选: 多尺寸有限尺寸标度 (Binder U4 交点) 自动定 T_C/T_N, 比单一尺寸峰判据更稳
         if args.fss:
             fss_out = os.path.join(outdir, "05_mc", "fss")

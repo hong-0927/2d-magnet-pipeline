@@ -7,6 +7,8 @@ include requirements.txt
 include pyproject.toml
 include MANIFEST.in
 include *.md
+# 机器可读的能力边界：不在 wheel 里（wheel 只装 run_2d_magnet.py + scripts/），必须进 sdist
+include capabilities.json
 recursive-include dsh *
 recursive-include examples *
 recursive-include tests *
