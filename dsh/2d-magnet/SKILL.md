@@ -26,6 +26,13 @@ description: >-
 等价于 `python "<repo>\run_2d_magnet.py" --quiet <args>`。Python 需 numpy/numba/matplotlib/requests
 （`pip install -r requirements.txt` 即可；`.cmd` 会按 `%MAGNET_PYTHON%` → `python` → `py` 顺序找解释器）。
 
+**`--quiet` 不吞结论级警告**（复审 P0-3）：子脚本历史上把警告打成 stdout 的普通文本行，而封装脚本
+自带 `--quiet`、只转发 stderr ⇒ `[warn] …`、「比热 Cv 峰落在温度窗口边界 ⇒ T_N **未分辨**」、
+「cond(A) 病态」、「过渡带内既无 U4 交点」、「两个磁态坍缩」这些**跑完了但结论无效**的结论会被
+静默丢掉（退出码仍是 0）。现在 driver 会把这类行捞出来重打到 **stderr**（`WARN_MARKERS` 判据，
+smoke §5d 反向守住）。要留完整证据加 `--log <文件>`：每个阶段子进程的完整 stdout/stderr 都追加
+进去，`--quiet` 下同样有效。
+
 **画图不怕 matplotlib 坏**：matplotlib 在 `import` 期就需要 `pyparsing`/`cycler`/`contourpy`/`fontTools`/`kiwisolver`，缺任何一个都会让 `render`/`mc`/`--fss` 阶段只能打 `[warn] 画图跳过` 而拿不到 PNG。本仓为**每条**渲染路径都配了纯 Pillow 的等价实现（`render_supercell_pil.py` / `render_cluster_orders_pil.py` / `render_tri_orders_pil.py`，同 CLI/输入/输出/配色；曲线类则内置于各自脚本：`mc_2d.py` 的 `_plot_mt_png`、`mc_fss.py` 的 `_plot_fss_png`、`build_fgt_cases.py` 的 `_plot_fgt_png`），共用原语 `scripts/pil_fig.py`；driver 用 `have_matplotlib()` 现场二选一，**装了 Pillow 就能出图**（macOS/Linux 上同样适用）。六条路径全部与 matplotlib 解耦，没有"只能等 matplotlib 修好"的图了。
 
 ## 跑之前先定三件事
@@ -57,7 +64,7 @@ description: >-
 
 1. 换元素 → 加 `ELEMENT_PARAMS`（S/moment/U）+ `MODEL_PRESETS`（`--model` 一键）+ `literature_J.json` 条目（**J 留 null 待核实，不自作权威**）。
 2. 换机制（如 3d 超交换 → 4f-5d 巡游中介）→ 在 `literature_J.json` `_note` 与 `SKILL.md` 局限里记机制差异，强调 **J 必须 DFT 反解**。
-3. 加 fixture + smoke 断言 + README/WORKFLOW 文档 → 回归 → 提交。
+3. 加 fixture + smoke 断言 + README/WORKFLOW 文档 → 回归 → 把改动清单交给用户提交（**不要自己 `git commit`**）。
    - 例：**GdI₂**（三角晶格 + 4f 磁体，非新晶格）→ 加 Gd 元素表 + `--model gdi2` + 文献条目，走三角分支。
 
 **第三步 · 真没见过 → 新开分支（完整流程，参考 CrSBr）**
@@ -66,14 +73,28 @@ description: >-
 2. 枚举磁态 + 能量映射系数（每态系数表 + `--selftest` 前向合成→反解自检）。
 3. 写新 `build_*_cases.py` + `solve_J_*.py`（对齐命名约定），加 fixture + smoke 节。
 4. 接线 `detect_lattice` + `main()` 的 build/solve/dft/ship/render/write_workflow 各阶段。
-5. 把「为何误判 / 正解怎么走 / J 命名坑」写进 `SKILL.md` 专节 + 局限 → 回归 → 提交。
+5. 把「为何误判 / 正解怎么走 / J 命名坑」写进 `SKILL.md` 专节 + 局限 → 回归 → 把改动清单交给用户提交（同上）。
    - 例：**CrSBr**（矩形晶格，被误判成蜂窝）→ 新开 `rectangular` 分支 + `--model crsbr`。
 
 **硬约束（始终遵守）**
 
 - 几何判据判不出的化学事实（如 FGT 多亚晶格网络）→ **只警告、不擅自改路由**，判断留给用户。
 - 新材料的 **J 只作参考**，正式 MC 输入的 J 必须来自用户自己的 DFT 反解；**VASP 只导出输入、不代提交**。
-- 每完成一个分支/扩展都要 **回归（smoke + e2e）+ 提交**，不留半成品。
+- 每完成一个分支/扩展都要 **回归（smoke + e2e）**，然后把改动清单交给用户提交（本仓的提交由用户在普通 shell 里做），不留半成品。
+
+**降级开关（真实存在，但不许用来「绕过闸门」）**
+
+下面这些开关会让闸门从「拦下」变成「记一笔」或「放松」。只有在**你把后果讲清楚、用户明确同意**之后才用，
+并且必须在最终报告里写明：用了哪个开关、松掉了什么检查、产物里留下了什么证据。
+
+| 开关 | 作用 | 松掉的是什么 |
+| --- | --- | --- |
+| `--allow-unverified-states` | `solve` 跳过「磁态逐位点核对」硬闸门（仍写 `states_verification.json`，`J_result.json` 里记 `states_verified: false`） | 磁态可能坍缩/翻号，J 照解照报 |
+| `--ingest-force`（= `ingest_dft.py --force`） | 允许覆盖 `cases/<序>/OUTCAR` 里已有的旧文件 | 旧结果被静默替换 |
+| `--ingest-lenient <名>`（= `--lenient`） | 把指定的硬检查降为警告（名字见 `ingest_dft.py` 的 `CHECKS`，如 `scf`/`ionic`/`sym`） | 不收敛、结构被弛豫动过也可能放行 |
+| `--no-s2` | `poscar_to_mc3.py` 不把 J 乘 S²（认为你给的已是经典耦合 J·S²） | J 的数值口径与默认不同，混用两组数会错 1 个 S² |
+
+判断顺序永远是：**先看闸门说什么 → 修数据/修参数 → 实在不行为止**。闸门报错里的 `[error]` 行通常已经写了怎么修。
 
 ## 命令
 

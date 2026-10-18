@@ -69,6 +69,7 @@ SCRIPTS = _scripts_dir()
 LIT = os.path.join(SCRIPTS, "literature_J.json")
 
 QUIET = False
+LOG_PATH = None  # --log: 每个阶段子进程的完整 stdout/stderr 追加到这个文件
 
 # 常用磁性离子的经验默认参数: S (自旋), moment (磁矩初猜 μB), U (DFT+U 加在 d 轨道, eV)。
 # 仅在「显式 CLI 未给」且「--literature 条目未提供」时作为兜底; 任一显式值都优先。
@@ -213,6 +214,39 @@ def log(*a, **k):
         print(*a, **k)
 
 
+# 复审 P0-3: 子脚本把「跑完了但结论无效」的警告打成 stdout 的普通文本行, 而 `--quiet`
+# 只转发 stderr ⇒ 警告被静默吞掉。这里按标记把这类行从捕获的 stdout 里捞回来。
+WARN_MARKERS = ("[warn]", "[WARN]", "未分辨", "病态", "警告", "坍缩", "过渡带", "既无")
+
+
+def warning_lines(text):
+    """从子进程 stdout 里挑出「警告/未分辨/病态」这类**结论级**提示行。"""
+    out = []
+    for ln in (text or "").splitlines():
+        s = ln.strip()
+        if s and any(m in s for m in WARN_MARKERS):
+            out.append(ln)
+    return out
+
+
+def append_log(pyfile, cmd, r):
+    """`--log`: 把每个阶段子进程的完整 stdout/stderr 追加到同一个文件。"""
+    if not LOG_PATH:
+        return
+    try:
+        d = os.path.dirname(os.path.abspath(LOG_PATH))
+        if d:
+            os.makedirs(d, exist_ok=True)
+        with open(LOG_PATH, "a", encoding="utf-8") as f:
+            f.write(f"\n===== {pyfile} (exit {r.returncode}) =====\n")
+            f.write("$ " + " ".join(cmd) + "\n")
+            f.write("--- stdout ---\n" + (r.stdout or ""))
+            if r.stderr:
+                f.write("--- stderr ---\n" + r.stderr)
+    except OSError as e:  # noqa: BLE001
+        print(f"[warn] 写 --log 失败: {e}", file=sys.stderr)
+
+
 def have_matplotlib():
     """matplotlib 是否真的能 import。
 
@@ -244,23 +278,42 @@ def child_env():
 
 
 def run(pyfile, args, cwd=None):
-    """跑 scripts/ 下的脚本。QUIET 时捕获 stdout/stderr, 只在失败或警告时回显。"""
+    """跑 scripts/ 下的脚本。QUIET 时捕获 stdout/stderr, 但**关键警告必须仍然可见**。
+
+    复审 P0-3: 子脚本历史上把警告打成 stdout 的 `[warn] …` / 「未分辨」/「病态」/
+    「坍缩」, 而 `--quiet` 只转发 stderr ⇒ 这些结论被静默吞掉, 退出码仍是 0。
+    例: 「比热 Cv 峰落在温度窗口边界 ⇒ T_N **未分辨**」「过渡带内既无 U4 交点也无
+    collapse 点」「cond(A) 病态」「两个磁态坍缩成同一个态」——都是"跑完了但结论无效",
+    最需要被看见的一类。这里把捕获到的 stdout 里的警告行再打到 stderr; `--log` 另外
+    把每个阶段的完整输出落一份文件（`--quiet` 下也没丢证据）。
+    """
     cmd = [sys.executable, os.path.join(SCRIPTS, pyfile)] + args
     log("\n$", " ".join(cmd))
-    if QUIET:
-        r = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True,
-                           encoding="utf-8", errors="replace", env=child_env())
-        if r.returncode != 0:
-            print(f"[FAIL] {pyfile} 退出码 {r.returncode}\n"
-                  f"$ {' '.join(cmd)}\n{r.stdout}{r.stderr}", file=sys.stderr)
-            sys.exit(r.returncode)
-        if r.stderr and r.stderr.strip():
-            print(r.stderr.rstrip(), file=sys.stderr)
-    else:
+    capture = QUIET or bool(LOG_PATH)
+    if not capture:
         r = subprocess.run(cmd, cwd=cwd, env=child_env())
         if r.returncode != 0:
             print(f"[FAIL] {pyfile} 退出码 {r.returncode}", file=sys.stderr)
             sys.exit(r.returncode)
+        return
+    r = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True,
+                       encoding="utf-8", errors="replace", env=child_env())
+    append_log(pyfile, cmd, r)
+    if r.returncode != 0:
+        print(f"[FAIL] {pyfile} 退出码 {r.returncode}\n"
+              f"$ {' '.join(cmd)}\n{r.stdout}{r.stderr}", file=sys.stderr)
+        sys.exit(r.returncode)
+    if not QUIET:  # 只为 --log 才捕获: 仍要照常把全部输出显示出来
+        if r.stdout:
+            print(r.stdout, end="" if r.stdout.endswith("\n") else "\n")
+        if r.stderr:
+            print(r.stderr, end="" if r.stderr.endswith("\n") else "\n", file=sys.stderr)
+        return
+    warns = warning_lines(r.stdout)
+    if warns:
+        print("\n".join(warns), file=sys.stderr)
+    if r.stderr and r.stderr.strip():
+        print(r.stderr.rstrip(), file=sys.stderr)
 
 
 def stamp_states_verification(cases, vs_json, allowed_unverified):
@@ -309,15 +362,20 @@ def try_mp_fetch(outdir, formula, mp_id):
         fa += ["fetch", "--formula", formula]
     log("\n$", " ".join([sys.executable] + fa))
     kw = {"capture_output": True, "text": True, "encoding": "utf-8",
-          "errors": "replace"} if QUIET else {}
+          "errors": "replace"} if (QUIET or LOG_PATH) else {}
     try:
         r = subprocess.run([sys.executable] + fa, cwd=fetch_dir, env=child_env(), **kw)
     except Exception as e:  # noqa: BLE001
         print(f"[fetch] MP 运行异常: {e}", file=sys.stderr)
         return None
+    if kw:
+        append_log("mp_fetch_2d.py", [sys.executable] + fa, r)
     if r.returncode != 0:
         print(f"[fetch] MP 退出码 {r.returncode}: {(r.stderr or r.stdout or '')[-300:]}", file=sys.stderr)
         return None
+    if QUIET and kw:
+        for ln in warning_lines(r.stdout):  # --quiet 也不能吞掉下载器的警告
+            print(ln, file=sys.stderr)
     try:
         return pick_structure(os.path.join(fetch_dir, "structures"), formula, mp_id)
     except SystemExit as e:
@@ -596,12 +654,19 @@ def doctor():
 def peak_report(csv):
     """定位峰判据 (Cv 或 χ, 即第 3 列) 在温度网格上的位置。
 
-    返回 dict(T_peak, y_peak, i, n, at_low, at_high, dT, T_lo, T_hi); 读不到返回 None。
+    返回 dict(T_peak, y_peak, i, n, at_low, at_high, dT, T_lo, T_hi, y_label, ncols); 读不到返回 None。
     **峰落在首/末格点 = 窗口截断, 不能当作 T_C/T_N 报出** (见 summarize_mc / refine_mc_peak)。
     """
     if not os.path.exists(csv):
         return None
     try:
+        with open(csv, encoding="utf-8") as f:
+            head = f.readline().strip()
+        # 表头判标签: cv 版是 T_Kelvin,E_per_site,Cv; 普通版是 T_Kelvin,order_param,
+        # Susceptibility,Binder_U4。第三列在两种布局里恰好都是「峰判据」, 但**名字不同**
+        # ⇒ 不能再用 mc_order 字符串猜 (auto 在 mc_2d 内部回退到 cv 时 driver 并不知道)。
+        names = [x.strip() for x in head.split(",")]
+        y_label = names[2] if len(names) > 2 else ""
         d = np.loadtxt(csv, delimiter=",", skiprows=1)
         if d.ndim != 2 or d.shape[1] < 3 or len(d) < 3:
             return None
@@ -610,7 +675,8 @@ def peak_report(csv):
         dT = float(np.median(np.abs(np.diff(T))))
         return {"T_peak": float(T[i]), "y_peak": float(y[i]), "i": i, "n": len(T),
                 "at_low": i == 0, "at_high": i == len(T) - 1,
-                "dT": dT, "T_lo": float(T[0]), "T_hi": float(T[-1])}
+                "dT": dT, "T_lo": float(T[0]), "T_hi": float(T[-1]),
+                "y_label": y_label, "ncols": int(d.shape[1])}
     except Exception:
         return None
 
@@ -729,7 +795,10 @@ def summarize_mc(outdir, mc_order):
         return None
     side = "下限" if pk["at_low"] else "上限"
     win = f"窗口 [{pk['T_lo']:.1f},{pk['T_hi']:.1f}] K, 格距 {pk['dT']:.2f} K"
-    if mc_order == "cv":
+    # 标签按 CSV 表头判, 不按 mc_order 字符串猜: --order auto 可能在 mc_2d 内部回退到 cv
+    # (条纹基态), 这时第三列是 Cv 而不是 χ; 报成「χ 峰」就是错标签。
+    is_cv = pk.get("y_label", "").strip().lower() == "cv" or mc_order == "cv"
+    if is_cv:
         if pk["at_low"] or pk["at_high"]:
             return (f"比热 Cv 峰落在窗口{side} {pk['T_peak']:.1f} K → T_N **未分辨** ({win})")
         return f"比热 Cv 峰 T_N ≈ {pk['T_peak']:.2f} K ({win})"
@@ -1134,7 +1203,11 @@ def main():
     ap.add_argument("--cant-azimuth", type=float, default=0.0,
                     help="倾斜方位角 φ (度, 落在 [0,360)); 注意 φ **由几何定不出来** ⇒ 这是取值不是解")
     ap.add_argument("--quiet", action="store_true",
-                    help="静默模式: 抑制子进程输出, 只回显错误/警告 + 结尾摘要")
+                    help="静默模式: 抑制子进程输出, 只回显错误 + **结论级警告** (未分辨/病态/坍缩/过渡带) "
+                         "+ 结尾摘要; 要看完整输出用 --log")
+    ap.add_argument("--log", metavar="PATH", default=None,
+                    help="把每个阶段子进程的完整 stdout/stderr 追加写入 PATH (--quiet 下同样有效); "
+                         "警告行仍会同时打到 stderr, 不会被静默吞掉")
     ap.add_argument("--version", action="version", version=f"2d-magnet {pkg_version()}",
                     help="打印版本号 (取自 pyproject.toml) 并退出")
     args = ap.parse_args()
@@ -1142,8 +1215,11 @@ def main():
     if args.command == "doctor":
         sys.exit(0 if doctor() else 1)
 
-    global QUIET
+    global QUIET, LOG_PATH
     QUIET = args.quiet
+    LOG_PATH = os.path.abspath(args.log) if args.log else None
+    if LOG_PATH:
+        log(f"[log] 各阶段子进程的完整输出会追加到 {LOG_PATH}")
 
     # ---- 解析参数 (文献表/模型预设 < 显式 CLI) ----
     model = None
@@ -1300,10 +1376,14 @@ def main():
                 if p == "mp":
                     continue
                 log(f"[fetch] 试 {p} ...")
-                r = subprocess.run([sys.executable, os.path.join(SCRIPTS, "fetch_structure.py"),
-                                    formula, "--provider", p, "--out", poscar_mp],
+                _cmd_f = [sys.executable, os.path.join(SCRIPTS, "fetch_structure.py"),
+                          formula, "--provider", p, "--out", poscar_mp]
+                r = subprocess.run(_cmd_f,
                                    capture_output=True, text=True, encoding="utf-8",
                                    errors="replace", env=child_env())
+                append_log("fetch_structure.py", _cmd_f, r)
+                for ln in warning_lines(r.stdout):  # 下载器输出一律被捕获 ⇒ 警告必须转出来
+                    print(ln, file=sys.stderr)
                 if r.returncode == 0 and os.path.exists(poscar_mp):
                     log(f"[fetch] {p} 成功")
                     got = True

@@ -22,6 +22,7 @@ U4(T) 曲线在 T_C 附近交于一点; 交点温度随 L 增大收敛到真实 
 import argparse
 import json
 import os
+import sys
 
 import numpy as np
 
@@ -32,6 +33,61 @@ COLOR_CYCLE = ("#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd", "#8c564b",
                "#e377c2", "#7f7f7f", "#bcbd22", "#17becf")   # matplotlib tab10
 C_REF = "#808080"   # 参考线 (gray)
 C_TC = "#d62728"    # T_C 竖线 (tab:red)
+
+
+def _pick_crossing(cand, ref):
+    """从一对尺寸的候选交点里选一个: 取离 `ref` (全局 collapse 估计) 最近的。
+
+    旧实现取「斜率最陡」的候选 (P1-1): 平滑后残余的噪声抖动只要有局部陡坡就可能被选中,
+    这是选择偏差, 而且会让 T_C 系统性偏向斜率大的位置。collapse 估计是尺寸无关的全局判据
+    (一次用上所有尺寸、不受单对噪声影响), 用它当参照更稳。
+    """
+    return sorted(cand, key=lambda x: abs(x[0] - ref))[0]
+
+
+def _extrapolate_1overL(crossings, tc_vals):
+    """标度区假设下按 T_c(L) = T_c(∞) + a/L 做最小二乘, 返回 (T_c(∞), a)。
+
+    x 取每个尺寸对的平均 L 的倒数; 只有 >=3 个交点才谈得上拟合。斜率 a 的大小本身是
+    「有没有进标度区」的体检指标 —— |a| 大说明交点随 L 还在明显漂移, 外推不可信。
+    """
+    xs = np.array([1.0 / (0.5 * (a + b)) for a, b, _ in crossings], dtype=float)
+    A = np.column_stack([np.ones_like(xs), xs])
+    coef = np.linalg.lstsq(A, np.asarray(tc_vals, dtype=float), rcond=None)[0]
+    return float(coef[0]), float(coef[1])
+
+
+def _selftest():
+    """本脚本自己的不变量: 交点选择不取「最陡」+ 1/L 外推能还原真值。
+
+    与 smoke §5f 同源 (那里跑同一组断言, 这里给手动 `--selftest` 用)。
+    """
+    fails = []
+
+    def ck(name, cond):
+        print(("  [PASS] " if cond else "  [FAIL] ") + name)
+        if not cond:
+            fails.append(name)
+
+    # 1. 交点选择: 候选 (8.0, 斜率 1) 与 (9.0, 斜率 100), 参照 8.1 -> 必须选 8.0
+    pick = _pick_crossing([(8.0, 0.30, 1.0), (9.0, 0.30, 100.0)], 8.1)[0]
+    ck(f"交点选择取近参照 (期望 8.0, 实得 {pick})", abs(pick - 8.0) < 1e-9)
+    # 2. 1/L 外推: 合成「严格在 T = 10 + 40/L 上」的交点 -> 截距 10, 斜率 40
+    cr = [(4, 4, 20.0), (4, 8, 16.6666666667), (8, 8, 15.0)]
+    t_inf, drift = _extrapolate_1overL(cr, [c[2] for c in cr])
+    ck(f"1/L 外推截距 (期望 10.0, 实得 {t_inf:.4f})", abs(t_inf - 10.0) < 1e-6)
+    ck(f"1/L 外推斜率 (期望 40.0, 实得 {drift:.4f})", abs(drift - 40.0) < 1e-6)
+    # 3. 报告措辞: ± 必须是跨尺寸离散度, 不能写成统计标准误
+    #    被禁的短语在本文件里拼出来, 否则自检会读到自己的源码而永远失败
+    src = open(os.path.abspath(__file__), encoding="utf-8").read()
+    bad = "交点" + "标准差"
+    ck("± 的措辞是「跨尺寸对离散」而不是「统计标准误」",
+       "不是统计标准误" in src and bad not in src)
+    if fails:
+        print(f"  [FAIL] {len(fails)} 项失败: {fails}")
+        return 1
+    print("  ALL PASS")
+    return 0
 
 
 def _plot_fss_png(curves, sizes, meta, tc_mark, png):
@@ -83,6 +139,8 @@ def _plot_fss_png(curves, sizes, meta, tc_mark, png):
 
 
 def main():
+    if "--selftest" in sys.argv[1:]:
+        return _selftest()
     ap = argparse.ArgumentParser()
     ap.add_argument("model")
     ap.add_argument("--sizes", type=int, nargs="+", required=True,
@@ -119,12 +177,18 @@ def main():
         raise SystemExit("[error] FSS 用 U4 交点定临界温度, 没有 U4 的比热路径不适用 "
                          "(与 mc_2d.py 的 --order cv 不同)")
     if o_kind == "auto":
-        if "J1_meV" in meta:
-            jsum = float(meta["J1_meV"])
-        else:
-            jsum = sum(-float(it["J"][0][0]) for it in model.get("interactions", []))
-        order = 1 if jsum < 0 else 0
-        kind = "交错 (反铁磁, T_N)" if order == 1 else "总磁化 (铁磁, T_C)"
+        # 判据与 mc_2d.py 同源 (P1-2): 比 T=0 候选基态能量, 不看 J1 符号。
+        _L = max(3, min(int(x) for x in args.sizes))
+        order, kind, use_cv, cand, best = mc_2d.resolve_auto_order(model, (_L, _L))
+        ranked = sorted(cand.items(), key=lambda kv: kv[1])
+        print(f"auto 序参量判定 (按 L={_L} 的 T=0 候选基态能量): "
+              + " | ".join(f"{k}={v:+.4f}" for k, v in ranked))
+        if use_cv:
+            raise SystemExit(
+                f"[error] auto 判定该模型 T=0 基态是 {best} (条纹反铁磁): ±1 交错序参量测的"
+                f"不是这个序, 而 FSS 用 U4 交点定临界温度、没有比热路径 —— 请显式给 "
+                f"--order sublattice:<mask> (按条纹方向分子晶格), 或先用 "
+                f"`mc_2d.py --order cv` 看比热峰")
     elif o_kind == "sublattice":
         order = 1
         kind = f"逐子晶格 Néel 矢量 |L| (A = 子晶格 {sorted(set(o_mask))}, B = 其余)"
@@ -216,8 +280,12 @@ def main():
                         slope = abs(d1 - d0) / (T1[k + 1] - T1[k])
                         cand.append((tc, uc, slope))
             if cand:
-                cand.sort(key=lambda x: -x[2])  # 最陡优先
-                crossings.append((sizes[i], sizes[j], cand[0][0]))
+                # 一对尺寸在过渡带里可能出现多个交点 (平滑后的残余抖动)。旧实现取「最陡」,
+                # 那是**选择偏差**: 噪声小抖动只要有局部陡坡就可能被选中, 而且系统性地偏向
+                # 斜率大的位置 (P1-1)。改用尺寸无关的全局判据当参照: collapse 估计 (它一次
+                # 用上所有尺寸、不依赖单对噪声) 离得最近的那个交点。
+                ref = T_collapse if T_collapse is not None else float(np.median([c[0] for c in cand]))
+                crossings.append((sizes[i], sizes[j], _pick_crossing(cand, ref)[0]))
 
     header = "T_Kelvin," + ",".join(f"U4_L{L}" for L in sizes)
     cols = [T_grid] + [Umat[k] for k in range(len(sizes))]
@@ -237,7 +305,14 @@ def main():
         if T_collapse is not None:
             print(f">>> U4 方差最小 (collapse): {T_collapse:.2f} K")
         print(f">>> 有限尺寸标度 T_C/T_N ≈ {tc:.2f} K ± {sd:.2f} K "
-              f"({len(crossings)} 个尺寸对交点标准差)")
+              f"({len(crossings)} 个尺寸对交点的离散度, **不是统计标准误**: 这些交点是"
+              f"相关的估计, 不是独立样本; 随 L 单调漂移时应当读作系统误差/标度区未达)")
+        if len(crossings) >= 3:
+            # 1/L 外推: 标度区里 T_c(L) = T_c(∞) + a/L, 用各尺寸对的平均 L 作 x。
+            t_inf, drift = _extrapolate_1overL(crossings, tc_vals)
+            print(f">>> 1/L 线性外推 (参考值, 前提是已进标度区): "
+                  f"T_C/T_N(L->∞) ≈ {t_inf:.2f} K (斜率 {drift:+.1f} K·L; "
+                  f"|斜率| 大 = 尺寸还没进标度区, 此时该外推不可信)")
     elif T_collapse is not None:
         tc, sd = T_collapse, None
         print(f">>> 两两交点未找到干净的, 但 U4 方差最小 (collapse) = {T_collapse:.2f} K; "
@@ -288,4 +363,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

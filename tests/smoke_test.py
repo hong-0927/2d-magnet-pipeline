@@ -275,6 +275,180 @@ try:
 finally:
     shutil.rmtree(td, ignore_errors=True)
 
+# ---- 5d. --quiet 不得吞掉结论级警告 (P0-3 回归) ----
+td = mktmp("_tmp_warn_")
+try:
+    open(os.path.join(td, "_fake_warn.py"), "w", encoding="utf-8").write(
+        "print('普通输出: 2 个磁序, 4 个位点')\n"
+        "print('[warn] 比热 Cv 峰落在温度窗口边界 -> T_N 未分辨')\n"
+        "print('cond(A) = 2.4e3 > 1e3 病态')\n"
+        "print('过渡带内既无 U4 交点也无 collapse 点')\n"
+        "print('两个磁态坍缩成同一个态')\n"
+    )
+    _p5d = ("import sys; sys.path.insert(0, %r); import run_2d_magnet as R; "
+            "R.SCRIPTS = %r; R.QUIET = True; R.run('_fake_warn.py', [])") % (HERE, td)
+    _r5d = run(sys.executable, "-c", _p5d)
+    _err5d = (_r5d.stderr or "")
+    check("warn: --quiet 下四类结论级警告都打到 stderr",
+          _r5d.returncode == 0 and "未分辨" in _err5d and "病态" in _err5d
+          and "[warn]" in _err5d and "既无" in _err5d and "坍缩" in _err5d)
+    check("warn: 普通输出行不会被当成警告刷屏", "普通输出" not in _err5d)
+    _log5d = os.path.join(td, "stage.log")
+    _p5d2 = ("import sys; sys.path.insert(0, %r); import run_2d_magnet as R; "
+             "R.SCRIPTS = %r; R.QUIET = True; R.LOG_PATH = %r; "
+             "R.run('_fake_warn.py', [])") % (HERE, td, _log5d)
+    _r5d2 = run(sys.executable, "-c", _p5d2)
+    _txt5d = open(_log5d, encoding="utf-8").read() if os.path.exists(_log5d) else ""
+    check("warn: --log 把完整 stdout 落盘 (普通行也在, 不只警告)",
+          _r5d2.returncode == 0 and "普通输出" in _txt5d and "--- stdout ---" in _txt5d)
+    _p5d3 = ("import sys; sys.path.insert(0, %r); import run_2d_magnet as R; "
+             "print(len(R.warning_lines('a\\n[warn] x\\nT_N 未分辨\\ncond 病态\\n"
+             "过渡带内既无 U4 交点\\n两态坍缩\\n')))") % HERE
+    _r5d3 = run(sys.executable, "-c", _p5d3)
+    check("warn: warning_lines 只挑警告行 (5/6)",
+          (_r5d3.stdout or "").strip() == "5")
+finally:
+    shutil.rmtree(td, ignore_errors=True)
+
+# ---- 5e. --order auto 不能只靠 J1 符号猜 (P1-2 回归) ----
+td = mktmp("_tmp_autorder_")
+try:
+    _p5e = r'''
+import json, sys
+sys.path.insert(0, %r)
+import mc_2d
+PV = [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 20.0]]
+ONS = [[[0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0]]]
+def diag(j):
+    return [[j, 0.0, 0.0], [0.0, j, 0.0], [0.0, 0.0, j]]
+def mk(ints, j1, j2):
+    return {"primitive_vectors": PV, "basis_frac": [[0.0, 0.0, 0.0]], "onsite": ONS,
+            "interactions": ints, "meta": {"S": 1.0, "J1_meV": j1, "J2_meV": j2}}
+cases = {
+    "stripe": mk([{"b1": 0, "b2": 0, "offset": [1, 0], "J": diag(4.0)},
+                  {"b1": 0, "b2": 0, "offset": [1, 1], "J": diag(-1.0)}], 4.0, -1.0),
+    "fm": mk([{"b1": 0, "b2": 0, "offset": [1, 0], "J": diag(-4.0)},
+              {"b1": 0, "b2": 0, "offset": [0, 1], "J": diag(-4.0)}], -4.0, 0.0),
+    "neel": mk([{"b1": 0, "b2": 0, "offset": [1, 0], "J": diag(4.0)},
+                {"b1": 0, "b2": 0, "offset": [0, 1], "J": diag(4.0)}], 4.0, 0.0),
+}
+res = {}
+for name, m in cases.items():
+    _s, nb, J, on, nbas = mc_2d.build_arrays(m, (4, 4))
+    cand = mc_2d._candidate_orders((4, 4), nbas, nb, J, on)
+    res[name] = {"best": min(cand, key=cand.get), "cand": cand}
+open(%r, "w", encoding="utf-8").write(json.dumps(cases["stripe"]))
+print(json.dumps(res))
+''' % (SCRIPTS, os.path.join(td, "stripe_model.json"))
+    _r5e = run(sys.executable, "-c", _p5e)
+    _d5e = json.loads((_r5e.stdout or "{}").strip().splitlines()[-1] or "{}") \
+        if (_r5e.stdout or "").strip() else {}
+    check("auto: J1>0+J2<0 的条纹基态不被当成 Néel",
+          str((_d5e.get("stripe") or {}).get("best", "")).startswith("stripe"))
+    check("auto: 纯 FM 模型判成 fm", (_d5e.get("fm") or {}).get("best") == "fm")
+    check("auto: 纯 AFM (NN) 模型判成 neel", (_d5e.get("neel") or {}).get("best") == "neel")
+    _r5e = run(sys.executable, os.path.join(SCRIPTS, "mc_2d.py"),
+               os.path.join(td, "stripe_model.json"),
+               "--size", "4", "4", "--tmin", "1", "--tmax", "6", "--nt", "5",
+               "--therm", "30", "--meas", "60", "--order", "auto",
+               "--out", os.path.join(td, "mt_stripe"))
+    _out5e = (_r5e.stdout or "")
+    _err5e = (_r5e.stderr or "")
+    check("auto: 条纹基态自动退到比热峰 (stdout 说明 + stderr 警告)",
+          _r5e.returncode == 0 and "比热 Cv 峰" in _out5e
+          and "条纹" in _err5e and "--order cv" in _err5e)
+finally:
+    shutil.rmtree(td, ignore_errors=True)
+
+# driver 的结尾摘要必须按 CSV 表头判标签: --order auto 在 mc_2d 内部回退到 cv 之后,
+# 第三列是 Cv 而不是 χ, 报成「χ 峰」就是错标签 (P1-2 的另一半)
+td = mktmp("_tmp_mclabel_")
+try:
+    _md = os.path.join(td, "05_mc")
+    os.makedirs(_md)
+    with open(os.path.join(_md, "mc_mt.csv"), "w", encoding="utf-8") as _f:
+        _f.write("T_Kelvin,E_per_site,Cv\n")
+        for _i, (_T, _C) in enumerate([(1.0, 0.1), (2.0, 0.9), (3.0, 0.4)]):
+            _f.write("%.1f,%.4f,%.4f\n" % (_T, -0.5 + 0.01 * _i, _C))
+    _r5e2 = run(sys.executable, "-c", (
+        "import sys; sys.path.insert(0, %r); import run_2d_magnet as R; "
+        "print(R.summarize_mc(%r, 'auto') or '<none>')"
+    ) % (HERE, td))
+    check("auto: cv 布局的 CSV 摘要报「比热 Cv 峰」而不是「χ 峰」",
+          _r5e2.returncode == 0 and "比热 Cv 峰" in (_r5e2.stdout or "")
+          and "χ 峰" not in (_r5e2.stdout or ""))
+    with open(os.path.join(_md, "mc_mt.csv"), "w", encoding="utf-8") as _f:
+        _f.write("T_Kelvin,order_param,Susceptibility,Binder_U4\n")
+        for _i, (_T, _S2) in enumerate([(1.0, 0.01), (2.0, 0.09), (3.0, 0.04)]):
+            _f.write("%.1f,%.4f,%.4f,%.4f\n" % (_T, 0.5, _S2, 0.6))
+    _r5e3 = run(sys.executable, "-c", (
+        "import sys; sys.path.insert(0, %r); import run_2d_magnet as R; "
+        "print(R.summarize_mc(%r, 'auto') or '<none>')"
+    ) % (HERE, td))
+    check("auto: 普通布局的 CSV 摘要报「χ 峰」",
+          _r5e3.returncode == 0 and "χ 峰" in (_r5e3.stdout or ""))
+finally:
+    shutil.rmtree(td, ignore_errors=True)
+
+# ---- 5f. FSS 的 ± 语义与交点选择 (P1-1 回归) ----
+_p5f = r'''
+import json, sys
+sys.path.insert(0, %r)
+import mc_fss as F
+out = {}
+# 最陡=9.0 K (斜率 100); 全局参照在 8.1 K 附近 -> 必须选 8.0, 不选最陡
+out["pick"] = F._pick_crossing([(8.0, 0.30, 1.0), (9.0, 0.30, 100.0)], 8.1)[0]
+# 合成「严格在 T = 10 + 40/L 上」的交点 -> 外推应当还原 10 K / 40 K·L
+cr = [(4, 4, 20.0), (4, 8, 16.6666666667), (8, 8, 15.0)]
+t_inf, drift = F._extrapolate_1overL(cr, [c[2] for c in cr])
+out["t_inf"], out["drift"] = t_inf, drift
+print(json.dumps(out))
+''' % (SCRIPTS)
+_r5f = run(sys.executable, "-c", _p5f)
+try:
+    _d5f = json.loads((_r5f.stdout or "{}").strip().splitlines()[-1])
+except ValueError:
+    _d5f = {}
+check("fss: 多个候选交点时选靠近全局参照的, 不选最陡 (P1-1)",
+      abs(float(_d5f.get("pick", -1)) - 8.0) < 1e-9)
+check("fss: 1/L 外推能还原合成直线的截距与斜率",
+      abs(float(_d5f.get("t_inf", 0)) - 10.0) < 1e-6
+      and abs(float(_d5f.get("drift", 0)) - 40.0) < 1e-6)
+_fss5f = open(os.path.join(SCRIPTS, "mc_fss.py"), encoding="utf-8").read()
+check("fss: 报告里把 ± 说成离散度而不是统计标准误",
+      "不是统计标准误" in _fss5f and "交点标准差" not in _fss5f)
+_r5f1 = run(sys.executable, os.path.join(SCRIPTS, "mc_fss.py"), "--selftest")
+check("fss: mc_fss --selftest 退出码 0 且 4 项全 PASS",
+      _r5f1.returncode == 0 and (_r5f1.stdout or "").count("[PASS]") == 4
+      and "ALL PASS" in (_r5f1.stdout or "") and "[FAIL]" not in (_r5f1.stdout or ""))
+
+# mc_fss 的 auto 也必须走同一条判据: 条纹基态没有可比热峰的 FSS 路径 -> 明确报错, 不硬算
+td = mktmp("_tmp_fssauto_")
+try:
+    _p5f2 = r'''
+import json
+diag = lambda j: [[j, 0.0, 0.0], [0.0, j, 0.0], [0.0, 0.0, j]]
+m = {"primitive_vectors": [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 20.0]],
+     "basis_frac": [[0.0, 0.0, 0.0]],
+     "onsite": [[[0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0]]],
+     "interactions": [
+         {"b1": 0, "b2": 0, "offset": [1, 0], "J": diag(4.0)},
+         {"b1": 0, "b2": 0, "offset": [1, 1], "J": diag(-1.0)}],
+     "meta": {"S": 1.0, "J1_meV": 4.0, "J2_meV": -1.0}}
+open(%r, "w", encoding="utf-8").write(json.dumps(m))
+''' % (os.path.join(td, "stripe.json"))
+    run(sys.executable, "-c", _p5f2)
+    _r5f2 = run(sys.executable, os.path.join(SCRIPTS, "mc_fss.py"),
+                os.path.join(td, "stripe.json"), "--sizes", "4", "6",
+                "--tmin", "1", "--tmax", "6", "--nt", "3",
+                "--therm", "20", "--meas", "40", "--out", os.path.join(td, "fss"))
+    _all5f2 = (_r5f2.stdout or "") + (_r5f2.stderr or "")
+    check("fss: 条纹基态在 auto 下直接报错 (不拿错的序参量硬算 U4 交点)",
+          _r5f2.returncode != 0 and "条纹反铁磁" in _all5f2
+          and "--order sublattice" in _all5f2)
+finally:
+    shutil.rmtree(td, ignore_errors=True)
+
 # ---- 6. 多亚晶格铁磁网络的误判警告 (Fe3GeTe2 类: 3 个 Fe/胞 被几何并成 1 簇) ----
 td = mktmp("_tmp_fgt_")
 try:

@@ -164,7 +164,8 @@ def sublattice_signs(num_basis, size, mask):
 
 
 ORDER_HELP = ("auto | staggered | total | cv | sublattice:<mask>  "
-              "(mask = 逗号分隔的子晶格号, 例: sublattice:0 或 sublattice:0,1)")
+              "(mask = 逗号分隔的子晶格号, 例: sublattice:0 或 sublattice:0,1; "
+              "auto = 先比 T=0 候选基态能量 (fm/neel/stripe) 再决定用哪个序参量)")
 
 
 def parse_order_spec(spec):
@@ -340,6 +341,61 @@ def _brute_energy(spins, neighbors, J, onsite):
     return 0.5 * e_ex / N + e_on / N
 
 
+def _candidate_orders(size, num_basis, neighbors, J, onsite):
+    """`--order auto` 的判据: 在受支持的候选基态里比 T=0 能量 (经典共线 Heisenberg)。
+
+    为什么不能只拿 J1 的符号猜 (旧实现在这里会错): J1>0 (AFM) + J2<0 (FM) 的经典基态是
+    **条纹**反铁磁 —— 它既不是 FM 也不是 Néel; 用 ±1 交错序参量测出来的峰不是 T_N,
+    而模型仍会正常打印一个温度 (静默错)。这里返回每种候选的每格点能量, 由调用方比较。
+    只列该格点几何下真有定义的候选:
+      fm          全部平行 (对应 T_C)
+      neel        二分着色 ±1 (要求 stag_signs 能着色, 否则不出现)
+      stripe_x/y  (-1)^cx / (-1)^cy, 只对 num_basis == 1 的简单方格/矩形有意义
+    """
+    Lx, Ly = int(size[0]), int(size[1])
+    N = Lx * Ly * num_basis
+    cell = np.arange(N) // num_basis
+    cx = cell // Ly
+    cy = cell % Ly
+    cands = {"fm": np.ones(N)}
+    stag = stag_signs(neighbors, J, num_basis)
+    if stag is not None:
+        cands["neel"] = np.asarray(stag, dtype=np.float64)
+    if num_basis == 1:
+        cands["stripe_x"] = np.where(cx % 2 == 0, 1.0, -1.0)
+        cands["stripe_y"] = np.where(cy % 2 == 0, 1.0, -1.0)
+    out = {}
+    for name, sign in cands.items():
+        s = np.zeros((N, 3))
+        s[:, 2] = sign
+        out[name] = float(_energy(s, neighbors, J, onsite))
+    return out
+
+
+def _resolve_auto(neighbors, J, onsite, size, num_basis):
+    """auto 判定的**唯一**实现: 返回 (order, kind, use_cv, cand, best)。
+
+    mc_2d.main 与 mc_fss 都走这里, 免得两个脚本的判据各自漂移 (旧版两边都只看 J1 符号)。
+    """
+    cand = _candidate_orders(size, num_basis, neighbors, J, onsite)
+    ranked = sorted(cand.items(), key=lambda kv: kv[1])
+    best = ranked[0][0]
+    if best == "fm":
+        return 0, "总磁化 (铁磁, T_C)", False, cand, best
+    if best == "neel":
+        return 1, "交错 (反铁磁, T_N)", False, cand, best
+    tag = "x" if best == "stripe_x" else "y"
+    kind = (f"比热 Cv 峰 (auto: T=0 基态是条纹反铁磁 (沿 {tag} 方向), "
+            f"本引擎的 ±1 交错序参量不适用 -> 用比热峰定 T_N)")
+    return 0, kind, True, cand, best
+
+
+def resolve_auto_order(model, size):
+    """给别的脚本 (mc_fss) 用的入口: 先按 size 建数组, 再判定 auto 序参量。"""
+    _spins, neighbors, J, onsite, num_basis = build_arrays(model, size, spin_seed=0)
+    return _resolve_auto(neighbors, J, onsite, size, num_basis)
+
+
 def _selftest():
     """比热能量的自检: _energy 必须等于暴力求和, 且**含单离子各向异性**。
 
@@ -510,14 +566,11 @@ def main():
     else:
         use_cv = False
         if o_kind == "auto":
-            # 单壳层模型给 J1_meV; 多壳层模型 (FGT 双亚晶格) 没有这个键 ->
-            # 用各壳层 J 之和的符号判断铁磁/反铁磁, 不能硬取 meta["J1_meV"]
-            if "J1_meV" in meta:
-                jsum = float(meta["J1_meV"])
-            else:
-                jsum = sum(-float(it["J"][0][0]) for it in model.get("interactions", []))
-            order = 1 if jsum < 0 else 0
-            kind = "交错 (反铁磁, T_N)" if order == 1 else "总磁化 (铁磁, T_C)"
+            # 真正的判据要等 build_arrays 之后: 在候选基态里比 T=0 能量
+            # (见 _candidate_orders)。旧实现只拿 J1 的符号猜, 于是 J1>0 + J2<0 的
+            # 条纹反铁磁会被当成 Néel —— 测出来的峰不是 T_N, 但模型照常打印一个温度。
+            order = 1
+            kind = "auto (待定: 依 T=0 候选基态能量)"
         elif o_kind == "sublattice":
             order = 1
             kind = (f"逐子晶格 Néel 矢量 |L| (A = 子晶格 {sorted(set(o_mask))}, "
@@ -525,7 +578,8 @@ def main():
         else:
             order = 1 if o_kind == "staggered" else 0
             kind = "交错 (反铁磁, T_N)" if order == 1 else "总磁化 (铁磁, T_C)"
-    print(f"序参量: {kind}")
+    if o_kind != "auto":
+        print(f"序参量: {kind}")
 
     prefix = args.out or os.path.splitext(os.path.basename(args.model))[0]
     # neighbors/J/onsite/num_basis 与种子无关; 先建一次拿 N/num_basis, 各种子只重建 spins。
@@ -541,6 +595,26 @@ def main():
         jinfo = f"{len(model.get('interactions', []))} 根键/胞 (多壳层)"
     print(f"格点: {N} (basis {num_basis} x {tuple(args.size)}) | "
           f"{jinfo} | MAE={meta.get('MAE_meV', 0.0)} meV | S={meta.get('S', 1.0)}")
+
+    if not use_cv and o_kind == "auto":
+        order, kind, use_cv, cand, best = _resolve_auto(
+            neighbors, J, onsite, args.size, num_basis)
+        ranked = sorted(cand.items(), key=lambda kv: kv[1])
+        e_best = ranked[0][1]
+        print("auto 序参量判定: T=0 候选基态能量 (meV/格点) = "
+              + " | ".join(f"{k}={v:+.4f}" for k, v in ranked))
+        if len(ranked) > 1 and abs(ranked[1][1] - e_best) < 1e-6:
+            print(f">>> [warn] 候选基态近简并 ({best} 与 {ranked[1][0]} 只差 "
+                  f"{abs(ranked[1][1] - e_best):.2e} meV/格点) —— auto 序参量不可靠, "
+                  f"请显式给 --order (staggered/total/cv/sublattice:<mask>)",
+                  file=sys.stderr)
+        if use_cv:
+            # 条纹 (或别的非 fm/neel) 基态: ±1 交错序参量测的不是这个序, 改用比热峰。
+            print(f">>> [warn] auto 判定的基态是 {best} (E={e_best:+.4f} meV/格点, "
+                  f"低于 fm 的 {cand['fm']:+.4f}) —— 条纹反铁磁不能用 ±1 交错序参量测峰, "
+                  f"已自动改用 --order cv (比热峰); 需要逐子晶格序参量请显式 "
+                  f"--order sublattice:<mask>", file=sys.stderr)
+        print(f"序参量: {kind}")
 
     # 交错序参量需要子晶格 ±1 符号; num_basis == 1 (方形/矩形单离子) 必须图二着色,
     # 不能再用「i % num_basis」——那会让 cb == 0 而除零 (见 stag_signs docstring)。
