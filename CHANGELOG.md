@@ -4,7 +4,7 @@
 格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循
 [语义化版本](https://semver.org/lang/zh-CN/)（`0.x` 阶段：minor 版本之间不保证向后兼容）。
 
-- **能力的权威边界**：[`capabilities.json`](capabilities.json)（机器可读）+ 本 README 的「已知局限」段（人读）
+- **能力的权威边界**：[`capabilities.json`](capabilities.json)（机器可读）+ [`LIMITATIONS.md`](LIMITATIONS.md)（人读）
 - **症状 → 修复**：[`KNOWN_ISSUES.md`](KNOWN_ISSUES.md)
 - **逐脚本细节**：[`WORKFLOW.md`](WORKFLOW.md)、[`dsh/2d-magnet/SKILL.md`](dsh/2d-magnet/SKILL.md)
 
@@ -34,8 +34,7 @@ Monte Carlo 的 T_C / T_N**，八种磁性格点共用一套规格层与统一�
 - **可直接看的复现样例**：[`examples/`](examples/) 两组产物快照（方形 La₂CuO₄ 全程、
   kagome Fe₃Sn 合成空跑），不需要 VASP，也不需要额外依赖。
 - **文档**：README、WORKFLOW、SKILL、KNOWN_ISSUES、NEW_TYPES_PLAN、P4.2 runbook、DMI memo，
-  以及 Obsidian 阅读版备份 [`README.obsidian.md`](README.obsidian.md)
-  （由 `scripts/readme_to_obsidian.py` 生成，`--check` 防漂移，smoke §29 守着）。
+  以及两份 README 的文档索引（`README.md` 英文 / `README.zh.md` 中文）。
 - **发布工程**：[`MANIFEST.in`](MANIFEST.in) + [`tests/check_sdist.py`](tests/check_sdist.py)
   （sdist 必须项闸门，smoke §28 用合成 tar.gz 反向验证闸门本身）+ CI `package` 作业
   （`python -m build` → 只装 wheel 跑一次 smoke → 校验 sdist），版本单一来源在 `pyproject.toml`。
@@ -73,10 +72,10 @@ Monte Carlo 的 T_C / T_N**，八种磁性格点共用一套规格层与统一�
   「运行目录由 CWD 决定」、「GBK 控制台编码」），并把两条与正文重复的机制叙述压成纯边界；
   全仓「局限 N」交叉引用（README / KNOWN_ISSUES / NEW_TYPES_PLAN / WORKFLOW / P4.2 runbook /
   `scripts/altermagnet_check.py`）同步改号。
-- README 新增「该读哪份（文档索引）」「打包闸门（sdist/wheel）」两段；Obsidian 用法改成
+- README 新增「该读哪份（文档索引）」「打包闸门（sdist/wheel）」两段；
   可按步点击的三步（只支持「以文件夹为 vault 打开」，不支持孤立 `.md`）。
 
-### 已知边界（本版本不打算解决，完整清单见 README「已知局限 18 条」）
+### 已知边界（本版本不打算解决，完整清单见 [`LIMITATIONS.md`](LIMITATIONS.md)）
 
 - 仓库里**没有任何真实 DFT 计算结果**：J / T_C / T_N / D / 能带都只是**系数层或 MC 估算**，
   `capabilities.json` 的 `physical_verified` 一律 `false`。

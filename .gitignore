@@ -17,6 +17,6 @@ _tmp_*/
 # 发布产物 (tar.gz / zip / SHA256SUMS, 由打包脚本再生成, 不进仓库)
 dist/
 
-# Obsidian: 把本目录当 vault 打开时生成的配置/工作区缓存 (README.obsidian.md 是生成物, 要提交; 配置不要)
+# Obsidian: 把本目录当 vault 打开时生成的配置/工作区缓存 (配置不要进仓库)
 .obsidian/
 .trash/

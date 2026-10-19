@@ -73,7 +73,7 @@ LOG_PATH = None  # --log: 每个阶段子进程的完整 stdout/stderr 追加到
 
 # 常用磁性离子的经验默认参数: S (自旋), moment (磁矩初猜 μB), U (DFT+U 加在 d 轨道, eV)。
 # 仅在「显式 CLI 未给」且「--literature 条目未提供」时作为兜底; 任一显式值都优先。
-# U 是经验典型值(非材料本征量), 详见 README「元素参数表」。Fe 故意不列: Fe2+/Fe3+/巡游
+# U 是经验典型值(非材料本征量), 详见 capabilities.json 的 S_eff 条目。Fe 故意不列: Fe2+/Fe3+/巡游
 # 有效自旋三种取值差异太大 (S=2/2.5/1), 兜底反而会静默给出错误物理, 须显式给 --S/--moment。
 ELEMENT_PARAMS = {
     "Mn": {"S": 2.5, "moment": 5.0, "U": 4.0},   # Mn2+ 高自旋 3d5
@@ -499,7 +499,7 @@ ERROR_CATALOG = [
             "`--model crocl`（或 `--lattice rect_centered`）。母序取 `afm_c`（默认）/`afm_a`/`afm_b` —— "
             "`fm` 被拒，因为全同向母序上的 ±θ 只是一次整体自旋旋转、系数行逐位等于 fm 行（不带信息）。"
             "倾斜构型要 `--soc` 装配（缺它 assemble_dft 会硬拒，不会静默按共线算）；"
-            "θ 是**输入参数**，不是自洽解出来的基态角，φ 由几何定不出来（见 README 局限 17）"},
+            "θ 是**输入参数**，不是自洽解出来的基态角，φ 由几何定不出来（见 LIMITATIONS.md 11）"},
 ]
 
 

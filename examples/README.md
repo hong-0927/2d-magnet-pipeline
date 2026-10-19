@@ -34,5 +34,5 @@
 | k 点收敛抽查 | `k_convergence.py` | `kconv/kconv_plan.json`、`kconv/k_convergence.json` | P4.2：只换 KPOINTS，回收后判定「多密才够」 |
 
 **刻意不产出**的东西：POTCAR 本体、任何 DFT 计算结果（本仓不代跑作业、不含机时）、
-k 分辨自旋劈裂 / 能带 / Z₂（超出契约，见 `../README.md` 局限 15–16）、
+k 分辨自旋劈裂 / 能带 / Z₂（超出契约，见 `../LIMITATIONS.md` 14、16）、
 DMI 的 D 值（只做识别层与系数层，见 `../DMI_MTI_MEMO.md`）。

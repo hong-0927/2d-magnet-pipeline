@@ -21,7 +21,7 @@ Heisenberg Monte Carlo 的 T_C / T_N**。八种磁性格点共用一套规格层
 - P4.2 的 k 点收敛只有手册级 `kconv` 流程，没有自动进入主链。
 - MC 误差棒只能用 **binning SEM**（并看 `n_eff`）；只有单链，没有多副本 R̂ / 并行退火。
 
-完整清单见 [README.md](README.md) 的「已知局限 18 条」；逐条症状与修法见 [KNOWN_ISSUES.md](KNOWN_ISSUES.md)。
+完整清单见 [LIMITATIONS.md](LIMITATIONS.md)；逐条症状与修法见 [KNOWN_ISSUES.md](KNOWN_ISSUES.md)。
 
 ## 安装与冒烟
 
@@ -42,7 +42,6 @@ python run_2d_magnet.py --model la2cuo4 --poscar tests/fixtures/La2CuO4_POSCAR `
 python tests/smoke_test.py                     # §1–§29 全部通过
 python scripts/magnetic_orders.py --regress    # 规格层回归
 python scripts/capabilities.py --check         # 能力表与代码/版本/闸门一致
-python scripts/readme_to_obsidian.py --check   # Obsidian 备份不漂移
 python scripts/mc_2d.py --selftest             # 比热能量含单离子项 (7/7)
 python scripts/mc_fss.py --selftest            # FSS 交点选择与 1/L 外推
 python scripts/verify_states.py --selftest     # 反解前的磁态闸门

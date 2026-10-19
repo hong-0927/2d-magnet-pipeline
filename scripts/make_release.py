@@ -43,7 +43,18 @@ def commit_time(root):
 def release_files(root):
     raw = git(root, "ls-files", "-z", "--cached", "--others", "--exclude-standard")
     names = [n.decode("utf-8") for n in raw.split(b"\0") if n]
-    return sorted(names)
+    # 已 git rm 但还没提交的文件仍在索引里; 工作树里没有就跳过, 否则打不出包。
+    kept = []
+    skipped = []
+    for n in names:
+        if os.path.isfile(os.path.join(root, n)):
+            kept.append(n)
+        else:
+            skipped.append(n)
+    if skipped:
+        print("[warn] 跳过索引里有、工作树里没有的文件 %d 个: %s"
+              % (len(skipped), ", ".join(skipped[:5])))
+    return sorted(kept)
 
 
 def build_tar(root, out, prefix, mtime, names):

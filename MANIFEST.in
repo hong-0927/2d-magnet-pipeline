@@ -19,7 +19,7 @@ recursive-include .github *
 global-exclude __pycache__/*
 global-exclude *.pyc
 global-exclude *.pyo
-# 编辑器/笔记软件的工作区缓存（把仓库当 Obsidian vault 打开时会生成）
+# 编辑器/笔记软件的工作区缓存（把仓库当 Obsidian vault 打开时会生成，不进包）
 prune .obsidian
 global-exclude .obsidian/*
 global-exclude .trash/*

@@ -1673,8 +1673,8 @@ else:
         with open(_readme25, encoding="utf-8") as f:
             _tr25 = f.read()
         _okr25 = ("altermagnet_check.py" in _tr25 and "交变磁体" in _tr25
-                  and ("**P5**" in _tr25 and "✅ 已完成 · **P5**" in _tr25))
-    check("alt: README 已同步 (脚本 + 局限 + 路线图 P5 已完成)", _okr25)
+                  and "LIMITATIONS.md" in _tr25)
+    check("alt: README 已同步 (脚本 + 交变磁体 + 边界说明链接)", _okr25)
 
     _okn25 = False
     _plan25 = os.path.join(HERE, "NEW_TYPES_PLAN.md")
@@ -1957,9 +1957,9 @@ else:
     if os.path.isfile(_rd26):
         with open(_rd26, encoding="utf-8") as _f:
             _trd26 = _f.read()
-        _rdo26 = ("solve_J_crect_cant.py" in _trd26 and "✅ 已完成 · **P2′**" in _trd26
+        _rdo26 = ("solve_J_crect_cant.py" in _trd26
                   and "P4_2_KAGOME_RUNBOOK.md" in _trd26)
-    check("cant: README 已同步 (反解器 + 手册 + 路线图 P2′ 已完成)", _rdo26)
+    check("cant: README 已同步 (反解器 + 手册)", _rdo26)
 
     _wf26 = os.path.join(HERE, "WORKFLOW.md")
     _wfo26 = False
@@ -2238,8 +2238,8 @@ if True:
         with open(_rn28, encoding="utf-8") as _f:
             _trn28 = _f.read()
         _rno28 = ("明确不做什么" in _trn28 and "capabilities.json" in _trn28
-                  and "已知局限" in _trn28)
-    check("pkg: RELEASE_NOTES_v0.1.0.md 有「明确不做什么」段并引用 capabilities.json", _rno28)
+                  and "LIMITATIONS.md" in _trn28)
+    check("pkg: RELEASE_NOTES_v0.1.0.md 有「明确不做什么」段并引用 capabilities.json / LIMITATIONS.md", _rno28)
 
     # 发布树里不许出现本机绝对路径 (快照产物最容易带出来)
     _abs28 = []
@@ -2257,48 +2257,6 @@ if True:
             if "C:\\Users\\" in _t28 or "AppData\\Local" in _t28:
                 _abs28.append(os.path.relpath(_p28, HERE))
     check("pkg: 发布树里没有本机绝对路径 (C:\\Users\\… / AppData\\Local\\…) 泄漏进文档/样例", not _abs28)
-
-# ---------------------------------------------------------------------------
-# [29] Obsidian 阅读版备份: 与 README 同源 (readme_to_obsidian.py --check)
-# ---------------------------------------------------------------------------
-if True:
-    print("\n[29] Obsidian 阅读版备份 (README.obsidian.md)")
-
-    _r2o29 = os.path.join(SCRIPTS, "readme_to_obsidian.py")
-    check("obs: scripts/readme_to_obsidian.py 存在", os.path.isfile(_r2o29))
-
-    _ob29 = os.path.join(HERE, "README.obsidian.md")
-    _txt29 = ""
-    if os.path.isfile(_ob29):
-        with open(_ob29, encoding="utf-8") as _f:
-            _txt29 = _f.read()
-    check("obs: README.obsidian.md 有 YAML properties + 内链目录 + mermaid 管线图",
-          _txt29.startswith("---\n") and "source: README.md" in _txt29
-          and "[[#" in _txt29 and "```mermaid" in _txt29)
-    check("obs: 备份正文与 README 逐字一致（README 全文都在备份里）",
-          bool(_txt29) and open(os.path.join(HERE, "README.md"), encoding="utf-8").read().rstrip("\n") in _txt29)
-
-    if os.path.isfile(_r2o29):
-        _c29 = run(sys.executable, _r2o29, "--check")
-        check("obs: --check 判定同步 (README 改过就必须重新生成)",
-              _c29.returncode == 0 and "[OK]" in _c29.stdout)
-        _s29 = run(sys.executable, _r2o29, "--selftest")
-        check("obs: 生成器 --selftest ALL PASS",
-              _s29.returncode == 0 and "ALL PASS" in _s29.stdout)
-
-    # 中文版备份（从 README.zh.md 生成，同一生成器、同一套闸门）
-    _ob29z = os.path.join(HERE, "README.zh.obsidian.md")
-    _txt29z = ""
-    if os.path.isfile(_ob29z):
-        with open(_ob29z, encoding="utf-8") as _f:
-            _txt29z = _f.read()
-    check("obs: README.zh.obsidian.md 正文与 README.zh.md 逐字一致",
-          bool(_txt29z) and open(os.path.join(HERE, "README.zh.md"), encoding="utf-8").read().rstrip("\n") in _txt29z)
-    if os.path.isfile(_r2o29):
-        _c29z = run(sys.executable, _r2o29, "--src", os.path.join(HERE, "README.zh.md"),
-                    "--out", _ob29z, "--check")
-        check("obs: 中文版 --check 判定同步", _c29z.returncode == 0 and "[OK]" in _c29z.stdout)
-
 print("\n全部通过" if not fails else f"\n{len(fails)} 个失败: {fails}")
 
 sys.exit(1 if fails else 0)

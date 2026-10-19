@@ -51,7 +51,9 @@
     "rect_centered": {
       "builder": "scripts/build_crect_cases.py",
       "solver": "scripts/solve_J_crect.py",
-      "solver_extra": ["scripts/solve_J_crect_cant.py"],
+      "solver_extra": [
+        "scripts/solve_J_crect_cant.py"
+      ],
       "shells": 3,
       "noncollinear": false,
       "orders": "四共线 (fm/afm_c/afm_a/afm_b); --cant-theta 时另出倾斜家族",
@@ -119,25 +121,66 @@
     }
   },
   "not_supported": [
-    {"item": "结构弛豫 (relax)", "why": "只装配静态输入; INCAR.relax 是模板, 本流水线不读弛豫结果也不回写结构。"},
-    {"item": "真实 DFT 能量", "why": "不运行 VASP; ingest 只校验用户自己跑出的 OUTCAR 过格式/收敛/结构/口径闸门, 不证明物理正确。"},
-    {"item": "SOC 自洽与非共线能量", "why": "非共线/倾斜只到参数化 (θ 输入 + 系数层), 能量仍需用户自算。"},
-    {"item": "kagome J1 / J1' 分离", "why": "3 壳模型取平均; 分离需降对称超胞 (P4.2 手册, 未自动)。"},
-    {"item": "交变磁体 (altermagnet)", "why": "只到「用子晶格掩码识别序」这一层; 不自证自旋分裂。"},
-    {"item": "DMI / MTI 的 D 值", "why": "见 quantities.DMI_D_meV。"},
-    {"item": "自动材料筛选", "why": "没有数据库检索与批量工作流; 一条管线一个结构。"}
+    {
+      "item": "结构弛豫 (relax)",
+      "why": "只装配静态输入; INCAR.relax 是模板, 本流水线不读弛豫结果也不回写结构。"
+    },
+    {
+      "item": "真实 DFT 能量",
+      "why": "不运行 VASP; ingest 只校验用户自己跑出的 OUTCAR 过格式/收敛/结构/口径闸门, 不证明物理正确。"
+    },
+    {
+      "item": "SOC 自洽与非共线能量",
+      "why": "非共线/倾斜只到参数化 (θ 输入 + 系数层), 能量仍需用户自算。"
+    },
+    {
+      "item": "kagome J1 / J1' 分离",
+      "why": "3 壳模型取平均; 分离需降对称超胞 (P4.2 手册, 未自动)。"
+    },
+    {
+      "item": "交变磁体 (altermagnet)",
+      "why": "只到「用子晶格掩码识别序」这一层; 不自证自旋分裂。"
+    },
+    {
+      "item": "DMI / MTI 的 D 值",
+      "why": "见 quantities.DMI_D_meV。"
+    },
+    {
+      "item": "自动材料筛选",
+      "why": "没有数据库检索与批量工作流; 一条管线一个结构。"
+    }
   ],
   "gates": [
-    {"name": "磁态逐位点核对", "script": "scripts/verify_states.py", "fails_closed": true,
-     "scope": "共线磁态 (solve 阶段自动跑); 非共线/SOC 判 SKIP; --allow-unverified-states 会降级但 J_result 留 FAIL 记录"},
-    {"name": "OUTCAR 入口闸门", "script": "scripts/ingest_dft.py", "fails_closed": true,
-     "scope": "格式 / 收敛 / 结构一致性 / 能量口径; 宽松开关 --lenient / --ingest-force 必须显式给"},
-    {"name": "S² 归一化", "script": "scripts/ingest_dft.py", "fails_closed": true,
-     "scope": "J·S² 与模型里声明的 S 不一致直接拒 (否则 J 会差 S² 倍)"},
-    {"name": "壳划分与秩", "script": "scripts/magnetic_orders.py", "fails_closed": true,
-     "scope": "kagome rank<4 / 壳合并 / cond(A) 病态: solve 端复核, 不静默"},
-    {"name": "文档同步 (README ↔ Obsidian)", "script": "scripts/readme_to_obsidian.py", "fails_closed": true,
-     "scope": "sdist 内容闸门 tests/check_sdist.py + smoke §28/§29; 不是物理闸门"}
+    {
+      "name": "磁态逐位点核对",
+      "script": "scripts/verify_states.py",
+      "fails_closed": true,
+      "scope": "共线磁态 (solve 阶段自动跑); 非共线/SOC 判 SKIP; --allow-unverified-states 会降级但 J_result 留 FAIL 记录"
+    },
+    {
+      "name": "OUTCAR 入口闸门",
+      "script": "scripts/ingest_dft.py",
+      "fails_closed": true,
+      "scope": "格式 / 收敛 / 结构一致性 / 能量口径; 宽松开关 --lenient / --ingest-force 必须显式给"
+    },
+    {
+      "name": "S² 归一化",
+      "script": "scripts/ingest_dft.py",
+      "fails_closed": true,
+      "scope": "J·S² 与模型里声明的 S 不一致直接拒 (否则 J 会差 S² 倍)"
+    },
+    {
+      "name": "壳划分与秩",
+      "script": "scripts/magnetic_orders.py",
+      "fails_closed": true,
+      "scope": "kagome rank<4 / 壳合并 / cond(A) 病态: solve 端复核, 不静默"
+    },
+    {
+      "name": "发布件内容闸门 (sdist)",
+      "script": "tests/check_sdist.py",
+      "fails_closed": true,
+      "scope": "REQUIRED 清单逐项存在、无缓存与临时物; smoke §28 用合成包反向验证闸门本身会拦缺项"
+    }
   ],
   "release": {
     "version": "0.1.0",

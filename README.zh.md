@@ -7,14 +7,21 @@
 - **文献 J 或用户给定的 J → 正向蒙特卡洛**：不需要 VASP；
 - **DFT 多磁态能量映射反解 J**：需要 VASP 能量。
 
-支持的晶格共用同一个规格层与同一份产物（`J_result.json`）：honeycomb、三角（120° 非共线）、分子簇、双亚晶格铁磁网络（Fe₃GeTe₂ 类）、矩形（CrSBr 类）、C 心矩形（CrOCl 类）、方形（La₂CuO₄ / K₂NiF₄ 类）、六角 kagome（Fe₃Sn 类）。
+## 能力一览
 
-做不到的事写在 [`capabilities.json`](capabilities.json) 里（`python scripts/capabilities.py --show` 打印可读版）：
-
-- 不提取 DMI 的 `D` 值（`D` 只能作为输入给出）——见 [`DMI_MTI_MEMO.md`](DMI_MTI_MEMO.md) 与 `scripts/dmi_matrix.py`；
-- 不给 k 分辨的能带劈裂，也不做 `Z₂` 分类；
-- 不对交变磁体下序参量结论：`scripts/altermagnet_check.py` 只做几何判别（标量序参量）；
-- 不代提交 VASP 作业——流水线只导出输入、回读输出。
+| 能力 | 带来什么 |
+|---|---|
+| **八类磁性格子，一个规格层** | honeycomb、三角（120° 非共线）、分子簇、双亚晶格铁磁网络（Fe₃GeTe₂ 类）、矩形（CrSBr 类）、C 心矩形（CrOCl 类）、方形（La₂CuO₄ / K₂NiF₄ 类）、六角 kagome（Fe₃Sn 类）——都走同一层规格、都写进同一份 `J_result.json` |
+| **J 带着出处，不只是一个数** | `J_result.json` 记录 `source`（`literature` / `user` / `dft` / `demo`）、`cond(A)`、残差、`E0`，以及磁态是否逐位点核对过 |
+| **反解之前先核对磁态** | `scripts/verify_states.py` 把每个离子的磁矩与目标比对，并检测两个磁序塌成同一个态；不过就拒绝写 J |
+| **ingest 是硬闸门** | 每个 `OUTCAR` 过 11 道检查：格式、收敛、结构、MAGMOM 一致性、能量口径 |
+| **估计值自带误差** | Binder 累积量 `U4`、带 `1/L` 参考的有限尺寸标度，以及每个温度的 `tau_int`、`n_eff`、接受率与 binning SEM（`mc_diag.json`）；峰落在窗口边界时标成未分辨，而不是照常给数 |
+| **非共线与 SOC** | `LNONCOLLINEAR` / `LSORBIT` / `SAXIS`、倾斜 MAGMOM 磁序集，以及 CrOCl 家族的 `scripts/solve_J_crect_cant.py` |
+| **不猜参数** | `--S/--moment/--U` 只对 Mn/Cr/Ni/Co/V/Gd 有内置表；Fe 被刻意排除（有效自旋本身有歧义），driver 会停下来问；`literature_J.json` 里 `null` 的条目直接报错，不静默跑 |
+| **能力边界可查询** | [`capabilities.json`](capabilities.json) 写明每类晶格与每个物理量支持到哪一层；`scripts/capabilities.py --check` 保证它与代码同步，`--show` 打印可读版 |
+| **同时是 agent skill** | `dsh/2d-magnet/SKILL.md` 把约定、闸门与驱动方式写全，Claude Code / Codex 或任何读指令文件的 agent 都能用 |
+| **可离线复现** | `examples/` 有两份完整产物树，不用 VASP 就能检查并重跑；发布包由 `scripts/make_release.py` 确定性打包 |
+| **交变磁体判别** | `scripts/altermagnet_check.py` 判断两套亚晶格是否由保自旋的操作联系（交变磁体几何，标量序参量） |
 
 ## 工作流
 
@@ -32,27 +39,91 @@ POSCAR    -> fetch     重新取向、真空层                      01_structur
 
 `kconv` 只跑 K 点收敛（`scripts/k_convergence.py`；`--kpoints` 钉住网格）。每个阶段都写下输入、出处与退出状态，不依赖复现不了的现场。
 
-三条规则保证数字可信。不猜参数：`--S/--moment/--U` 只对 Mn/Cr/Ni/Co/V/Gd 有内置表——Fe 被刻意排除，因为它的有效自旋本身有歧义（S = 2 / 2.5 / 1），driver 会停下来问而不是给个值；`literature_J.json` 里 `null` 的条目会直接报错，不会静默跑下去。闸门 fail-closed：磁态核对不过、设计矩阵退化、残差超阈、`OUTCAR` 格式不对，都会中止该阶段；`--quiet` 也不会吞掉说明它的警告。
+`--quiet` 抑制进度输出，但绝不吞掉结论级警告——未分辨的 `T_C`、病态的 `cond(A)`、坍缩的磁态。要看每个阶段的完整输出用 `--log <文件>`。
 
 ## 安装
 
+**环境要求**
+
+| 项 | 说明 |
+|---|---|
+| Python | ≥ 3.9（发布回归跑在 3.12） |
+| 依赖包 | `numpy` ≥ 1.24、`numba` ≥ 0.59、`matplotlib` ≥ 3.7、`requests` ≥ 2.31，见 `requirements.txt` |
+| 可选包 | `Pillow` ≥ 9.0 —— `matplotlib` 不可用时的出图兜底 |
+| VASP | 可选：`dft` / `ingest` / `solve` 需要你自己跑 VASP；文献 J → Monte Carlo 不需要 |
+| 网络 | 可选：只有 `fetch` 下载结构需要；`examples/` 与 `tests/fixtures/` 完全离线 |
+| 磁盘 | 仓库约 15 MB；每次运行在 `--outdir` 下写几 MB |
+
+**1. 取代码**
+
+```powershell
+git clone <repo-url> 2d_magnet_pipeline
+cd 2d_magnet_pipeline
+```
+
+没有 git：直接下载 Release 里的 `2d-magnet-pipeline-0.1.0.tar.gz` / `.zip` 解压，内容与仓库一致。
+
+**2. 建并激活虚拟环境**
+
 ```powershell
 py -m venv .venv
-.venv\Scripts\activate
-py -m pip install -r requirements.txt
-py run_2d_magnet.py doctor
+.venv\Scripts\Activate.ps1
 ```
 
 ```bash
 python3 -m venv .venv
 . .venv/bin/activate
-python -m pip install -r requirements.txt
-python run_2d_magnet.py doctor
 ```
 
-依赖：Python ≥ 3.9、`numpy`、`numba`、`matplotlib`、`requests`。`matplotlib` 可选——出图会退回 Pillow（`render-fallback` extra），再不行退回文字摘要。`doctor` 报告缺什么，并指出 [`KNOWN_ISSUES.md`](KNOWN_ISSUES.md) 里对应的错误键。
+PowerShell 报「禁止运行脚本」时：改用 `cmd` 里的 `.venv\Scripts\activate.bat`，或只对当前会话放开 `Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass`。Windows 上建议用 `py` 启动器（它绕开 Microsoft Store 的 `python.exe` 占位程序）；没有 `py` 就用 `python.exe` 的完整路径。
 
-代码也可当库用：`import run_2d_magnet`；`pip install .` 之后还有 `2d-magnet` 命令行入口。
+**3. 装依赖**
+
+```powershell
+py -m pip install --upgrade pip
+py -m pip install -r requirements.txt
+```
+
+`matplotlib` 体积最大，并会带入 `pyparsing`、`cycler`、`contourpy`、`fontTools`、`kiwisolver`。装不上时（离线机、精简站点）改装 `Pillow>=9.0`：六条出图路径会自动走纯 Pillow 实现，图照样出（打包 extra：`pip install -e ".[render-fallback]"`）。`requests` 只被 `fetch` 用；没有它，除结构下载外一切照常。
+
+**4. 验证安装**
+
+```powershell
+py run_2d_magnet.py doctor
+```
+
+`doctor` 每项一行，随后 `---`，再按每个 WARN 给出错误目录里的对应条目。退出码 `0` = 无 WARN；`1` = 至少一项环境问题，不代表代码坏。正常安装会对 Python、`numpy`、`numba`、`scripts/`、`literature_J.json`、`tests/fixtures/` 打 `[OK]`；`MP_API_KEY` 与 `CWD` 两行只是信息。
+
+**5. 可选：装成命令**
+
+```powershell
+py -m pip install -e .
+2d-magnet --version      # 2d-magnet 0.1.0
+2d-magnet doctor
+```
+
+**6. 可选：当 agent skill 用**
+
+`dsh/2d-magnet/` 是自包含的 skill（约定 + 闸门 + 驱动方式）。把整个目录拷进你的 harness 技能目录——Claude Code 是 `~/.claude/skills/`，或项目内 `.claude/skills/`；`AGENTS.md` 风格的 harness 直接让 agent 读 `dsh/2d-magnet/SKILL.md`。skill 驱动的是同一个 `run_2d_magnet.py`，不需要另装东西。
+
+**7. 可选：VASP 那一侧**
+
+`dft` 会在 `03_dft/` 与 `runs/<order>/` 写出 `INCAR`、`KPOINTS`、`MAGMOM` 和 `POTCAR.spec`（每元素推荐的 POTCAR 标签）。POTCAR 有许可、**不随仓库分发**：提交前自己从 VASP 发行包里按元素拼到 `runs/<order>/POTCAR`。`ingest` 只读 `OUTCAR`，所以计算本身可以在任意机器上跑。
+
+**常见问题**
+
+| 症状 | 处理 |
+|---|---|
+| `python` 打开 Microsoft Store / `command not found` | 改用 `py`（Windows 启动器）或 `python.exe` 完整路径 |
+| 出图时 `ModuleNotFoundError: No module named 'pyparsing'` | `matplotlib` 装得不完整——装 `Pillow`，自动走兜底渲染 |
+| 中文输出乱码、`UnicodeEncodeError` | 运行前设 `$env:PYTHONIOENCODING="utf-8"` |
+| `doctor` 报 `CWD 不可写` | 换到可写目录运行，或始终显式给 `--outdir` |
+| `fetch` 返回 401/403 或空结构 | 设 `MP_API_KEY` 或传 `--mp-key`，或用 `--poscar` 给自己的文件 |
+| `[params] ... 不在内置元素参数表` | 显式给 `--S --moment --U`，或用 `--model` / `--literature` 条目 |
+
+上面每个 WARN 与错误键的完整「症状 → 修法」都在 [`KNOWN_ISSUES.md`](KNOWN_ISSUES.md)。
+
+代码也可当库用（`import run_2d_magnet`）；`pip install .` 之后还有 `2d-magnet` 命令行入口。
 
 ## 快速开始
 
@@ -64,7 +135,7 @@ py run_2d_magnet.py --model la2cuo4 --poscar tests/fixtures/La2CuO4_POSCAR `
 py scripts\solve_J_square.py C:\work\la2\02_supercell\cases --demo
 ```
 
-`examples/la2cuo4_square/` 是这样跑出来的目录树；`examples/kagome_fe3sn_dryrun/` 是一条走完整 DFT 形状的 kagome 空跑（合成能量）。两者各有 `README.md`，列出产出了什么、刻意不产出什么。
+`examples/la2cuo4_square/` 是这样跑出来的目录树；`examples/kagome_fe3sn_dryrun/` 是一条走完整 DFT 形状的 kagome 空跑（合成能量）。两者各有 `README.md`，列出产出了什么。
 
 ## 子命令
 
@@ -97,8 +168,6 @@ figures/supercell_orders.png     带交换键与磁序集的超胞图
 workflow.md                      本次运行的出处卡片
 ```
 
-`J_result.json` 一定记录 J 是怎么来的（`source` = `literature` / `user` / `dft` / `demo`）、设计矩阵条件数、残差，以及磁态有没有逐位点核对过。没有这些出处的数字不算结果。
-
 ## 验证（脚本级自检 / 发布闸门）
 
 ```powershell
@@ -116,56 +185,9 @@ python scripts/mc_fss.py --selftest           交点选取、1/L 外推
 python scripts/verify_states.py --selftest    逐位点磁矩、坍缩检测
 python scripts/dmi_matrix.py --selftest       DMI 矩阵与交换能对拍
 python scripts/k_convergence.py --selftest    K 点规划
-python scripts/readme_to_obsidian.py --check  README 备份是否同步
 ```
 
 `solve` 在反解之前自动跑 `scripts/verify_states.py`：两个磁序塌成同一个态、或某个位点的磁矩与目标矛盾，该阶段就以非零退出，不写 `J_result.json`。
-
-## 已知局限
-
-1. 仓库不带真实 DFT 数据。开箱跑出的数字都来自文献或合成能量，并且如实标注——demo 给的 `T_C`/`T_N` 不是预言。
-2. 多磁态映射假设共线态映射到 Heisenberg 模型；非共线与 SOC 情形停在系数层（P3），没有经过验证的能量。
-3. `S`、`moment`、`U` 是输入。内置表之外的元素必须显式给值：猜一个会静默给出错的物理，所以 driver 宁可拒绝。
-4. 各向异性只通过 `--MAE`（默认 0）与 DMI 矩阵进入，两者都是输入，不是反解出来的量。
-5. 蒙特卡洛是经典、单自旋更新的 Metropolis，跑在有限团簇上。`T_C`/`T_N` 是该团簇上的估计，不是热力学极限值。
-6. 误差棒用 binning 标准误；`mc_diag.json` 给出 `n_eff`、`tau_int` 与接受率，采样不足时能看出来。峰落在温度窗口边界时，`T` 会标成未分辨，而不是照常给一个数。
-7. 有限尺寸标度用全局参照交点 + `1/L` 外推，外推值只是参考；没进标度区之前它不可信。
-8. `--order auto` 用 T = 0 候选基态（fm / Néel / 条纹）决定用哪个序参量。条纹基态没有 ±1 交错序参量，流水线会自动退回比热峰并给出说明；近简并的模型请显式给 `--order`。
-9. kagome 在系数层（P4.1），物理层（P4.2）等真实非共线 DFT——见 [`P4_2_KAGOME_RUNBOOK.md`](P4_2_KAGOME_RUNBOOK.md)。
-10. 交变磁体只做几何判别（P5），标量序参量能到子晶格掩码，但不是完整的非共线描述。
-11. 倾斜态（P2′）到系数层：`scripts/solve_J_crect_cant.py` 把 θ 当输入，不预测 θ。
-12. DMI 以你提供的 `D` 矩阵进入，流水线不从能量里提取 `D`。
-13. ingest 校验的是格式、收敛、结构与口径，不是物理。`ingest_report.md` 干净只说明 OUTCAR 可用，不说明计算是对的。
-14. 不计算 k 分辨能带劈裂与 `Z₂`；`kconv` 只收敛 K 点网格。
-15. `literature_J.json` 里的条目是起点；条目为 `null` 时 driver 拒绝运行，不会编一个值。
-16. 磁态核对覆盖共线态；非共线或 SOC 运行会以 `SKIP` 退出（不是通过）。
-17. 环境假设：Python ≥ 3.9 只做到语法层检查，实际回归跑在 3.12；`matplotlib` 与 `requests` 可选，缺失时退到有文档的兜底路径。
-18. 发布件由 `scripts/make_release.py` 从工作树打包、`tests/check_sdist.py` 校验；PyPI 式的 `sdist`/`wheel` 构建由 CI 的 `package` 作业执行，不在本机。
-
-## 路线图
-
-`✅ 已完成` = 能力已实现、并有自检与回归覆盖，但**不等于物理已验证**；`⬜ 待机时` = 代码与手册已就绪，等真实 DFT 机时。
-
-- ✅ 已完成 · 仓库卫生：路径、夹具、打包基线（LICENSE / README / requirements / pyproject）
-- ✅ 已完成 · `doctor` 自检 + `KNOWN_ISSUES.md` 错误目录
-- ✅ 已完成 · 元素参数表（Mn/Cr/Ni/Co/V）与显式 `--lattice`
-- ✅ 已完成 · **P0** 共享规格层：`--lattice` + `magnetic_orders.json`
-- ✅ 已完成 · **P1** 方形晶格：磁序集、ingest、`J1/J2/J3`、蒙特卡洛
-- ✅ 已完成 · 多项式 `J1/J2/J3` 最小二乘，带 `cond(A)` 与残差诊断
-- ✅ 已完成 · `encut` / `kpoints` / `sigma` 收敛闸门
-- ✅ 已完成 · VASP 交接包：INCAR / KPOINTS / POSCAR / POTCAR.spec + 运行索引
-- ✅ 已完成 · `doctor` 诊断：缺依赖、缺赝势、k 网格合理性
-- ✅ 已完成 · **P2** C 心矩形：CrOCl 类磁序集、非共线 MAGMOM
-- ✅ 已完成 · **P2′** 倾斜态：`solve_J_crect_cant.py` + 手册
-- ✅ 已完成 · **P3** 非共线与 SOC：`LNONCOLLINEAR` / `LSORBIT` / `SAXIS`、倾斜 MAGMOM
-- ✅ 已完成 · Binder 累积量 `U4` 与有限尺寸标度（FSS）+ `1/L` 参考
-- ✅ 已完成 · **P4.1** kagome 系数层：`√3×√3`、`q = 0`、`3×3`、子晶格网
-- ✅ 已完成 · **P5** 交变磁体（MnTe / CrSb）：几何判别 + 标量子晶格序参量
-- ✅ 已完成 · 反解前的逐位点磁态核对与坍缩检测
-- ✅ 已完成 · 蒙特卡洛采样诊断：接受率、`tau_int`、`n_eff`、binning SEM
-- ✅ 已完成 · 机器可读能力表 `capabilities.json` + 闸门 `scripts/capabilities.py --check`
-- ✅ 已完成 · 发布闸门：`check_sdist`、`make_release.py`、CI `package` 作业
-- ⬜ 待机时 · **P4.2** kagome 物理层（Fe₃Sn₂ / Co₃Sn₂S₂ / Mn₃Sn）——需要真实非共线 DFT：提交 `√3×√3` 构型、回读 `OUTCAR`（`free energy TOTEN`）、写 `J_result.json`、蒙特卡洛求 `T_N`。手册已就绪：[`P4_2_KAGOME_RUNBOOK.md`](P4_2_KAGOME_RUNBOOK.md)。
 
 ## 该读哪份
 
@@ -176,11 +198,12 @@ python scripts/readme_to_obsidian.py --check  README 备份是否同步
 | [`WORKFLOW.md`](WORKFLOW.md) | 逐阶段细节：文件、选项、口径 |
 | [`dsh/2d-magnet/SKILL.md`](dsh/2d-magnet/SKILL.md) | agent skill：约定、闸门、怎么驱动流水线 |
 | [`capabilities.json`](capabilities.json) | 机器可读能力边界——晶格、物理量、支持到哪一层 |
+| [`DMI_MTI_MEMO.md`](DMI_MTI_MEMO.md) | DMI / MTI：怎么判别、能说什么 |
+| [`LIMITATIONS.md`](LIMITATIONS.md) | 边界说明——每个数能代表什么、不能代表什么（18 条） |
 | [`examples/`](examples/) | 两份不用 VASP 就能看的完整产物树 |
 | [`P4_2_KAGOME_RUNBOOK.md`](P4_2_KAGOME_RUNBOOK.md) | kagome 物理层手册，等机时就能跑 |
 | [`CHANGELOG.md`](CHANGELOG.md) · [`CITATION.cff`](CITATION.cff) | 版本历史 · 引用元数据 |
 
-在 Obsidian 里读：把仓库目录当成 vault 打开，看 `README.zh.obsidian.md`（同一份正文，加了内链目录与管线图）；英文版是 `README.obsidian.md`。两份都是生成物——改完 README 重跑 `python scripts/readme_to_obsidian.py`，`--check` 报告是否漂移。
 
 ## 许可
 

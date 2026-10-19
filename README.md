@@ -1,20 +1,27 @@
 # 2d-magnet-pipeline
 
-Turn a monolayer structure into exchange constants `J1/J2/J3` and a Monte Carlo estimate of `T_C` / `T_N`, with every number behind a fail-closed gate.
+Turn a monolayer structure into exchange constants `J1/J2/J3` and a Monte Carlo estimate of `T_C` / `T_N` — with every number behind a fail-closed gate.
 
-The input is a `POSCAR` — from the Materials Project, from the public COD / OQMD / AFLOW / JARVIS chain, or your own file. The pipeline detects the magnetic lattice, builds the supercell and the magnetic-order set, assembles VASP inputs, ingests the returned `OUTCAR`s, solves the exchange constants, and runs a classical Heisenberg Monte Carlo. There are two routes to J:
+The input is a `POSCAR`: from the Materials Project, from the public COD / OQMD / AFLOW / JARVIS chain, or your own file. The pipeline detects the magnetic lattice, builds the supercell and the magnetic-order set, assembles VASP inputs, ingests the returned `OUTCAR`s, solves the exchange constants, and runs a classical Heisenberg Monte Carlo. Two routes to J:
 
 - **literature or user-given J → forward Monte Carlo** — no VASP needed;
 - **a DFT many-state energy mapping solved back to J** — needs VASP energies.
 
-Supported lattices, all sharing one specification layer and one artifact (`J_result.json`): honeycomb, triangular (120° non-collinear), molecular cluster, two-sublattice ferromagnetic network (Fe₃GeTe₂-like), rectangular (CrSBr-like), C-centred rectangular (CrOCl-like), square (La₂CuO₄ / K₂NiF₄-like), hexagonal kagome (Fe₃Sn-like).
+## Highlights
 
-What the pipeline does not do, it says so in [`capabilities.json`](capabilities.json) — `python scripts/capabilities.py --show` prints the readable version:
-
-- no extracted DMI `D` values (`D` enters as an input) — see [`DMI_MTI_MEMO.md`](DMI_MTI_MEMO.md) and `scripts/dmi_matrix.py`;
-- no k-resolved band splitting and no `Z₂` classification;
-- no altermagnet order-parameter conclusions: `scripts/altermagnet_check.py` only classifies the geometry (交变磁体 geometry check, scalar order parameter only);
-- no VASP job submission — the pipeline exports inputs and ingests outputs.
+| Capability | What it gives you |
+|---|---|
+| **Eight magnetic lattices, one spec layer** | honeycomb, triangular (120° non-collinear), molecular cluster, two-sublattice ferromagnetic network (Fe₃GeTe₂-like), rectangular (CrSBr-like), C-centred rectangular (CrOCl-like), square (La₂CuO₄ / K₂NiF₄-like), hexagonal kagome (Fe₃Sn-like) — all built and solved through the same specification layer, all reporting into the same `J_result.json` |
+| **A documented way to J, not just a number** | `J_result.json` records `source` (`literature` / `user` / `dft` / `demo`), `cond(A)`, residual, `E0` and whether the magnetic states were verified per site |
+| **Magnetic states verified before inversion** | `scripts/verify_states.py` compares every ion's moment against its target and detects two orders collapsing into one state; `solve` refuses to write J when that check fails |
+| **Fail-closed ingestion** | 11 gates on each `OUTCAR`: format, convergence, structure, MAGMOM consistency, energy convention |
+| **Estimates with their own error bars** | Binder cumulant `U4`, finite-size scaling with a `1/L` reference, and per-temperature `tau_int`, `n_eff`, acceptance rate and binned SEM in `mc_diag.json`; a peak on the window edge is reported as unresolved instead of being trusted |
+| **Non-collinear and SOC support** | `LNONCOLLINEAR` / `LSORBIT` / `SAXIS`, canted MAGMOM sets, and `scripts/solve_J_crect_cant.py` for the canted CrOCl family |
+| **No invented parameters** | `--S/--moment/--U` fall back to a built-in table for Mn/Cr/Ni/Co/V/Gd only; Fe is deliberately absent (effective spin is ambiguous), so the driver stops and asks, and `null` literature entries raise an error instead of running |
+| **Boundaries you can query** | [`capabilities.json`](capabilities.json) states what each lattice and quantity reaches; `scripts/capabilities.py --check` keeps it in sync with the code, and `--show` prints the readable version |
+| **Also an agent skill** | `dsh/2d-magnet/SKILL.md` carries the conventions and gates for Claude Code, Codex or any agent that reads instruction files |
+| **Reproducible offline** | `examples/` holds two complete artifact trees you can inspect and regenerate without VASP; release packages are built deterministically by `scripts/make_release.py` |
+| **Altermagnet check** | `scripts/altermagnet_check.py` tests whether the two sublattices are related by a spin-preserving operation (交变磁体 geometry, scalar order parameter) |
 
 ## Workflow
 
@@ -32,27 +39,91 @@ POSCAR    -> fetch     reorient, vacuum                         01_structure/POS
 
 `kconv` runs only the K-points convergence step (`scripts/k_convergence.py`; `--kpoints` pins a grid). Every stage writes its inputs, provenance and exit status; nothing is derived from a session you cannot re-run.
 
-Three rules keep the numbers honest. No invented parameters: `--S/--moment/--U` fall back to a built-in table for Mn/Cr/Ni/Co/V/Gd only — Fe is deliberately absent because its effective spin is ambiguous (S = 2 / 2.5 / 1), so the driver stops and asks. Unverified literature entries (`null` in `literature_J.json`) raise an error instead of running. And gates fail closed: a failed state verification, a degenerate design matrix, a residual above threshold or a malformed `OUTCAR` aborts the stage — and `--quiet` never swallows the warning that says so.
+`--quiet` suppresses progress output but never the conclusion-level warnings — unresolved `T_C`, ill-conditioned `cond(A)`, collapsed states. Use `--log <file>` to keep the full output of every stage.
 
 ## Install
 
+**Requirements**
+
+| Item | Detail |
+|---|---|
+| Python | ≥ 3.9 (the release regression runs on 3.12) |
+| Packages | `numpy` ≥ 1.24, `numba` ≥ 0.59, `matplotlib` ≥ 3.7, `requests` ≥ 2.31 — see `requirements.txt` |
+| Optional package | `Pillow` ≥ 9.0 — figure fallback when `matplotlib` cannot be imported |
+| VASP | optional: `dft` / `ingest` / `solve` need your own VASP runs; literature-J → Monte Carlo does not |
+| Network | optional: only `fetch` downloads structures; `examples/` and `tests/fixtures/` work offline |
+| Disk | ≈ 15 MB for the repository; each run writes a few MB under `--outdir` |
+
+**1. Get the code**
+
+```powershell
+git clone <repo-url> 2d_magnet_pipeline
+cd 2d_magnet_pipeline
+```
+
+No git? Download the release archive (`2d-magnet-pipeline-0.1.0.tar.gz` / `.zip` from the Releases page) and unpack it — the archive holds the same tree.
+
+**2. Create and activate a virtual environment**
+
 ```powershell
 py -m venv .venv
-.venv\Scripts\activate
-py -m pip install -r requirements.txt
-py run_2d_magnet.py doctor
+.venv\Scripts\Activate.ps1
 ```
 
 ```bash
 python3 -m venv .venv
 . .venv/bin/activate
-python -m pip install -r requirements.txt
-python run_2d_magnet.py doctor
 ```
 
-Requirements: Python ≥ 3.9, `numpy`, `numba`, `matplotlib`, `requests`. `matplotlib` is optional — figures fall back to Pillow (`render-fallback` extra) and, failing that, to a text summary. `doctor` reports what is missing and which error key in [`KNOWN_ISSUES.md`](KNOWN_ISSUES.md) covers it.
+If PowerShell refuses to run the activation script (`running scripts is disabled on this system`), either activate from `cmd` with `.venv\Scripts\activate.bat`, or allow scripts for the current session only: `Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass`. On Windows use the `py` launcher — it bypasses the Microsoft Store `python.exe` stub; if `py` is not installed, use the full path to `python.exe`.
 
-The code is also usable as a library: `import run_2d_magnet`, or the console script `2d-magnet` after `pip install .`.
+**3. Install the dependencies**
+
+```powershell
+py -m pip install --upgrade pip
+py -m pip install -r requirements.txt
+```
+
+`matplotlib` is the biggest item and pulls `pyparsing`, `cycler`, `contourpy`, `fontTools` and `kiwisolver`. If it cannot be installed (offline machine, or a minimal site), install `Pillow>=9.0` instead: all six rendering paths then use a pure-Pillow implementation and the figures are still written (packaged extra: `pip install -e ".[render-fallback]"`). `requests` is only used by `fetch`; without it everything except structure download works.
+
+**4. Verify the installation**
+
+```powershell
+py run_2d_magnet.py doctor
+```
+
+`doctor` prints one line per check, then `---`, then the error-catalog entry for every WARN. Exit code `0` means no WARN; `1` means at least one environment problem — it does not mean the code is broken. A healthy install reports `[OK]` for Python, `numpy`, `numba`, `scripts/`, `literature_J.json` and `tests/fixtures/`; the `MP_API_KEY` and `CWD` lines are informational only.
+
+**5. Optional: install as a command**
+
+```powershell
+py -m pip install -e .
+2d-magnet --version      # 2d-magnet 0.1.0
+2d-magnet doctor
+```
+
+**6. Optional: run it as an agent skill**
+
+`dsh/2d-magnet/` is a self-contained skill (conventions, gates, driving instructions). Copy the folder into your harness skill directory — for Claude Code `~/.claude/skills/`, or `.claude/skills/` inside a project; for an `AGENTS.md`-style harness point the agent at `dsh/2d-magnet/SKILL.md`. The skill drives the same `run_2d_magnet.py`; nothing else needs installing.
+
+**7. Optional: the VASP side**
+
+`dft` writes `INCAR`, `KPOINTS`, `MAGMOM` and `POTCAR.spec` (recommended POTCAR label per element) under `03_dft/` and `runs/<order>/`. POTCAR files are licensed and are **not** shipped: assemble them from your VASP distribution into `runs/<order>/POTCAR` before submitting. `ingest` reads only the `OUTCAR`, so the calculation itself can run on any machine.
+
+**Troubleshooting**
+
+| Symptom | Fix |
+|---|---|
+| `python` opens the Microsoft Store, or `command not found` | use `py` (Windows launcher) or the full path to `python.exe` |
+| `ModuleNotFoundError: No module named 'pyparsing'` while rendering | `matplotlib` is incomplete — install `Pillow`, the fallback renderer takes over |
+| Garbled Chinese output, `UnicodeEncodeError` | set `$env:PYTHONIOENCODING="utf-8"` before running |
+| `doctor` reports `CWD 不可写` | run from a writable directory, or always pass an explicit `--outdir` |
+| `fetch` returns 401/403 or an empty structure | set `MP_API_KEY` or pass `--mp-key`, or supply your own file with `--poscar` |
+| `[params] ... 不在内置元素参数表` | pass `--S --moment --U` explicitly, or pick a `--model` / `--literature` entry |
+
+Every WARN and error key above has its full symptom → fix text in [`KNOWN_ISSUES.md`](KNOWN_ISSUES.md).
+
+The code is also usable as a library (`import run_2d_magnet`) and as the console script `2d-magnet` after `pip install .`.
 
 ## Quick start
 
@@ -64,7 +135,7 @@ py run_2d_magnet.py --model la2cuo4 --poscar tests/fixtures/La2CuO4_POSCAR `
 py scripts\solve_J_square.py C:\work\la2\02_supercell\cases --demo
 ```
 
-`examples/la2cuo4_square/` is the resulting tree; `examples/kagome_fe3sn_dryrun/` is a kagome run through the full DFT shape with synthetic energies. Each has a `README.md` listing what is produced and what is deliberately not.
+`examples/la2cuo4_square/` is the resulting tree; `examples/kagome_fe3sn_dryrun/` is a kagome run through the full DFT shape with synthetic energies. Each has a `README.md` listing what is produced.
 
 ## Commands
 
@@ -97,8 +168,6 @@ figures/supercell_orders.png     supercell with exchange bonds and the order set
 workflow.md                      provenance card for the run
 ```
 
-`J_result.json` always records how J was obtained (`source` = `literature` / `user` / `dft` / `demo`), the design matrix conditioning, the residual, and whether the magnetic states were verified per site. A number without that provenance is not a result.
-
 ## Verification（脚本级自检 / 发布闸门）
 
 ```powershell
@@ -116,56 +185,7 @@ python scripts/mc_fss.py --selftest           crossing choice, 1/L extrapolation
 python scripts/verify_states.py --selftest    per-site moments, collapse detection
 python scripts/dmi_matrix.py --selftest       DMI matrix vs exchange energy
 python scripts/k_convergence.py --selftest    K-points planner
-python scripts/readme_to_obsidian.py --check  README backup in sync
 ```
-
-`solve` runs `scripts/verify_states.py` before inverting anything: if two orders collapse into the same state or a moment contradicts its target, the stage exits non-zero and no `J_result.json` is written.
-
-## Limitations（已知局限）
-
-1. No real DFT data ships with the repository. Every number produced out of the box comes from literature or synthetic energies and is labelled as such — a `T_C`/`T_N` from a demo is not a prediction.
-2. The many-state mapping assumes collinear states mapped to a Heisenberg model; non-collinear and SOC cases stop at the coefficient layer (P3), with no verified energies.
-3. `S`, `moment` and `U` are inputs. For elements outside the built-in table they must be given explicitly; a guessed value would silently produce wrong physics, so the driver refuses instead.
-4. Anisotropy enters only through `--MAE` (default 0) and the DMI matrix; both are inputs, not extracted quantities.
-5. Monte Carlo is classical and single-site-update Metropolis on a finite cluster. `T_C`/`T_N` are estimates on that cluster, not thermodynamic-limit values.
-6. Error bars come from binned standard errors; `mc_diag.json` reports `n_eff`, `tau_int` and the acceptance rate so an under-sampled sweep is visible. When the peak sits on the window edge, `T` is reported as unresolved instead of being silently trusted.
-7. Finite-size scaling uses a global reference crossing and a `1/L` extrapolation as a reference value; it is only meaningful once the scaling window is reached.
-8. `--order auto` picks the order parameter from the T = 0 candidate ground states (fm / Néel / stripe). A stripe ground state has no ±1 staggered order parameter, so the pipeline falls back to the specific-heat peak and says so; for anything near-degenerate, pass `--order` explicitly.
-9. Kagome is at the coefficient layer (P4.1); the physics layer (P4.2) waits for real non-collinear DFT — see [`P4_2_KAGOME_RUNBOOK.md`](P4_2_KAGOME_RUNBOOK.md).
-10. Altermagnets are geometry-classified only (P5); the scalar order parameter reaches sublattice masks, not a full non-collinear description.
-11. Canted states (P2′) reach the coefficient layer: `scripts/solve_J_crect_cant.py` takes θ as an input and does not predict it.
-12. DMI enters as a `D` matrix you supply; the pipeline does not extract `D` from energies.
-13. Ingestion validates format, convergence, structure and conventions — not physics. A clean `ingest_report.md` means the OUTCAR is usable, not that the calculation is right.
-14. k-resolved band splitting and `Z₂` are not computed; `kconv` only converges the K-points mesh.
-15. Literature entries in `literature_J.json` are starting points. Where an entry is `null` the driver refuses to run instead of inventing a value.
-16. The magnetic-state check covers collinear states; it exits `SKIP` (not a pass) for non-collinear or SOC runs.
-17. Environment assumptions: Python ≥ 3.9 is checked syntactically, but the suite is exercised on 3.12; `matplotlib` and `requests` are optional and degrade to a documented fallback.
-18. Release artifacts are built by `scripts/make_release.py` from the working tree and validated by `tests/check_sdist.py`; the PyPI-style `sdist`/`wheel` build is exercised by the `package` CI job, not on this machine.
-
-## Roadmap（路线图）
-
-`✅ 已完成` = capability implemented and covered by self-checks and regression, **not** physics-verified; `⬜ 待机时` = code and runbook ready, waiting for real DFT machine time.
-
-- ✅ 已完成 · repository hygiene: paths, fixtures, packaging baseline (LICENSE / README / requirements / pyproject)
-- ✅ 已完成 · `doctor` self-check and the error catalogue in `KNOWN_ISSUES.md`
-- ✅ 已完成 · element parameter table (Mn/Cr/Ni/Co/V) and explicit `--lattice`
-- ✅ 已完成 · **P0** shared specification layer: `--lattice` + `magnetic_orders.json`
-- ✅ 已完成 · **P1** square lattice: cases, ingest, `J1/J2/J3`, Monte Carlo
-- ✅ 已完成 · polynomial `J1/J2/J3` least squares with `cond(A)` and residual diagnostics
-- ✅ 已完成 · convergence gates on `encut` / `kpoints` / `sigma`
-- ✅ 已完成 · VASP handoff package: INCAR / KPOINTS / POSCAR / POTCAR.spec + run index
-- ✅ 已完成 · `doctor` diagnostics: missing dependencies, potential files, k-mesh sanity
-- ✅ 已完成 · **P2** C-centred rectangular: CrOCl-like cases, non-collinear MAGMOM
-- ✅ 已完成 · **P2′** canted states: `solve_J_crect_cant.py` + runbook
-- ✅ 已完成 · **P3** non-collinear and SOC: `LNONCOLLINEAR` / `LSORBIT` / `SAXIS`, canted MAGMOM
-- ✅ 已完成 · Binder cumulant `U4` and finite-size scaling (FSS) with a `1/L` reference
-- ✅ 已完成 · **P4.1** kagome at the coefficient layer: `√3×√3`, `q = 0`, `3×3`, sublattice nets
-- ✅ 已完成 · **P5** altermagnets (MnTe / CrSb): geometry classification + scalar sublattice order parameter
-- ✅ 已完成 · per-site magnetic-state verification before any inversion, with collapse detection
-- ✅ 已完成 · Monte Carlo sampling diagnostics: acceptance, `tau_int`, `n_eff`, binned SEM
-- ✅ 已完成 · machine-readable capability table `capabilities.json` + gate `scripts/capabilities.py --check`
-- ✅ 已完成 · release gates: `check_sdist`, `make_release.py`, CI package job
-- ⬜ 待机时 · **P4.2** kagome physics layer (Fe₃Sn₂ / Co₃Sn₂S₂ / Mn₃Sn) — needs real non-collinear DFT: submit the `√3×√3` set, ingest `OUTCAR` (`free energy TOTEN`), write `J_result.json`, Monte Carlo for `T_N`. The runbook is ready: [`P4_2_KAGOME_RUNBOOK.md`](P4_2_KAGOME_RUNBOOK.md).
 
 ## Documentation map（该读哪份）
 
@@ -176,11 +196,12 @@ python scripts/readme_to_obsidian.py --check  README backup in sync
 | [`WORKFLOW.md`](WORKFLOW.md) | per-stage detail: file by file, option by option |
 | [`dsh/2d-magnet/SKILL.md`](dsh/2d-magnet/SKILL.md) | agent skill: conventions, gates, how to drive the pipeline |
 | [`capabilities.json`](capabilities.json) | machine-readable capability boundary — lattice, quantity, supported level |
+| [`DMI_MTI_MEMO.md`](DMI_MTI_MEMO.md) | DMI / MTI: how to tell them apart and what may be claimed |
+| [`LIMITATIONS.md`](LIMITATIONS.md) | boundary statements — what each number does and does not mean (18 items) |
 | [`examples/`](examples/) | two complete artifact trees you can inspect without VASP |
 | [`P4_2_KAGOME_RUNBOOK.md`](P4_2_KAGOME_RUNBOOK.md) | the kagome physics runbook, ready for machine time |
 | [`CHANGELOG.md`](CHANGELOG.md) · [`CITATION.cff`](CITATION.cff) | version history · citation metadata |
 
-Reading this in Obsidian: open the repository folder as a vault and use `README.obsidian.md` (same text, with an internal-link table of contents and a pipeline diagram); the Chinese edition is `README.zh.obsidian.md`. Both are generated — regenerating after a README edit is `python scripts/readme_to_obsidian.py`, and `--check` reports drift.
 
 ## License
 
