@@ -148,15 +148,16 @@ def main(argv=None) -> int:
             print("[FAIL] 备份不存在: %s（跑 python scripts/readme_to_obsidian.py）" % a.out)
             return 1
         have = read(a.out)
+        _srcname = os.path.basename(a.src)
         if have != want:
-            print("[FAIL] 备份与 README.md 不同步: %s" % os.path.basename(a.out))
-            print("       README 的 sha256 = %s" % sha256_text(text))
+            print("[FAIL] 备份与 %s 不同步: %s" % (_srcname, os.path.basename(a.out)))
+            print("       %s 的 sha256 = %s" % (_srcname, sha256_text(text)))
             m = re.search(r"source_sha256: ([0-9a-f]{64})", have)
             print("       备份里记录的     = %s" % (m.group(1) if m else "(缺)"))
             print("       修复: python scripts/readme_to_obsidian.py")
             return 1
-        print("[OK] 备份与 README.md 同步（%d 字节, sha256 %s）"
-              % (len(have.encode("utf-8")), sha256_text(text)[:12]))
+        print("[OK] 备份与 %s 同步（%d 字节, sha256 %s）"
+              % (_srcname, len(have.encode("utf-8")), sha256_text(text)[:12]))
         return 0
 
     with open(a.out, "w", encoding="utf-8", newline="\n") as f:

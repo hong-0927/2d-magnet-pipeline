@@ -73,7 +73,7 @@ Monte Carlo 的 T_C / T_N**，八种磁性格点共用一套规格层与统一�
   「运行目录由 CWD 决定」、「GBK 控制台编码」），并把两条与正文重复的机制叙述压成纯边界；
   全仓「局限 N」交叉引用（README / KNOWN_ISSUES / NEW_TYPES_PLAN / WORKFLOW / P4.2 runbook /
   `scripts/altermagnet_check.py`）同步改号。
-- README 新增「该读哪份（文档索引）」「发布状态」「打包闸门（sdist/wheel）」三段；Obsidian 用法改成
+- README 新增「该读哪份（文档索引）」「打包闸门（sdist/wheel）」两段；Obsidian 用法改成
   可按步点击的三步（只支持「以文件夹为 vault 打开」，不支持孤立 `.md`）。
 
 ### 已知边界（本版本不打算解决，完整清单见 README「已知局限 18 条」）

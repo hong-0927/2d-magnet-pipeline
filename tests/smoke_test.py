@@ -1673,8 +1673,8 @@ else:
         with open(_readme25, encoding="utf-8") as f:
             _tr25 = f.read()
         _okr25 = ("altermagnet_check.py" in _tr25 and "交变磁体" in _tr25
-                  and "[x] **P5**" in _tr25)
-    check("alt: README 已同步 (脚本 + 局限 + 路线图 P5 勾选)", _okr25)
+                  and ("**P5**" in _tr25 and "✅ 已完成 · **P5**" in _tr25))
+    check("alt: README 已同步 (脚本 + 局限 + 路线图 P5 已完成)", _okr25)
 
     _okn25 = False
     _plan25 = os.path.join(HERE, "NEW_TYPES_PLAN.md")
@@ -1957,9 +1957,9 @@ else:
     if os.path.isfile(_rd26):
         with open(_rd26, encoding="utf-8") as _f:
             _trd26 = _f.read()
-        _rdo26 = ("solve_J_crect_cant.py" in _trd26 and "[x] **P2′**" in _trd26
+        _rdo26 = ("solve_J_crect_cant.py" in _trd26 and "✅ 已完成 · **P2′**" in _trd26
                   and "P4_2_KAGOME_RUNBOOK.md" in _trd26)
-    check("cant: README 已同步 (反解器 + 手册 + 路线图 P2′ 勾选)", _rdo26)
+    check("cant: README 已同步 (反解器 + 手册 + 路线图 P2′ 已完成)", _rdo26)
 
     _wf26 = os.path.join(HERE, "WORKFLOW.md")
     _wfo26 = False
@@ -2285,6 +2285,19 @@ if True:
         _s29 = run(sys.executable, _r2o29, "--selftest")
         check("obs: 生成器 --selftest ALL PASS",
               _s29.returncode == 0 and "ALL PASS" in _s29.stdout)
+
+    # 中文版备份（从 README.zh.md 生成，同一生成器、同一套闸门）
+    _ob29z = os.path.join(HERE, "README.zh.obsidian.md")
+    _txt29z = ""
+    if os.path.isfile(_ob29z):
+        with open(_ob29z, encoding="utf-8") as _f:
+            _txt29z = _f.read()
+    check("obs: README.zh.obsidian.md 正文与 README.zh.md 逐字一致",
+          bool(_txt29z) and open(os.path.join(HERE, "README.zh.md"), encoding="utf-8").read().rstrip("\n") in _txt29z)
+    if os.path.isfile(_r2o29):
+        _c29z = run(sys.executable, _r2o29, "--src", os.path.join(HERE, "README.zh.md"),
+                    "--out", _ob29z, "--check")
+        check("obs: 中文版 --check 判定同步", _c29z.returncode == 0 and "[OK]" in _c29z.stdout)
 
 print("\n全部通过" if not fails else f"\n{len(fails)} 个失败: {fails}")
 
