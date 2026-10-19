@@ -4,9 +4,9 @@
 格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循
 [语义化版本](https://semver.org/lang/zh-CN/)（`0.x` 阶段：minor 版本之间不保证向后兼容）。
 
-- **能力的权威边界**：[`capabilities.json`](capabilities.json)（机器可读）+ [`LIMITATIONS.md`](LIMITATIONS.md)（人读）
-- **症状 → 修复**：[`KNOWN_ISSUES.md`](KNOWN_ISSUES.md)
-- **逐脚本细节**：[`WORKFLOW.md`](WORKFLOW.md)、[`dsh/2d-magnet/SKILL.md`](dsh/2d-magnet/SKILL.md)
+- **能力的权威边界**：[`capabilities.json`](capabilities.json)（机器可读）+ [`LIMITATIONS.md`](knowledge/LIMITATIONS.md)（人读）
+- **症状 → 修复**：[`KNOWN_ISSUES.md`](knowledge/KNOWN_ISSUES.md)
+- **逐脚本细节**：[`WORKFLOW.md`](knowledge/WORKFLOW.md)、[`dsh/2d-magnet/SKILL.md`](dsh/2d-magnet/SKILL.md)
 
 ## [Unreleased]
 
@@ -75,7 +75,7 @@ Monte Carlo 的 T_C / T_N**，八种磁性格点共用一套规格层与统一�
 - README 新增「该读哪份（文档索引）」「打包闸门（sdist/wheel）」两段；
   可按步点击的三步（只支持「以文件夹为 vault 打开」，不支持孤立 `.md`）。
 
-### 已知边界（本版本不打算解决，完整清单见 [`LIMITATIONS.md`](LIMITATIONS.md)）
+### 已知边界（本版本不打算解决，完整清单见 [`LIMITATIONS.md`](knowledge/LIMITATIONS.md)）
 
 - 仓库里**没有任何真实 DFT 计算结果**：J / T_C / T_N / D / 能带都只是**系数层或 MC 估算**，
   `capabilities.json` 的 `physical_verified` 一律 `false`。

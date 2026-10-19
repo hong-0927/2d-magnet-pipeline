@@ -1537,7 +1537,7 @@ else:
         shutil.rmtree(td24, ignore_errors=True)
 
     _okm24 = False
-    _memo24 = os.path.join(HERE, "DMI_MTI_MEMO.md")
+    _memo24 = os.path.join(HERE, "knowledge", "DMI_MTI_MEMO.md")
     if os.path.isfile(_memo24):
         with open(_memo24, encoding="utf-8") as f:
             _t24 = f.read()
@@ -1677,7 +1677,7 @@ else:
     check("alt: README 已同步 (脚本 + 交变磁体 + 边界说明链接)", _okr25)
 
     _okn25 = False
-    _plan25 = os.path.join(HERE, "NEW_TYPES_PLAN.md")
+    _plan25 = os.path.join(HERE, "knowledge", "NEW_TYPES_PLAN.md")
     if os.path.isfile(_plan25):
         with open(_plan25, encoding="utf-8") as f:
             _tn25 = f.read()
@@ -1923,7 +1923,7 @@ else:
     check("cant: mag_vectors.needs_soc 认 cant_* 前缀 ⇒ 下游必须 --lsorbit",
           MV.needs_soc("cant_p8") is True and MV.needs_soc("fm") is False)
 
-    _ki26 = os.path.join(HERE, "KNOWN_ISSUES.md")
+    _ki26 = os.path.join(HERE, "knowledge", "KNOWN_ISSUES.md")
     _kio26 = False
     if os.path.isfile(_ki26):
         with open(_ki26, encoding="utf-8") as _f:
@@ -1933,7 +1933,7 @@ else:
     check("cant: ERROR_CATALOG 每个 key 都在 KNOWN_ISSUES.md 有行 (%d 条)" % len(ERROR_CATALOG),
           _kio26)
 
-    _rb26 = os.path.join(HERE, "P4_2_KAGOME_RUNBOOK.md")
+    _rb26 = os.path.join(HERE, "knowledge", "P4_2_KAGOME_RUNBOOK.md")
     _rbo26 = False
     if os.path.isfile(_rb26) and os.path.getsize(_rb26) > 15000:
         with open(_rb26, encoding="utf-8") as _f:
@@ -1961,7 +1961,7 @@ else:
                   and "P4_2_KAGOME_RUNBOOK.md" in _trd26)
     check("cant: README 已同步 (反解器 + 手册)", _rdo26)
 
-    _wf26 = os.path.join(HERE, "WORKFLOW.md")
+    _wf26 = os.path.join(HERE, "knowledge", "WORKFLOW.md")
     _wfo26 = False
     if os.path.isfile(_wf26):
         with open(_wf26, encoding="utf-8") as _f:
@@ -1970,7 +1970,7 @@ else:
                   and "solve_J_crect_cant.py" in _twf26)
     check("cant: WORKFLOW 已同步 (继承表 + 局限 1h/1i)", _wfo26)
 
-    _pl26 = os.path.join(HERE, "NEW_TYPES_PLAN.md")
+    _pl26 = os.path.join(HERE, "knowledge", "NEW_TYPES_PLAN.md")
     _plo26 = False
     if os.path.isfile(_pl26):
         with open(_pl26, encoding="utf-8") as _f:
@@ -2098,7 +2098,7 @@ if True:
     finally:
         shutil.rmtree(td27, ignore_errors=True)
 
-    _rb27 = os.path.join(HERE, "P4_2_KAGOME_RUNBOOK.md")
+    _rb27 = os.path.join(HERE, "knowledge", "P4_2_KAGOME_RUNBOOK.md")
     _rbo27 = False
     if os.path.isfile(_rb27):
         with open(_rb27, encoding="utf-8") as _f:
@@ -2114,7 +2114,7 @@ if True:
         _rdo27 = ("k_convergence.py" in _trd27 and "kconv" in _trd27 and "--kpoints" in _trd27)
     check("p42: README 已同步 (脚本 + kconv 子命令 + --kpoints)", _rdo27)
 
-    _wf27 = os.path.join(HERE, "WORKFLOW.md")
+    _wf27 = os.path.join(HERE, "knowledge", "WORKFLOW.md")
     _wfo27 = False
     if os.path.isfile(_wf27):
         with open(_wf27, encoding="utf-8") as _f:
@@ -2130,7 +2130,7 @@ if True:
         _sko27 = "kconv" in _tsk27 and "k_convergence.py" in _tsk27
     check("p42: SKILL.md 写了 k 点收敛抽查入口", _sko27)
 
-    _pl27 = os.path.join(HERE, "NEW_TYPES_PLAN.md")
+    _pl27 = os.path.join(HERE, "knowledge", "NEW_TYPES_PLAN.md")
     _plo27 = False
     if os.path.isfile(_pl27):
         with open(_pl27, encoding="utf-8") as _f:

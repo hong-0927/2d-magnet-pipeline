@@ -2,7 +2,7 @@
 
 这份文件回答一个问题：**这个流水线给出的每个数，边界在哪**。
 
-机器可读的版本在 [`capabilities.json`](capabilities.json)（`python scripts/capabilities.py --show` 打印可读版）；逐条症状与修法在 [`KNOWN_ISSUES.md`](KNOWN_ISSUES.md)。下面是人读版的完整清单，共 18 条。
+机器可读的版本在 [`capabilities.json`](../capabilities.json)（`python scripts/capabilities.py --show` 打印可读版）；逐条症状与修法在 [`KNOWN_ISSUES.md`](KNOWN_ISSUES.md)。下面是人读版的完整清单，共 18 条。
 
 1. 仓库不带真实 DFT 数据。开箱跑出的数字都来自文献或合成能量，并且如实标注——demo 给的 `T_C`/`T_N` 不是预言。
 2. 多磁态映射假设共线态映射到 Heisenberg 模型；非共线与 SOC 情形停在系数层（P3），没有经过验证的能量。

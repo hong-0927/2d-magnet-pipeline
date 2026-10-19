@@ -383,7 +383,7 @@ def try_mp_fetch(outdir, formula, mp_id):
         return None
 
 
-# ---- error catalog: 已知失败签名 -> 症状 -> 修复 (doctor 联动 + KNOWN_ISSUES.md) ----
+# ---- error catalog: 已知失败签名 -> 症状 -> 修复 (doctor 联动 + knowledge/KNOWN_ISSUES.md) ----
 # static=True 是「运行时才出现、环境自检探不到」的条目, doctor 作为静态参考列出;
 # static=False 是可被环境自检命中的条目, 由 doctor 的检查项按 key 联动。
 ERROR_CATALOG = [
@@ -482,7 +482,7 @@ ERROR_CATALOG = [
             "`--shell-def` 并显式给 `J_mat`: 用 `scripts/dmi_matrix.py --D ... --J ... --S ... --out shell.json` "
             "(J_D = -[D]× 对应 H_DM = +D·(S_i×S_j), 矩阵已吸收 S²), 再 "
             "`poscar_to_mc3.py ... --shell-def shell.json`; 两个脚本的 `--S` 必须一致。"
-            "D 本身**必须来自文献或你自己的 DFT** —— 本仓库不提取 D (见 DMI_MTI_MEMO.md §3.2/§3.3), "
+            "D 本身**必须来自文献或你自己的 DFT** —— 本仓库不提取 D (见 knowledge/DMI_MTI_MEMO.md §3.2/§3.3), "
             "且引擎无外场、无拓扑荷 ⇒ 只能看零场基态能, 不许报 skyrmion 相图 / 拓扑荷"},
     {"key": "sublattice_mask_invalid", "static": True,
      "symptom": "`mc_2d` / `mc_fss` / 驱动 `--mc-order` 报「--order sublattice:<mask> 需要掩码」/「掩码有空项」/"
@@ -499,7 +499,7 @@ ERROR_CATALOG = [
             "`--model crocl`（或 `--lattice rect_centered`）。母序取 `afm_c`（默认）/`afm_a`/`afm_b` —— "
             "`fm` 被拒，因为全同向母序上的 ±θ 只是一次整体自旋旋转、系数行逐位等于 fm 行（不带信息）。"
             "倾斜构型要 `--soc` 装配（缺它 assemble_dft 会硬拒，不会静默按共线算）；"
-            "θ 是**输入参数**，不是自洽解出来的基态角，φ 由几何定不出来（见 LIMITATIONS.md 11）"},
+            "θ 是**输入参数**，不是自洽解出来的基态角，φ 由几何定不出来（见 knowledge/LIMITATIONS.md 11）"},
 ]
 
 
@@ -642,7 +642,7 @@ def doctor():
             print(f"    -> {e['fix']}")
 
     # ---- 静态参考条目 (运行时才出现, 环境自检探不到) ----
-    print("\n--- 常见运行时问题 (静态参考, 详见 KNOWN_ISSUES.md) ---")
+    print("\n--- 常见运行时问题 (静态参考, 详见 knowledge/KNOWN_ISSUES.md) ---")
     for e in ERROR_CATALOG:
         if e["static"]:
             print(f"  * [{e['key']}] {e['symptom']}")
@@ -1223,7 +1223,7 @@ def main():
     # ---- P4.2: VASP 输入的可调项（默认与 03_dft 模板一致，只有显式给了才透传）----
     ap.add_argument("--kpoints", type=int, nargs=3, default=None,
                     help="显式 k 网格 (默认用模板的 3 3 1; 上真实机时前建议先做一次 k 收敛抽查, "
-                         "见 P4_2_KAGOME_RUNBOOK.md §1)")
+                         "见 knowledge/P4_2_KAGOME_RUNBOOK.md §1)")
     ap.add_argument("--npar", type=int, default=None, help="显式 NPAR (默认 4)")
     ap.add_argument("--isym", type=int, default=None,
                     help="显式 ISYM (0 = 关对称性); 默认 static 不写、relax 用模板的 0")

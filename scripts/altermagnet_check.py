@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""交变磁体 (altermagnet) 识别层检查清单 —— P5 第 25 项 (NEW_TYPES_PLAN.md)。
+"""交变磁体 (altermagnet) 识别层检查清单 —— P5 第 25 项 (knowledge/NEW_TYPES_PLAN.md)。
 
 **只出报告, 不下结论。** 本脚本判定的是**几何清单**:
 
@@ -32,7 +32,7 @@
 让人自己判断是「真的没有」还是「弛豫/写文件精度差一点」。
 
 **不可判定**: k 分辨自旋劈裂(能带层面) —— 那需要自旋分辨能带计算, 属研究问题, 不在本流水线契约内
-(见 LIMITATIONS.md 10 / WORKFLOW.md 局限 1g)。本脚本永远不会输出「这是交变磁体」这种结论。
+(见 knowledge/LIMITATIONS.md 10 / knowledge/WORKFLOW.md 局限 1g)。本脚本永远不会输出「这是交变磁体」这种结论。
 
 用法:
     python scripts/altermagnet_check.py --poscar tests/fixtures/Fe3Sn_POSCAR --element Fe

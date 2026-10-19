@@ -35,7 +35,7 @@
     python scripts/dmi_matrix.py --D 0.31 -0.77 0.55 --J 1.9 --json       # 给 --shell-def 用
     python scripts/dmi_matrix.py --selftest                               # 无 DFT 自检 (含与 mc_2d 对拍)
 
-产物只是**矩阵**：`D` 本身仍必须来自文献或你自己的 DFT（本仓不提取 D，见 `DMI_MTI_MEMO.md` §3.2）。
+产物只是**矩阵**：`D` 本身仍必须来自文献或你自己的 DFT（本仓不提取 D，见 `knowledge/DMI_MTI_MEMO.md` §3.2）。
 """
 import argparse
 import json
@@ -211,7 +211,7 @@ def main(argv=None):
         print("  [ " + "  ".join(f"{x:+.6f}" for x in row) + " ]")
     print("> 各向异性/DMI 存在时没有单一标量 J（poscar_to_mc3 会把标量 J 记成 NaN），"
           "下游只读标量 J 的地方要能容忍。")
-    print("> 本脚本只换算矩阵；D 必须来自文献或你自己的 DFT（见 DMI_MTI_MEMO.md §3.2）。")
+    print("> 本脚本只换算矩阵；D 必须来自文献或你自己的 DFT（见 knowledge/DMI_MTI_MEMO.md §3.2）。")
     return 0
 
 

@@ -63,6 +63,18 @@ cd 2d_magnet_pipeline
 
 No git? Download the release archive (`2d-magnet-pipeline-0.1.0.tar.gz` / `.zip` from the Releases page) and unpack it — the archive holds the same tree.
 
+Steps 2–4 are scripted. From the repository root:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File install.ps1
+```
+
+```bash
+bash install.sh
+```
+
+Both create `.venv`, install `requirements.txt` and run `doctor`; pass `--venv <path>` (bash: `-Venv <path>` in PowerShell) to use another location. On Windows, run the PowerShell one with `-ExecutionPolicy Bypass` as shown — the venv activation script would otherwise be blocked.
+
 **2. Create and activate a virtual environment**
 
 ```powershell
@@ -121,7 +133,7 @@ py -m pip install -e .
 | `fetch` returns 401/403 or an empty structure | set `MP_API_KEY` or pass `--mp-key`, or supply your own file with `--poscar` |
 | `[params] ... 不在内置元素参数表` | pass `--S --moment --U` explicitly, or pick a `--model` / `--literature` entry |
 
-Every WARN and error key above has its full symptom → fix text in [`KNOWN_ISSUES.md`](KNOWN_ISSUES.md).
+Every WARN and error key above has its full symptom → fix text in [`KNOWN_ISSUES.md`](knowledge/KNOWN_ISSUES.md).
 
 The code is also usable as a library (`import run_2d_magnet`) and as the console script `2d-magnet` after `pip install .`.
 
@@ -192,14 +204,16 @@ python scripts/k_convergence.py --selftest    K-points planner
 | Read | For |
 |---|---|
 | [`README.md`](README.md) / [`README.zh.md`](README.zh.md) | this manual (English / 中文) |
-| [`KNOWN_ISSUES.md`](KNOWN_ISSUES.md) | symptom → fix table, 27 error keys; `doctor` output points here |
-| [`WORKFLOW.md`](WORKFLOW.md) | per-stage detail: file by file, option by option |
+| [`AGENTS.md`](AGENTS.md) | the five hard rules for any agent driving this repo |
+| [`STRUCTURE.md`](STRUCTURE.md) | the organization convention — where new content goes |
+| [`KNOWN_ISSUES.md`](knowledge/KNOWN_ISSUES.md) | symptom → fix table, 27 error keys; `doctor` output points here |
+| [`WORKFLOW.md`](knowledge/WORKFLOW.md) | per-stage detail: file by file, option by option |
 | [`dsh/2d-magnet/SKILL.md`](dsh/2d-magnet/SKILL.md) | agent skill: conventions, gates, how to drive the pipeline |
 | [`capabilities.json`](capabilities.json) | machine-readable capability boundary — lattice, quantity, supported level |
-| [`DMI_MTI_MEMO.md`](DMI_MTI_MEMO.md) | DMI / MTI: how to tell them apart and what may be claimed |
-| [`LIMITATIONS.md`](LIMITATIONS.md) | boundary statements — what each number does and does not mean (18 items) |
+| [`DMI_MTI_MEMO.md`](knowledge/DMI_MTI_MEMO.md) | DMI / MTI: how to tell them apart and what may be claimed |
+| [`LIMITATIONS.md`](knowledge/LIMITATIONS.md) | boundary statements — what each number does and does not mean (18 items) |
 | [`examples/`](examples/) | two complete artifact trees you can inspect without VASP |
-| [`P4_2_KAGOME_RUNBOOK.md`](P4_2_KAGOME_RUNBOOK.md) | the kagome physics runbook, ready for machine time |
+| [`P4_2_KAGOME_RUNBOOK.md`](knowledge/P4_2_KAGOME_RUNBOOK.md) | the kagome physics runbook, ready for machine time |
 | [`CHANGELOG.md`](CHANGELOG.md) · [`CITATION.cff`](CITATION.cff) | version history · citation metadata |
 
 

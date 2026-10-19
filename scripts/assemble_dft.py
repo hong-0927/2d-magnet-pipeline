@@ -355,7 +355,7 @@ def main(argv=None):
     if not explicit_kmesh and n_atoms >= 60:
         print(f"[提示] 体系 {n_atoms} 个原子却用默认 k 网格 "
               f"{' '.join(str(x) for x in args.kpoints)}: 上真实机时前先做一次 k 收敛抽查 "
-              f"(P4_2_KAGOME_RUNBOOK.md §1), 或用 --kpoints 指定")
+              f"(knowledge/P4_2_KAGOME_RUNBOOK.md §1), 或用 --kpoints 指定")
     print(f"自旋模式: {mode}; 磁序 {n_written} 个: {orders}")
     print(f"MAGMOM 分量数: {3 if args.noncollinear else 1} / 原子; 原子总数 {n_atoms}"
           + (f"; SAXIS {args.saxis}" if args.saxis else ""))

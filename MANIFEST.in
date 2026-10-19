@@ -11,6 +11,10 @@ include *.md
 include capabilities.json
 # 机器可读的引用信息（releases 页面/仓库识别用；不参与运行）
 include CITATION.cff
+# 一次性环境安装脚本（bash / PowerShell）
+include install.sh
+include install.ps1
+recursive-include knowledge *
 recursive-include dsh *
 recursive-include examples *
 recursive-include tests *

@@ -63,6 +63,18 @@ cd 2d_magnet_pipeline
 
 没有 git：直接下载 Release 里的 `2d-magnet-pipeline-0.1.0.tar.gz` / `.zip` 解压，内容与仓库一致。
 
+第 2–4 步有脚本版。在仓库根目录：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File install.ps1
+```
+
+```bash
+bash install.sh
+```
+
+两者都会建 `.venv`、装 `requirements.txt`、跑 `doctor`；换位置用 `-Venv <路径>`（bash 版是 `--venv <路径>`）。Windows 上按上面那样带 `-ExecutionPolicy Bypass` 跑 PowerShell 版——否则激活脚本会被执行策略拦住。
+
 **2. 建并激活虚拟环境**
 
 ```powershell
@@ -121,7 +133,7 @@ py -m pip install -e .
 | `fetch` 返回 401/403 或空结构 | 设 `MP_API_KEY` 或传 `--mp-key`，或用 `--poscar` 给自己的文件 |
 | `[params] ... 不在内置元素参数表` | 显式给 `--S --moment --U`，或用 `--model` / `--literature` 条目 |
 
-上面每个 WARN 与错误键的完整「症状 → 修法」都在 [`KNOWN_ISSUES.md`](KNOWN_ISSUES.md)。
+上面每个 WARN 与错误键的完整「症状 → 修法」都在 [`KNOWN_ISSUES.md`](knowledge/KNOWN_ISSUES.md)。
 
 代码也可当库用（`import run_2d_magnet`）；`pip install .` 之后还有 `2d-magnet` 命令行入口。
 
@@ -194,14 +206,16 @@ python scripts/k_convergence.py --selftest    K 点规划
 | 读 | 为了 |
 |---|---|
 | [`README.md`](README.md) / [`README.zh.md`](README.zh.md) | 本说明书（English / 中文） |
-| [`KNOWN_ISSUES.md`](KNOWN_ISSUES.md) | 症状 → 修法表，27 个错误键；`doctor` 的输出指向这里 |
-| [`WORKFLOW.md`](WORKFLOW.md) | 逐阶段细节：文件、选项、口径 |
+| [`AGENTS.md`](AGENTS.md) | 给 agent 的五条硬规则（先读这个） |
+| [`STRUCTURE.md`](STRUCTURE.md) | 目录约定——新内容该放哪 |
+| [`KNOWN_ISSUES.md`](knowledge/KNOWN_ISSUES.md) | 症状 → 修法表，27 个错误键；`doctor` 的输出指向这里 |
+| [`WORKFLOW.md`](knowledge/WORKFLOW.md) | 逐阶段细节：文件、选项、口径 |
 | [`dsh/2d-magnet/SKILL.md`](dsh/2d-magnet/SKILL.md) | agent skill：约定、闸门、怎么驱动流水线 |
 | [`capabilities.json`](capabilities.json) | 机器可读能力边界——晶格、物理量、支持到哪一层 |
-| [`DMI_MTI_MEMO.md`](DMI_MTI_MEMO.md) | DMI / MTI：怎么判别、能说什么 |
-| [`LIMITATIONS.md`](LIMITATIONS.md) | 边界说明——每个数能代表什么、不能代表什么（18 条） |
+| [`DMI_MTI_MEMO.md`](knowledge/DMI_MTI_MEMO.md) | DMI / MTI：怎么判别、能说什么 |
+| [`LIMITATIONS.md`](knowledge/LIMITATIONS.md) | 边界说明——每个数能代表什么、不能代表什么（18 条） |
 | [`examples/`](examples/) | 两份不用 VASP 就能看的完整产物树 |
-| [`P4_2_KAGOME_RUNBOOK.md`](P4_2_KAGOME_RUNBOOK.md) | kagome 物理层手册，等机时就能跑 |
+| [`P4_2_KAGOME_RUNBOOK.md`](knowledge/P4_2_KAGOME_RUNBOOK.md) | kagome 物理层手册，等机时就能跑 |
 | [`CHANGELOG.md`](CHANGELOG.md) · [`CITATION.cff`](CITATION.cff) | 版本历史 · 引用元数据 |
 
 

@@ -923,7 +923,7 @@ REGISTRY: dict[str, Spec] = {s.key: s for s in (
                                                 + sqrt3_label(c.n0, c.n1, 3))),
         ),
         selected=("fm", "q0_120", "sq3_updntri", "sq3_alt"),
-        # S=1 占位: Fe3Sn 的 S 未在仓库定值, 反解出的 J 绝对值随 S² 缩放 (见 LIMITATIONS.md)。
+        # S=1 占位: Fe3Sn 的 S 未在仓库定值, 反解出的 J 绝对值随 S² 缩放 (见 knowledge/LIMITATIONS.md)。
         spin=1.0,
         policy="shift_search",
         nshift=1,

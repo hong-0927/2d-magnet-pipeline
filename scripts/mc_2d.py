@@ -140,7 +140,7 @@ def stag_signs(neighbors, J_array, num_basis):
 def sublattice_signs(num_basis, size, mask):
     """**逐子晶格 Néel 矢量**序参量的格点符号 (±1): mask 里的子晶格为 A (+1), 其余为 B (-1)。
 
-    P5 (交变磁体) / NEW_TYPES_PLAN.md 第 24 项。与 `stag_signs` 的 `num_basis >= 2` 分支同构:
+    P5 (交变磁体) / knowledge/NEW_TYPES_PLAN.md 第 24 项。与 `stag_signs` 的 `num_basis >= 2` 分支同构:
     **`mask = {0}` 就是老的交错序参量** ⇒ 双亚晶格体系(蜂窝/FGT/三角)逐位不变, 可作回归锚点。
     与 `stag_signs` 的区别是分组由调用方给(而不是写死 basis 0 vs 其余), 所以 basis >= 3
     (三角/kagome)也能取任意子晶格组合 —— 交变磁体要的就是「两套子晶格各自一个 Néel 矢量」。
