@@ -123,7 +123,7 @@ py -m pip install -e .
 py scripts\make_skill_bundle.py . dist
 ```
 
-That produces `dist/2d-magnet-skill-0.1.0.zip` (plus `.sha256`): `SKILL.md` sits at the archive root, and `run_2d_magnet.py`, `scripts/`, `knowledge/`, `tests/`, `examples/` and `templates/` ship inside it, with the in-package paths rewritten to the bundle root (`bin/2d-magnet.cmd` locates it via `%~dp0..`, so the working directory does not matter). Drop the unpacked `2d-magnet-skill-0.1.0/` into your harness skill directory — `~/.claude/skills/` for Claude Code, or `.claude/skills/` inside a project; for an `AGENTS.md`-style harness, point the agent at the bundle-root `SKILL.md`. Inside the bundle, `python tests/smoke_test.py` runs all 29 self-check sections without VASP or network.
+That produces `dist/2d-magnet-skill-0.1.0.zip` (plus `.sha256`): `SKILL.md` sits at the archive root, and `run_2d_magnet.py`, `scripts/`, `knowledge/`, `tests/`, `examples/` and `templates/` ship inside it, with the in-package paths rewritten to the bundle root (`bin/magnet.cmd` locates it via `%~dp0..`, so the working directory does not matter). Drop the unpacked `2d-magnet-skill-0.1.0/` into your harness skill directory — `~/.claude/skills/` for Claude Code, or `.claude/skills/` inside a project; for an `AGENTS.md`-style harness, point the agent at the bundle-root `SKILL.md`. Inside the bundle, `python tests/smoke_test.py` runs all 29 self-check sections without VASP or network.
 
 Inside the bundle, `scripts/magnetic_orders.py --regress` skips the two specs whose POSCARs live in workspace project directories (the MnI2 and Fe3Sn chains), regresses the rest, and still ends with "全部 PASS".
 

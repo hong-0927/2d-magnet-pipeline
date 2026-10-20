@@ -123,7 +123,7 @@ py -m pip install -e .
 py scripts\make_skill_bundle.py . dist
 ```
 
-产出 `dist/2d-magnet-skill-0.1.0.zip`（附 `.sha256`）：`SKILL.md` 在包根，`run_2d_magnet.py`、`scripts/`、`knowledge/`、`tests/`、`examples/`、`templates/` 一并内置，包内路径已改写成包根（`bin/2d-magnet.cmd` 按 `%~dp0..` 定位，不依赖 CWD）。解压后把 `2d-magnet-skill-0.1.0/` 整个放进 harness 技能目录——Claude Code 是 `~/.claude/skills/`，或项目内 `.claude/skills/`；`AGENTS.md` 风格的 harness 直接让 agent 读包根 `SKILL.md`。包里 `python tests/smoke_test.py` 可独立跑完 29 节自检（不碰 VASP、不碰网络）。
+产出 `dist/2d-magnet-skill-0.1.0.zip`（附 `.sha256`）：`SKILL.md` 在包根，`run_2d_magnet.py`、`scripts/`、`knowledge/`、`tests/`、`examples/`、`templates/` 一并内置，包内路径已改写成包根（`bin/magnet.cmd` 按 `%~dp0..` 定位，不依赖 CWD）。解压后把 `2d-magnet-skill-0.1.0/` 整个放进 harness 技能目录——Claude Code 是 `~/.claude/skills/`，或项目内 `.claude/skills/`；`AGENTS.md` 风格的 harness 直接让 agent 读包根 `SKILL.md`。包里 `python tests/smoke_test.py` 可独立跑完 29 节自检（不碰 VASP、不碰网络）。
 
 包里 `scripts/magnetic_orders.py --regress` 会跳过指向工作区项目目录的两条规格（MnI2、Fe3Sn 链路的 POSCAR 不在包内），其余规格照常回归，末行仍是「全部 PASS」。
 

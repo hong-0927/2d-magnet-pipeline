@@ -9,7 +9,7 @@
 
     2d-magnet-skill-<version>/
         SKILL.md                  ← skill 入口（frontmatter 保留；路径措辞改成「包根」）
-        bin/2d-magnet.cmd         ← 封装脚本（ROOT 改成 %~dp0..）
+        bin/magnet.cmd         ← 封装脚本（ROOT 改成 %~dp0..）
         run_2d_magnet.py
         scripts/  knowledge/  tests/  examples/  templates/
         capabilities.json  requirements.txt  pyproject.toml  install.*  README*.md ...
@@ -45,7 +45,7 @@ SKIP_FILES = {".gitignore", ".gitattributes", "MANIFEST.in"}
 # SKILL.md 里必须改写到位、否则解压后路径全断的措辞。
 SKILL_REWRITES = (
     ("（本 SKILL.md 所在目录的\n上两级）", "（即本 SKILL.md 所在的包根目录）"),
-    ("`<repo>\\skill\\bin\\2d-magnet.cmd`", "`<repo>\\bin\\2d-magnet.cmd`"),
+    ("`<repo>\\skill\\bin\\magnet.cmd`", "`<repo>\\bin\\magnet.cmd`"),
     ("（它按 `%~dp0..\\..` 自己定位", "（它按 `%~dp0..` 自己定位"),
 )
 CMD_REWRITES = (
@@ -78,11 +78,11 @@ def main():
     names = [n for n in release_files(root) if wants(n.replace(os.sep, "/"))]
 
     skill_src = os.path.join(root, "skill", "2d-magnet", "SKILL.md")
-    cmd_src = os.path.join(root, "skill", "bin", "2d-magnet.cmd")
+    cmd_src = os.path.join(root, "skill", "bin", "magnet.cmd")
     with io.open(skill_src, encoding="utf-8") as fh:
         skill = rewrite(fh.read(), SKILL_REWRITES, "SKILL.md")
     with io.open(cmd_src, encoding="utf-8") as fh:
-        cmd = rewrite(fh.read(), CMD_REWRITES, "2d-magnet.cmd")
+        cmd = rewrite(fh.read(), CMD_REWRITES, "magnet.cmd")
     if "\nname: 2d-magnet" not in skill:
         raise SystemExit("[error] SKILL.md 缺 frontmatter name: 2d-magnet")
 
@@ -93,7 +93,7 @@ def main():
     os.makedirs(outdir, exist_ok=True)
     out = os.path.join(outdir, "2d-magnet-skill-%s.zip" % ver)
     entries = [(prefix + "SKILL.md", skill.encode("utf-8")),
-               (prefix + "bin/2d-magnet.cmd", cmd.encode("utf-8"))]
+               (prefix + "bin/magnet.cmd", cmd.encode("utf-8"))]
     for rel in names:
         with open(os.path.join(root, rel), "rb") as fh:
             entries.append((prefix + rel.replace(os.sep, "/"), fh.read()))

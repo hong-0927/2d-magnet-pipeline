@@ -11,12 +11,14 @@
 ## [Unreleased]
 
 ### Changed — 目录与文件按用途命名（不改行为）
-- `dsh/` → `skill/`：仓库直接装 skill，包根就是 `skill/2d-magnet/`，入口 `skill/bin/2d-magnet.cmd`
+- `dsh/` → `skill/`：仓库直接装 skill，包根就是 `skill/2d-magnet/`，入口 `skill/bin/magnet.cmd`
   （wrapper 按 `%~dp0..\..` 定位仓库根，仓库内与 skill 包内都能跑）。
 - `tests/fixtures/legacy/` → `tests/fixtures/regression/`：这 9 套 POSCAR + 磁序规格是 `--regress` 的
   回归夹具，不是历史遗留。
 - `knowledge/P4_2_KAGOME_RUNBOOK.md` → `knowledge/KAGOME_RUNBOOK.md`；
   `knowledge/NEW_TYPES_PLAN.md` → `knowledge/LATTICE_ROADMAP.md`：按内容命名，公开页面不再出现阶段编号。
+- `skill/bin/2d-magnet.cmd` → `skill/bin/magnet.cmd`：文件名不再与 `skill/2d-magnet/` 目录名重复；
+  用法不变（`magnet.cmd <args>` 等价于 `python run_2d_magnet.py --quiet <args>`），skill 包内为 `bin/magnet.cmd`。
 - 同步改写 45 处引用（文档 / 脚本注释 / 测试 / sdist 清单 / MANIFEST），`MANIFEST.in` 改为
   `recursive-include skill *`；`tests/check_sdist.py` 的必备清单同步为 `skill/2d-magnet/SKILL.md`。
   历史提交信息另行重写为功能描述（不改代码）。
@@ -25,7 +27,7 @@
 - 新增 `scripts/make_skill_bundle.py`：产出 `dist/2d-magnet-skill-<ver>.zip` + `.sha256`。
   `SKILL.md` 在包根（harness 的 `<skills>/<name>/SKILL.md` 约定），`run_2d_magnet.py`、`scripts/`、
   `knowledge/`、`tests/`、`examples/`、`templates/` 一并内置，包内路径改写到包根，
-  `bin/2d-magnet.cmd` 改用 `%~dp0..` 自定位；文件清单取自 git、时间戳取 HEAD 提交时间，重复构建字节一致。
+  `bin/magnet.cmd` 改用 `%~dp0..` 自定位；文件清单取自 git、时间戳取 HEAD 提交时间，重复构建字节一致。
 - **README §6 更正**：`skill/2d-magnet/` 只拷目录**不是**自包含 skill（它驱动仓库里的 `run_2d_magnet.py`
   与 `scripts/`），旧文案「把整个目录拷进技能目录」会把 skill 装成断链；现改为「用 skill 包」。
 - `scripts/magnetic_orders.py --regress` 对结构不在本包内的规格（MnI2、Fe3Sn 链路指向工作区项目目录）

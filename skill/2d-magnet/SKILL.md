@@ -16,13 +16,13 @@ description: >-
 
 **运行前提（先确认，否则相对路径全断）**：下面所有示例都假定**当前工作目录就是 `<repo>`**
 （`cd /d <repo>`）—— `tests/fixtures/...`、`scripts/...`、`run_2d_magnet.py` 一律是相对 `<repo>` 的路径。
-从别处调用时，要么先 `cd`，要么用封装脚本 `<repo>\skill\bin\2d-magnet.cmd`（它按 `%~dp0..\..` 自己定位
+从别处调用时，要么先 `cd`，要么用封装脚本 `<repo>\skill\bin\magnet.cmd`（它按 `%~dp0..\..` 自己定位
 `<repo>`，**不依赖 CWD**）。**一条自检入口**（不跑 DFT、也不依赖 CWD）：`python "<repo>\tests\smoke_test.py"`
 —— §1–§29 主回归，通过时最后一行是「全部通过」且退出码 0；只想核对某一层就用各脚本的 `--selftest` /
 `--demo`（清单见 README 的「脚本级自检」节）。
 
 **命令封装**（Windows cmd，自动带 `--quiet`）：
-`<repo>\skill\bin\2d-magnet.cmd`
+`<repo>\skill\bin\magnet.cmd`
 等价于 `python "<repo>\run_2d_magnet.py" --quiet <args>`。Python 需 numpy/numba/matplotlib/requests
 （`pip install -r requirements.txt` 即可；`.cmd` 会按 `%MAGNET_PYTHON%` → `python` → `py` 顺序找解释器）。
 
