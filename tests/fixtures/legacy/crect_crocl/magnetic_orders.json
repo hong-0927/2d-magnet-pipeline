@@ -1,0 +1,268 @@
+{
+  "input": "C:\\Users\\\u5434\\Desktop\\\u9879\u76ee\\CrOCl_pipeline\\01_structure\\POSCAR",
+  "supercell": [
+    4,
+    4,
+    1
+  ],
+  "n_atoms": 96,
+  "n_mag": 32,
+  "element": "Cr",
+  "nonmag": [
+    "O",
+    "Cl"
+  ],
+  "stoichiometry_per_cell": {
+    "Cr": 2,
+    "O": 2,
+    "Cl": 2
+  },
+  "formula_per_cell": "Cr2O2Cl2",
+  "n_cells": 16,
+  "moment": 3.0,
+  "spin": 1.5,
+  "S2": 2.25,
+  "shell_tol": 0.05,
+  "shells_angstrom": {
+    "J1": 3.0347071325193,
+    "J2": 3.19795066,
+    "J3": 3.86026201
+  },
+  "per_site_bonds": {
+    "J1": 4.0,
+    "J2": 2.0,
+    "J3": 2.0
+  },
+  "selected_orders": [
+    "fm",
+    "afm_c",
+    "afm_a",
+    "afm_b"
+  ],
+  "all_orders": [
+    "fm",
+    "afm_c",
+    "afm_a",
+    "afm_b",
+    "afm_diag",
+    "afm_c_a",
+    "afm_c_diag"
+  ],
+  "noncollinear": false,
+  "coefficients_per_cell": {
+    "fm": [
+      -64.0,
+      -32.0,
+      -32.0
+    ],
+    "afm_c": [
+      64.0,
+      -32.0,
+      -32.0
+    ],
+    "afm_a": [
+      -0.0,
+      32.0,
+      -32.0
+    ],
+    "afm_b": [
+      -0.0,
+      -32.0,
+      32.0
+    ],
+    "afm_diag": [
+      -0.0,
+      32.0,
+      32.0
+    ],
+    "afm_c_a": [
+      -0.0,
+      32.0,
+      -32.0
+    ],
+    "afm_c_diag": [
+      -0.0,
+      32.0,
+      32.0
+    ]
+  },
+  "coefficients_per_mag": {
+    "fm": [
+      -2.0,
+      -1.0,
+      -1.0
+    ],
+    "afm_c": [
+      2.0,
+      -1.0,
+      -1.0
+    ],
+    "afm_a": [
+      -0.0,
+      1.0,
+      -1.0
+    ],
+    "afm_b": [
+      -0.0,
+      -1.0,
+      1.0
+    ],
+    "afm_diag": [
+      -0.0,
+      1.0,
+      1.0
+    ],
+    "afm_c_a": [
+      -0.0,
+      1.0,
+      -1.0
+    ],
+    "afm_c_diag": [
+      -0.0,
+      1.0,
+      1.0
+    ]
+  },
+  "inversion_matrix_per_cell": [
+    [
+      0.0,
+      0.0,
+      0.5,
+      0.5
+    ],
+    [
+      -0.0078125,
+      0.0078125,
+      0.0,
+      0.0
+    ],
+    [
+      -0.0078125,
+      -0.0078125,
+      0.015625,
+      0.0
+    ],
+    [
+      -0.0078125,
+      -0.0078125,
+      0.0,
+      0.015625
+    ]
+  ],
+  "design_det": 524287.99999999994,
+  "design_cond": 64.01563072064714,
+  "order_spec": [
+    {
+      "name": "fm",
+      "kind": "collinear",
+      "rule": "sigma_i = +1 (\u5168\u540c\u5411)",
+      "coeffs": [
+        -64.0,
+        -32.0,
+        -32.0
+      ]
+    },
+    {
+      "name": "afm_c",
+      "kind": "collinear",
+      "rule": "sigma = basis (C \u5fc3\u7f51 Neel: \u540c\u80de\u4e24\u4e2a\u78c1\u539f\u5b50\u53cd\u5e73\u884c)",
+      "coeffs": [
+        64.0,
+        -32.0,
+        -32.0
+      ]
+    },
+    {
+      "name": "afm_a",
+      "kind": "collinear",
+      "rule": "sigma = (-1)^n0 (\u6cbf b \u7684\u6761\u7eb9)",
+      "coeffs": [
+        -0.0,
+        32.0,
+        -32.0
+      ]
+    },
+    {
+      "name": "afm_b",
+      "kind": "collinear",
+      "rule": "sigma = (-1)^n1 (\u6cbf a \u7684\u6761\u7eb9)",
+      "coeffs": [
+        -0.0,
+        -32.0,
+        32.0
+      ]
+    },
+    {
+      "name": "afm_diag",
+      "kind": "collinear",
+      "rule": "sigma = (-1)^(n0+n1) (\u68cb\u76d8)",
+      "coeffs": [
+        -0.0,
+        32.0,
+        32.0
+      ]
+    },
+    {
+      "name": "afm_c_a",
+      "kind": "collinear",
+      "rule": "sigma = basis * (-1)^n0 (\u5bf9\u7167: \u4e0e afm_a \u5b8c\u5168\u7b80\u5e76)",
+      "coeffs": [
+        -0.0,
+        32.0,
+        -32.0
+      ]
+    },
+    {
+      "name": "afm_c_diag",
+      "kind": "collinear",
+      "rule": "sigma = basis * (-1)^(n0+n1) (\u5bf9\u7167: \u4e0e afm_diag \u5b8c\u5168\u7b80\u5e76)",
+      "coeffs": [
+        -0.0,
+        32.0,
+        32.0
+      ]
+    }
+  ],
+  "model_spec": {
+    "schema": "model_spec/1",
+    "lattice": "rect_centered",
+    "label": "C \u5fc3\u77e9\u5f62\u591a\u4e9a\u6676\u683c (2 \u78c1\u6027\u539f\u5b50/\u80de)",
+    "element": "Cr",
+    "nonmag": [
+      "O",
+      "Cl"
+    ],
+    "spin": 1.5,
+    "S2": 2.25,
+    "supercell": [
+      4,
+      4,
+      1
+    ],
+    "policy": "shift_search",
+    "nshift": 1,
+    "noncollinear": false,
+    "n_mag": 32,
+    "n_basis_mag": 2,
+    "shells": [
+      {
+        "name": "J1",
+        "d": 3.0347071325193,
+        "tol": 0.05,
+        "pair": null
+      },
+      {
+        "name": "J2",
+        "d": 3.19795066,
+        "tol": 0.05,
+        "pair": null
+      },
+      {
+        "name": "J3",
+        "d": 3.86026201,
+        "tol": 0.05,
+        "pair": null
+      }
+    ]
+  }
+}

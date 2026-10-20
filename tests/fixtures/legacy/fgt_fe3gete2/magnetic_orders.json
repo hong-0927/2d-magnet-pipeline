@@ -1,0 +1,171 @@
+{
+  "system": "Fe3GeTe2 monolayer (two-sublattice)",
+  "model": "H = -sum_k J_k sum_<ij>_k S_i.S_j  (J>0 = FM); E(supercell) = N_cell*E0 + sum_k C_k*J~_k, J~=J*S^2",
+  "sublattices": {
+    "A": "Fe I 2c (1/cell)",
+    "B": "Fe II 4e (2/cell)"
+  },
+  "supercell": [
+    3,
+    3,
+    1
+  ],
+  "n_cell": 9,
+  "n_mag": 27,
+  "spin_S": 1.0,
+  "moment_muB": 2.0,
+  "shells": [
+    {
+      "label": "J1",
+      "pair": "AB",
+      "d_A": 2.63,
+      "bonds_per_cell": 6,
+      "desc": "A-B 最近邻 (主体铁磁耦合)",
+      "used": true
+    },
+    {
+      "label": "J2",
+      "pair": "BB",
+      "d_A": 2.55,
+      "bonds_per_cell": 1,
+      "desc": "B-B 胞内竖直对",
+      "used": true
+    },
+    {
+      "label": "J3",
+      "pair": "AA",
+      "d_A": 3.99,
+      "bonds_per_cell": 3,
+      "desc": "A-A 面内三角",
+      "used": true
+    },
+    {
+      "label": "J4",
+      "pair": "BB",
+      "d_A": 3.99,
+      "bonds_per_cell": 6,
+      "desc": "B-B 面内三角",
+      "used": true
+    },
+    {
+      "label": "J5",
+      "pair": "AB",
+      "d_A": 4.78,
+      "bonds_per_cell": null,
+      "desc": "A-B 次近邻",
+      "used": false
+    }
+  ],
+  "configurations": [
+    {
+      "name": "fm",
+      "desc": "全部 Fe 同向 (参考态, 定 E0)",
+      "coeffs": [
+        -54.0,
+        -9.0,
+        -27.0,
+        -54.0
+      ],
+      "m_total_muB": 54.0
+    },
+    {
+      "name": "afm_ab",
+      "desc": "A↑B↓ 亚铁磁 (主要定 J1)",
+      "coeffs": [
+        54.0,
+        -9.0,
+        -27.0,
+        -54.0
+      ],
+      "m_total_muB": -18.0
+    },
+    {
+      "name": "afm_b_vert",
+      "desc": "A↑, B 的胞内竖直对反向 (定 J2)",
+      "coeffs": [
+        -0.0,
+        9.0,
+        -27.0,
+        -54.0
+      ],
+      "m_total_muB": 18.0
+    },
+    {
+      "name": "afm_a",
+      "desc": "A 面内棋盘反向, B↑ (定 J3)",
+      "coeffs": [
+        -6.0,
+        -9.0,
+        5.0,
+        -54.0
+      ],
+      "m_total_muB": 38.0
+    },
+    {
+      "name": "afm_b_plane",
+      "desc": "A↑, B 面内棋盘反向 (定 J4)",
+      "coeffs": [
+        -6.0,
+        -9.0,
+        -27.0,
+        10.0
+      ],
+      "m_total_muB": 22.0
+    }
+  ],
+  "coefficient_matrix": {
+    "rows": [
+      "fm",
+      "afm_ab",
+      "afm_b_vert",
+      "afm_a",
+      "afm_b_plane"
+    ],
+    "cols": [
+      "E0",
+      "J1",
+      "J2",
+      "J3",
+      "J4"
+    ],
+    "M": [
+      [
+        1.0,
+        -54.0,
+        -9.0,
+        -27.0,
+        -54.0
+      ],
+      [
+        1.0,
+        54.0,
+        -9.0,
+        -27.0,
+        -54.0
+      ],
+      [
+        1.0,
+        -0.0,
+        9.0,
+        -27.0,
+        -54.0
+      ],
+      [
+        1.0,
+        -6.0,
+        -9.0,
+        5.0,
+        -54.0
+      ],
+      [
+        1.0,
+        -6.0,
+        -9.0,
+        -27.0,
+        10.0
+      ]
+    ],
+    "cond": 178.54906597128297
+  },
+  "poscar": "Fe3GeTe2_monolayer_POSCAR (vendored in tests/fixtures/)"
+}

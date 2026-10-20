@@ -52,7 +52,17 @@ ROOT = os.path.dirname(os.path.dirname(HERE))  # scripts -> 2d_magnet_pipeline -
 
 
 def resolve(path: str) -> str:
-    return path if os.path.isabs(path) else os.path.join(ROOT, path)
+    """相对路径先按项目根解析（真实材料目录），再回退到仓库根。
+
+    仓库自带的 tests/fixtures/legacy/<chain>/ 让契约测试与 --regress 在没有
+    作者本机 <formula>_pipeline/ 目录时也能跑。
+    """
+    if os.path.isabs(path):
+        return path
+    cand = os.path.join(ROOT, path)
+    if os.path.exists(cand):
+        return cand
+    return os.path.join(os.path.dirname(HERE), path)
 
 
 # =====================================================================
@@ -642,6 +652,9 @@ def _basis_sign(c):
     return np.where(pid == pid.min(), 1.0, -1.0)
 
 
+# 每条链路的结构与旧磁序快照都放在 tests/fixtures/legacy/<key>/
+# （POSCAR + 该链路 magnetic_orders.json 的副本），这样全新克隆、CI 或换一台机器
+# 都能跑 --regress 与契约测试，不依赖作者本机的 <formula>_pipeline/ 目录。
 REGISTRY: dict[str, Spec] = {s.key: s for s in (
 
     # ---------------- 三角 (MnI2): 1 磁位/胞, 60° 晶格; 默认全共线四态 ----------------
@@ -651,7 +664,7 @@ REGISTRY: dict[str, Spec] = {s.key: s for s in (
         key="tri_mni2",
         label="三角单离子 (MnI2)",
         structure=StructureSpec(
-            poscar="MnI2_pipeline/01_structure/POSCAR", element="Mn",
+            poscar="tests/fixtures/legacy/tri_mni2/POSCAR", element="Mn",
             nonmag=("I",), supercell=(5, 5, 1)),
         shells=(
             Shell("J1", 4.168580934901683),
@@ -668,7 +681,7 @@ REGISTRY: dict[str, Spec] = {s.key: s for s in (
         ),
         selected=("fm", "stripy_a", "stripy_ab", "uud"),
         spin=2.5,
-        fixture="MnI2_pipeline/02_supercell/cases/magnetic_orders.json",
+        fixture="tests/fixtures/legacy/tri_mni2/magnetic_orders.json",
         fixture_kind="coefficients_per_cell",
     ),
 
@@ -677,7 +690,7 @@ REGISTRY: dict[str, Spec] = {s.key: s for s in (
         key="rect_crsbr",
         label="矩形单离子 (CrSBr)",
         structure=StructureSpec(
-            poscar="CrSBr_pipeline_v2/01_structure/POSCAR", element="Cr",
+            poscar="tests/fixtures/legacy/rect_crsbr/POSCAR", element="Cr",
             nonmag=("S", "Br"), supercell=(4, 4, 1)),
         shells=(
             Shell("J1", 3.5404561399999994),
@@ -693,7 +706,7 @@ REGISTRY: dict[str, Spec] = {s.key: s for s in (
         selected=("fm", "afm_a", "afm_b", "afm_diag"),
         spin=1.5,
         policy="shift_search",
-        fixture="CrSBr_pipeline_v2/02_supercell/cases/magnetic_orders.json",
+        fixture="tests/fixtures/legacy/rect_crsbr/magnetic_orders.json",
         fixture_kind="coefficients_per_cell",
     ),
 
@@ -711,7 +724,7 @@ REGISTRY: dict[str, Spec] = {s.key: s for s in (
         key="sq_k2nif4",
         label="方形单离子 (K2NiF4)",
         structure=StructureSpec(
-            poscar="K2NiF4_pipeline/01_structure/POSCAR", element="Ni",
+            poscar="tests/fixtures/legacy/sq_k2nif4/POSCAR", element="Ni",
             nonmag=("K", "F"), supercell=(4, 4, 1)),
         shells=(
             Shell("J1", 4.0172),
@@ -729,7 +742,7 @@ REGISTRY: dict[str, Spec] = {s.key: s for s in (
         selected=("fm", "stripe_a", "p4_a", "mix_ab"),
         spin=1.0,
         policy="shift_search", nshift=1,
-        fixture="K2NiF4_pipeline/02_supercell/cases/magnetic_orders.json",
+        fixture="tests/fixtures/legacy/sq_k2nif4/magnetic_orders.json",
         fixture_kind="coefficients_per_cell",
     ),
 
@@ -752,7 +765,7 @@ REGISTRY: dict[str, Spec] = {s.key: s for s in (
         key="sq_la2cuo4",
         label="方形单离子 (La2CuO4)",
         structure=StructureSpec(
-            poscar="La2CuO4_pipeline/01_structure/POSCAR", element="Cu",
+            poscar="tests/fixtures/legacy/sq_la2cuo4/POSCAR", element="Cu",
             nonmag=("La", "O"), supercell=(4, 4, 1)),
         shells=(
             Shell("J1", 3.7992),
@@ -770,7 +783,7 @@ REGISTRY: dict[str, Spec] = {s.key: s for s in (
         selected=("fm", "stripe_a", "p4_a", "mix_ab"),
         spin=0.5,
         policy="shift_search", nshift=1,
-        fixture="La2CuO4_pipeline/02_supercell/cases/magnetic_orders.json",
+        fixture="tests/fixtures/legacy/sq_la2cuo4/magnetic_orders.json",
         fixture_kind="coefficients_per_cell",
     ),
 
@@ -795,7 +808,7 @@ REGISTRY: dict[str, Spec] = {s.key: s for s in (
         key="crect_crocl",
         label="C 心矩形多亚晶格 (CrOCl)",
         structure=StructureSpec(
-            poscar="CrOCl_pipeline/01_structure/POSCAR", element="Cr",
+            poscar="tests/fixtures/legacy/crect_crocl/POSCAR", element="Cr",
             nonmag=("O", "Cl"), supercell=(4, 4, 1)),
         shells=(
             Shell("J1", 3.034707132522032, tol=0.05),
@@ -814,7 +827,7 @@ REGISTRY: dict[str, Spec] = {s.key: s for s in (
         selected=("fm", "afm_c", "afm_a", "afm_b"),
         spin=1.5,
         policy="shift_search", nshift=1,
-        fixture="CrOCl_pipeline/02_supercell/cases/magnetic_orders.json",
+        fixture="tests/fixtures/legacy/crect_crocl/magnetic_orders.json",
         fixture_kind="coefficients_per_cell",
     ),
 
@@ -823,7 +836,7 @@ REGISTRY: dict[str, Spec] = {s.key: s for s in (
         key="honeycomb_mnps3",
         label="蜂窝单离子 (MnPS3)",
         structure=StructureSpec(
-            poscar="MnPS3_pipeline/01_structure/POSCAR", element="Mn",
+            poscar="tests/fixtures/legacy/honeycomb_mnps3/POSCAR", element="Mn",
             nonmag=("P", "S"), supercell=(2, 2, 1)),
         shells=(
             Shell("J1", 3.506189543925007),
@@ -841,7 +854,7 @@ REGISTRY: dict[str, Spec] = {s.key: s for s in (
         post=_honeycomb_zigzag_stripy,
         spin=2.5,
         policy="shift_search",
-        fixture="MnPS3_pipeline/02_supercell/cases/magnetic_orders.json",
+        fixture="tests/fixtures/legacy/honeycomb_mnps3/magnetic_orders.json",
         fixture_kind="coefficients_per_cell",
     ),
 
@@ -850,7 +863,7 @@ REGISTRY: dict[str, Spec] = {s.key: s for s in (
         key="cluster_nb3i8",
         label="簇磁体 (Nb3I8 三聚体)",
         structure=StructureSpec(
-            poscar="Nb3I8_pipeline/01_structure/POSCAR", element="Nb",
+            poscar="tests/fixtures/legacy/cluster_nb3i8/POSCAR", element="Nb",
             nonmag=("I",), supercell=(5, 5, 1)),
         cluster=ClusterModel(
             cutoff=3.5,
@@ -859,7 +872,7 @@ REGISTRY: dict[str, Spec] = {s.key: s for s in (
             R=3, tol=0.5),
         orders=_cluster_orders(),
         spin=1.0,
-        fixture="Nb3I8_pipeline/02_supercell/cases_j123/magnetic_orders.json",
+        fixture="tests/fixtures/legacy/cluster_nb3i8/magnetic_orders.json",
         fixture_kind="cluster",
     ),
 
@@ -868,7 +881,7 @@ REGISTRY: dict[str, Spec] = {s.key: s for s in (
         key="fgt_fe3gete2",
         label="双亚晶格铁磁网络 (Fe3GeTe2)",
         structure=StructureSpec(
-            poscar="Fe3GeTe2_pipeline/01_structure/POSCAR", element="Fe",
+            poscar="tests/fixtures/legacy/fgt_fe3gete2/POSCAR", element="Fe",
             nonmag=("Ge", "Te"), supercell=(3, 3, 1),
             sublattice_names=("B0", "B1", "A"),
             sublattice_family=("B", "B", "A")),
@@ -889,7 +902,7 @@ REGISTRY: dict[str, Spec] = {s.key: s for s in (
         ),
         selected=("fm", "afm_ab", "afm_b_vert", "afm_a", "afm_b_plane"),
         spin=1.0,
-        fixture="2d_magnet_pipeline/tests/fixtures/fgt_cases/magnetic_orders.json",
+        fixture="tests/fixtures/legacy/fgt_fe3gete2/magnetic_orders.json",
         fixture_kind="configurations",
     ),
 
@@ -907,7 +920,7 @@ REGISTRY: dict[str, Spec] = {s.key: s for s in (
         key="kagome_fe3sn",
         label="六角 kagome (Fe3Sn)",
         structure=StructureSpec(
-            poscar="Fe3Sn_pipeline/01_structure/POSCAR", element="Fe",
+            poscar="tests/fixtures/legacy/kagome_fe3sn/POSCAR", element="Fe",
             nonmag=("Sn",), supercell=(3, 3, 1),
             sublattice_names=("A", "B", "C")),
         shells=(
@@ -930,7 +943,7 @@ REGISTRY: dict[str, Spec] = {s.key: s for s in (
         spin=1.0,
         policy="shift_search",
         nshift=1,
-        fixture="Fe3Sn_pipeline/02_supercell/cases/magnetic_orders.json",
+        fixture="tests/fixtures/legacy/kagome_fe3sn/magnetic_orders.json",
         fixture_kind="coefficients_per_cell",
     ),
 )}
