@@ -217,8 +217,11 @@ def print_audit(meta, audit):
         print("  没有倾斜序（magnetic_orders.json 不含 cant_orders）—— 只有共线序, 走老路径即可")
     for nm, ent in audit["orders"].items():
         d = ent["delta_vs_base"]
+        # 浮点噪声不该改变结论行的字面: 偏差在容差的千分之一以下就按 0 报,
+        # 否则跨 numpy/BLAS 平台最后一位抖动会让「最大偏差=0」这条断言随机变红。
+        _dev = "0" if ent["max_dev"] <= max(audit["tol"] * 1e-3, 1e-12) else f"{ent['max_dev']:.3g}"
         print(f"  {nm:<12} θ={ent['theta_deg']:+8.4g}°  母序={ent['base']:<10} "
-              f"最大偏差={ent['max_dev']:.3g}  与母序系数差={['%+.4g' % x for x in d]}")
+              f"最大偏差={_dev}  与母序系数差={['%+.4g' % x for x in d]}")
     for pair in audit["degenerate_pairs"]:
         print(f"  [退化] {' / '.join(pair)} 的系数**逐位相同** ⇒ 总能量完全不可区分"
               f"（cos2θ 是偶函数 ⇒ θ 的符号不可辨识）")

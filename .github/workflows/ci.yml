@@ -80,8 +80,10 @@ jobs:
           New-Item -ItemType Directory -Force -Path "$env:RUNNER_TEMP\pkgcheck" | Out-Null
           Set-Location "$env:RUNNER_TEMP\pkgcheck"
           python -c "import os, run_2d_magnet, scripts.magnetic_orders as m; d = os.path.dirname(m.__file__); assert os.path.exists(os.path.join(d, 'literature_J.json')), 'literature_J.json 没打进 wheel'; print('scripts ->', d)"
-          2d-magnet --version
-          2d-magnet --help | Select-Object -First 3
+          # PowerShell 里裸写 `2d-magnet` 会被解析成 `2d - magnet`（数字表达式），
+          # 所以用 & 调用字符串命令名。
+          & "2d-magnet" --version
+          & "2d-magnet" --help | Select-Object -First 3
 
       - name: 校验 sdist 内容（文档 / 手册 / skill / 样例 / 测试 / 骨架）
         shell: pwsh
