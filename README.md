@@ -20,7 +20,7 @@ The input is a `POSCAR`: from the Materials Project, from the public COD / OQMD 
 | **Non-collinear and SOC (side branch)** | `LNONCOLLINEAR` / `LSORBIT` / `SAXIS`, canted MAGMOM sets, and `scripts/solve_J_crect_cant.py` for the canted CrOCl family; the default route never touches this, and the MAE four-state set is the one branch that genuinely requires SOC + non-collinear |
 | **No invented parameters** | `--S/--moment/--U` fall back to a built-in table for Mn/Cr/Ni/Co/V/Gd only; Fe is deliberately absent (effective spin is ambiguous), so the driver stops and asks, and `null` literature entries raise an error instead of running |
 | **Boundaries you can query** | [`capabilities.json`](capabilities.json) states what each lattice and quantity reaches; `scripts/capabilities.py --check` keeps it in sync with the code, and `--show` prints the readable version |
-| **Also an agent skill** | `dsh/2d-magnet/SKILL.md` carries the conventions and gates for Claude Code, Codex or any agent that reads instruction files |
+| **Also an agent skill** | `skill/2d-magnet/SKILL.md` carries the conventions and gates for Claude Code, Codex or any agent that reads instruction files |
 | **Reproducible offline** | `examples/` holds two complete artifact trees you can inspect and regenerate without VASP; release packages are built deterministically by `scripts/make_release.py` (repository) and `scripts/make_skill_bundle.py` (agent skill) |
 | **Altermagnet check** | `scripts/altermagnet_check.py` tests whether the two sublattices are related by a spin-preserving operation (交变磁体 geometry, scalar order parameter) |
 
@@ -117,7 +117,7 @@ py -m pip install -e .
 
 **6. Optional: run it as an agent skill**
 
-`dsh/2d-magnet/SKILL.md` is the skill entry point (conventions, gates, driving instructions), but it drives the repository's `run_2d_magnet.py` and `scripts/` — **copying `dsh/2d-magnet/` alone gives you a manual, not the pipeline**. For something you can upload to a skill registry:
+`skill/2d-magnet/SKILL.md` is the skill entry point (conventions, gates, driving instructions), but it drives the repository's `run_2d_magnet.py` and `scripts/` — **copying `skill/2d-magnet/` alone gives you a manual, not the pipeline**. For something you can upload to a skill registry:
 
 ```powershell
 py scripts\make_skill_bundle.py . dist
@@ -217,12 +217,12 @@ python scripts/k_convergence.py --selftest    K-points planner
 | [`STRUCTURE.md`](STRUCTURE.md) | the organization convention — where new content goes |
 | [`KNOWN_ISSUES.md`](knowledge/KNOWN_ISSUES.md) | symptom → fix table, 27 error keys; `doctor` output points here |
 | [`WORKFLOW.md`](knowledge/WORKFLOW.md) | per-stage detail: file by file, option by option |
-| [`dsh/2d-magnet/SKILL.md`](dsh/2d-magnet/SKILL.md) | agent skill: conventions, gates, how to drive the pipeline |
+| [`skill/2d-magnet/SKILL.md`](skill/2d-magnet/SKILL.md) | agent skill: conventions, gates, how to drive the pipeline |
 | [`capabilities.json`](capabilities.json) | machine-readable capability boundary — lattice, quantity, supported level |
 | [`DMI_MTI_MEMO.md`](knowledge/DMI_MTI_MEMO.md) | DMI / MTI: how to tell them apart and what may be claimed |
 | [`LIMITATIONS.md`](knowledge/LIMITATIONS.md) | boundary statements — what each number does and does not mean (18 items) |
 | [`examples/`](examples/) | two complete artifact trees you can inspect without VASP |
-| [`P4_2_KAGOME_RUNBOOK.md`](knowledge/P4_2_KAGOME_RUNBOOK.md) | the kagome physics runbook, ready for machine time |
+| [`KAGOME_RUNBOOK.md`](knowledge/KAGOME_RUNBOOK.md) | the kagome physics runbook, ready for machine time |
 | [`CHANGELOG.md`](CHANGELOG.md) · [`CITATION.cff`](CITATION.cff) | version history · citation metadata |
 
 

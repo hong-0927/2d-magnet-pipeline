@@ -9,7 +9,7 @@
     加 `--lsorbit` 再开 `LSORBIT = .TRUE.` + `GGA_COMPAT = .FALSE.`（SOC，弱铁磁倾斜/
     DMI/kagome 所需）; `--saxis x y z` 可指定自旋量子化轴。
 
-不静默降级（NEW_TYPES_PLAN §115）——下面三条都是**硬报错**，不是警告:
+不静默降级（LATTICE_ROADMAP §115）——下面三条都是**硬报错**，不是警告:
   1. 磁序是 3 分量（非共线）却没给 `--noncollinear` ⇒ 拒绝按共线近似继续;
   2. 磁序需要 SOC（`cant`/`tilt`/`spiral` 系，见 `mag_vectors.needs_soc`）却没给
      `--lsorbit` ⇒ 拒绝算（没有 SOC 就没有弱铁磁倾斜这回事）;
@@ -308,7 +308,7 @@ def main(argv=None):
         if soc_orders:
             raise SystemExit(
                 f"磁序 {soc_orders} 需要 SOC (弱铁磁倾斜/螺旋), 但没给 --lsorbit => 拒绝按共线近似继续 "
-                f"(NEW_TYPES_PLAN §115)")
+                f"(LATTICE_ROADMAP §115)")
 
     default_line = default_magmom_line(species, counts, args.element, args.moment, args.noncollinear)
 
@@ -355,7 +355,7 @@ def main(argv=None):
     if not explicit_kmesh and n_atoms >= 60:
         print(f"[提示] 体系 {n_atoms} 个原子却用默认 k 网格 "
               f"{' '.join(str(x) for x in args.kpoints)}: 上真实机时前先做一次 k 收敛抽查 "
-              f"(knowledge/P4_2_KAGOME_RUNBOOK.md §1), 或用 --kpoints 指定")
+              f"(knowledge/KAGOME_RUNBOOK.md §1), 或用 --kpoints 指定")
     print(f"自旋模式: {mode}; 磁序 {n_written} 个: {orders}")
     print(f"MAGMOM 分量数: {3 if args.noncollinear else 1} / 原子; 原子总数 {n_atoms}"
           + (f"; SAXIS {args.saxis}" if args.saxis else ""))

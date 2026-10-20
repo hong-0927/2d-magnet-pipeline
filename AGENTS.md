@@ -1,7 +1,7 @@
 # AGENTS.md
 
 Instructions for any agent (or human) working in this repository. Read this first, then
-[`dsh/2d-magnet/SKILL.md`](dsh/2d-magnet/SKILL.md) for the full driving manual.
+[`skill/2d-magnet/SKILL.md`](skill/2d-magnet/SKILL.md) for the full driving manual.
 
 ## What this repository is
 
@@ -35,7 +35,7 @@ It is harness-neutral: anything that can read Markdown and run `python` can driv
 | `run_2d_magnet.py` | the driver: `fetch build dft ingest kconv mc solve render report doctor` |
 | `scripts/` | deterministic tools, all with `--help` and most with `--selftest` |
 | `knowledge/` | reference library: workflow, error catalog, limitations, DMI memo, runbook |
-| `dsh/2d-magnet/SKILL.md` | the agent skill (conventions, gates, per-stage recipes) |
+| `skill/2d-magnet/SKILL.md` | the agent skill (conventions, gates, per-stage recipes) |
 | `tests/` | `smoke_test.py` (29 sections) + 8 contract tests + `check_sdist.py` |
 | `examples/` | two complete artifact trees you can inspect without VASP |
 | `capabilities.json` | machine-readable capability boundary |

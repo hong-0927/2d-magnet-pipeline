@@ -145,7 +145,7 @@
   "design_det": -186624.00000000015,
   "shell_tol": 0.2,
   "n_cells": 9,
-  "q0_degeneracy_note": "q=0 \u4e00\u65cf (fm/q0_120/q0_ud/q0_duu) \u7684\u8bbe\u8ba1\u77e9\u9635\u79e9\u53ea\u6709 2: J1 \u4e0e J2 \u5728\u8be5\u65cf\u5185\u6bd4\u503c\u6052\u5b9a, \u5fc5\u987b\u9760 \u221a3\u00d7\u221a3 \u5e8f\u5206\u79bb (NEW_TYPES_PLAN P4 \u98ce\u9669\u6761)",
+  "q0_degeneracy_note": "q=0 \u4e00\u65cf (fm/q0_120/q0_ud/q0_duu) \u7684\u8bbe\u8ba1\u77e9\u9635\u79e9\u53ea\u6709 2: J1 \u4e0e J2 \u5728\u8be5\u65cf\u5185\u6bd4\u503c\u6052\u5b9a, \u5fc5\u987b\u9760 \u221a3\u00d7\u221a3 \u5e8f\u5206\u79bb (LATTICE_ROADMAP P4 \u98ce\u9669\u6761)",
   "order_spec": [
     {
       "name": "fm",

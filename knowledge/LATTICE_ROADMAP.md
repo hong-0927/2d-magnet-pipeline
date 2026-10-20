@@ -3,11 +3,11 @@
 范围：把技能文档新增的 6 类结构（六角 kagome、体相 DMI、磁性拓扑绝缘体、交变磁体、方形 K2NiF4、矩形/oxyhalide）从「识别 + 路由」推进到「可计算主链」，或明确其只能停留在识别层。
 本文只出计划与工期，不含代码。
 
-> **P6 时效声明（默认全共线）**：本文是历史计划，其中「120° 非共线构型」相关段落
+> **时效声明（默认全共线）**：本文是历史计划，其中「120° 非共线构型」相关段落
 > （§P3、§P4 里 `selected = fm/q0_120/...`、cond≈98.51 等）是**当时的快照**。
-> P6 起三角与 kagome 的默认路线都是**全共线**（`rank=4, cond≈3.7e3 / 101`），
+> 现在三角与 kagome 的默认路线都是**全共线**（`rank=4, cond≈3.7e3 / 101`），
 > 120° 只在显式 `--include-noncollinear` / `--noncollinear` 的对照支线里出现；
-> 当前口径以 [`../dsh/2d-magnet/SKILL.md`](../dsh/2d-magnet/SKILL.md) §2.0 与
+> 当前口径以 [`../skill/2d-magnet/SKILL.md`](../skill/2d-magnet/SKILL.md) §2.0 与
 > [`WORKFLOW.md`](WORKFLOW.md) 为准。
 
 ## 0. 勘察结论（计划的前提）
@@ -48,7 +48,7 @@
 |---|---|---|---|---|---|---|---|---|
 | 方形 K2NiF4 | ✅ | ✅ | ✅（共线，模板现成） | ✅（`staggered`） | ✅ | ✅ | **进主链（P1，✅ 已完成）** | 单磁性子晶格 + J1/J2/J3 三个距离壳，a=b 时 x/y 键长简并、合并到同壳**物理上正确** |
 | 矩形 / oxyhalide | ✅ | ✅ | ⚠（弱倾斜需 SOC） | ✅ | ⚠ | ✅ | **进主链（P2，✅ 已完成）**；弱 FM 倾斜 → **P2′ 已落地**（系数层 + 反解器；θ 是输入参数、无真实 SOC 能量，见 `LIMITATIONS.md` 11 与 §P2′） | 原判据（「复用已通的 `build_rectangular_cases.py`，增量只是元素/化学计量预设」）**被实测推翻**：CrOCl 是 **(½,½) C 心矩形网、2 个磁原子/胞**，且两 Cr 只差 3.03 Å < 簇判据 ⇒ 实际做法 = 修 `detect_lattice` 簇判据 + 新写 `build_crect_cases.py` / `solve_J_crect.py`（详见 §P2） |
-| 六角 kagome | ✅ | ⚠（q=0 与 √3×√3 需非共线） | ⚠（7 个内置序只需 `--noncollinear`；分离 J1/J1′ 才需 SOC） | ⚠（序参量需核对） | ✅ | ✅ | **系数层已进主链（P4.1 ✅）；物理层 = 手册 + 等真实非共线 DFT 机时（P4.2）** | 3 位 basis 在 `reduce_to_primitive`/`find_bonds` 下自然成立，卡点是 **J1 与 J1′ 在同距离上被 3 壳模型合并**（取平均）—— 要分离需要更细的构型 + SOC，本轮**不做**（见 `P4_2_KAGOME_RUNBOOK.md` §2/§9） |
+| 六角 kagome | ✅ | ⚠（q=0 与 √3×√3 需非共线） | ⚠（7 个内置序只需 `--noncollinear`；分离 J1/J1′ 才需 SOC） | ⚠（序参量需核对） | ✅ | ✅ | **系数层已进主链（P4.1 ✅）；物理层 = 手册 + 等真实非共线 DFT 机时（P4.2）** | 3 位 basis 在 `reduce_to_primitive`/`find_bonds` 下自然成立，卡点是 **J1 与 J1′ 在同距离上被 3 壳模型合并**（取平均）—— 要分离需要更细的构型 + SOC，本轮**不做**（见 `KAGOME_RUNBOOK.md` §2/§9） |
 | 交变磁体 | ✅ | ⚠ | ✅ | ✅（P5：`--order sublattice:<mask>` 逐子晶格 Néel 矢量） | ⚠ | ⚠ | **进识别层（P5 ✅）：几何判别 + 标量序参量，不给 k 分辨自旋劈裂结论** | 需要逐子晶格 Néel 矢量/掩码序参量；且「是否交变磁体」的 k 分辨自旋劈裂判别属研究问题，不属本流水线契约 |
 | 体相 DMI | ✅（3×3 J 可编码） | ❌（3 分量 D 矢量拟合成本高） | ⚠（P3 已有 `--lsorbit`；仍无自旋螺旋构型生成器） | ❌（无拓扑荷序参量） | ⚠ | ❌ | **只识别 + 路由，不进主链（P6 ✅ 已做识别层 + 判据备忘）** | 即使算完，主链目标函数是 T_C，DMI 产出物对不上契约；须另立 DMI/skyrmion 子链 |
 | 磁性拓扑绝缘体 | ⚠ | ❌（需层分辨 A 型 AFM） | ❌（SOC + slab + 层间，成本高） | ❌（单层 MC 无意义） | ⚠ | ❌ | **只识别 + 路由，不进主链** | MnBi₂Te₄ 类 T_N 由层间耦合控制，与「2D 单层」假设直接冲突，需另立层状子链 |
@@ -99,7 +99,7 @@
 > ④ 顺带修掉一个**既有真 bug**：旧 `assemble_dft.py` 的 `--species` 必填且**顺序敏感**——与 POSCAR 物种顺序不一致时，`LDAUL/LDAUU/LMAXMIX` 与 MAGMOM 分组会整体错位（P2 已在两个 builder 里修过同类 bug，这是第三个出口）。现在渲染一律按 POSCAR 顺序,`--species` 只做一致性校验（不匹配即报错）。
 15. `scripts\assemble_dft_tri.py` 的非共线 MAGMOM 生成器**抽成独立模块** + 子晶格相位/角度表（120°、±θ 倾斜）。→ **已落盘**：新模块 `scripts\mag_vectors.py`（`SOC_ORDERS`/`needs_soc`/`ANGLE_TABLE`/`unit`/`spin_collinear`/`spin_planar`/`spin_120deg`/`spin_cant`/`spin_all`/`magmom_values`/`render_magmom`/`expand_repeats`/`parse_magmom`/`check_magmom`），`--selftest` **19/19 PASS**（含与 `magnetic_orders.planar120` 逐位一致、与真实 `MnI2_pipeline/02_supercell/cases/*/magmom.txt` 自洽：n_mag=25 / n_atoms=75 / 120° 恰为 0·120·240 三色）。
 16. `scripts\assemble_dft.py` 增 `--noncollinear` 统一入口 + **`LSORBIT` 开关**（`LNONCOLLINEAR+LSORBIT` + 3 分量 MAGMOM + `SAXIS`，禁止 `ISPIN=2`，需 `GGA_COMPAT=.FALSE.` 类配套）。→ **已落盘**（`assemble_dft.py` 重写：`build_incar(kind, …, magmom_line, noncollinear, lsorbit, saxis, npar)` 单一渲染入口；CLI 增 `--noncollinear/--lsorbit/--saxis/--all-orders/--selftest`；`--selftest` 18/18 PASS。`assemble_dft_tri.py` 变薄适配层（`--print-cmd` 可见它拼出的命令行），`--selftest` 10/10 PASS。驱动新增 `--noncollinear/--soc/--saxis`，日志与 `workflow.md` 都标出「非共线 / 非共线+SOC」）。
-17. 非共线能量提取口径统一（`free energy TOTEN`）与收敛判据文档化。→ **已落盘**：新模块 `scripts\dft_energy.py`（`CONVENTION`/`read_energy_detail`/`read_toten`/`mixed_convention`/`check_same_convention`；一律取**最后一次** `free energy TOTEN`，缺了就报错而不是改用 `energy(sigma->0)`；`mixed_convention` 专抓混用口径，`MIX_TOL=1e-3` eV），`--selftest` 9/9 PASS。`solve_J3/solve_J_crect/solve_J_square/solve_J_tri/solve_J_rect/solve_cluster_J` 六个 solver 的 `read_toten` 全部改为转发它，`solve_fgt_J.py`/`fgt_verify_states.py` 的 OUTCAR 分支也改走它（保留 E.txt 兜底）。收敛判据（`EDIFF=1E-6`、`NELM=200`、非共线+SOC 需 `GGA_COMPAT=.FALSE.`、ISPIN 必须删掉）已写进 `WORKFLOW.md` §3 与 `dsh\2d-magnet\SKILL.md`。
+17. 非共线能量提取口径统一（`free energy TOTEN`）与收敛判据文档化。→ **已落盘**：新模块 `scripts\dft_energy.py`（`CONVENTION`/`read_energy_detail`/`read_toten`/`mixed_convention`/`check_same_convention`；一律取**最后一次** `free energy TOTEN`，缺了就报错而不是改用 `energy(sigma->0)`；`mixed_convention` 专抓混用口径，`MIX_TOL=1e-3` eV），`--selftest` 9/9 PASS。`solve_J3/solve_J_crect/solve_J_square/solve_J_tri/solve_J_rect/solve_cluster_J` 六个 solver 的 `read_toten` 全部改为转发它，`solve_fgt_J.py`/`fgt_verify_states.py` 的 OUTCAR 分支也改走它（保留 E.txt 兜底）。收敛判据（`EDIFF=1E-6`、`NELM=200`、非共线+SOC 需 `GGA_COMPAT=.FALSE.`、ISPIN 必须删掉）已写进 `WORKFLOW.md` §3 与 `skill\2d-magnet\SKILL.md`。
 18. `tests\smoke_test.py` 非共线 INCAR 快照回归（不下发 DFT，仅校验 INCAR/MAGMOM 内容）。→ **已完成**：smoke §21（4 个新脚本 `--selftest` 全通过 + 驱动三角 `--soc` 走通 + `runs/<order>/INCAR` 的 `LNONCOLLINEAR/LSORBIT/GGA_COMPAT` 且**无 `ISPIN`** + MAGMOM 3 分量/面内/角度恰为 0·120·240 + 与快照 fixture `tests\fixtures\gdi2_nc_soc_120deg.INCAR.norm` 一致 + §115 硬报错正反两面 + **M3 mock-OUTCAR 闭环**：用 `coefficients_per_cell` 合成 `free energy TOTEN` 再让 `solve_J_tri.py` 回解，J1/J2/J3 对到 1e-4 meV）。全程不下发 DFT。
 
 ### P4 六角 kagome（依赖 P3）— 状态: **P4.1 系数层 ✅；P4.2 物理层：无 VASP 侧能做的已做完，三个 J 与 T_C 仍需真实机时**
@@ -116,12 +116,12 @@
 > ⑧ **⑦ 的直接后果（必须写进任何 P4.2 结论）**：kagome 的 2D MC 临界温度**不能**直接与 Fe3Sn 的 705 K 比 —— 本仓模型**没有层间耦合**（`mc_2d` 是二维格点模型），而 Fe3Sn 的 705 K 是**三维体相**有序温度，正是层间耦合撑起来的。同时注意**峰位随 L 单调移动**意味着「换个 `--mc-size` 就换个 T_C」，所以连「2D 模型自己的 T_C」都不是单一数。⇒ M4 的右半在**当前模型类里不可通过**（不是「暂时没机时」），要通过必须先在模型里显式加入层间 J_c（Fe3Sn 是双层堆垛，`c` 方向近邻就是层间），并用 U4 交点 + 尺寸外推给出收敛值。这条比「缺机时」更硬：**即使给了真实 J，现在的 MC 侧也给不出能与 705 K 对的 T_C。**
 > ⑨ **回收通道已自动化**（原文档说「**没有**从 `03_dft/runs/` 的自动 ingest」，现已不成立）：新增 `scripts\ingest_dft.py`（`runs/` → `cases/` 的唯一收回通道，`--selftest` 18/18）与驱动 `ingest` 子命令。以前是手工 `cp`，而手工 `cp` 是整条链上**最危险**的一步（未收敛 / 混口径 / 错序 / 旧文件充数的 OUTCAR 会被静默当成好数据）。现在是**硬闸门**：四态齐全、体积下限、`General timing and accounting` 在场、SCF 收敛（`aborting loop because EDIFF is reached`）、**恰好一个离子步**（静态）、能量口径统一（转发 `dft_energy.mixed_convention`）、结构一致性（格矢 + 原子数跨态逐位比对）、四态能量差不退化、`magmom.txt` 与 OUTCAR 磁矩块对得上；**任何一条不过就一件都不写**（原子性），并打印「哪一条、为什么、怎么修」。每条闸门可 `--lenient <name>` 单独降级为警告（会记进 provenance）。产物带 `sha256` 与 provenance → `cases/ingest_manifest.json`。
 > ⑩ **外部机时交接已自动化**（原文档只在「明确不做」里写「P4.2 不提交作业」，现已细化）：新增 `scripts\dft_handoff.py`（`pack` / `ingest`，`--selftest` 18/18）：`pack` 打出交接包（`README_HANDOFF.md` + `MANIFEST.json`（逐文件 sha256）+ `POTCAR.spec` + `CHECKLIST.md` + `submit.sh` + `jobscript.template` + `runs/<order>/` 的 INCAR/KPOINTS/POSCAR），`submit.sh` 自动识别 **SLURM / PBS / SGE / LSF / 裸机** 五种调度器并按元素顺序 `cat` POTCAR、跑四个序、跑完自查 OUTCAR 存在且够大、调 `ingest_dft.py --dry-run` 自检。**边界不变**：① **不打包 POTCAR**（license 不允许随包分发，只给元素顺序说明）；② **不代提交** —— 本脚本只生成脚本，提交动作由人在集群上做；③ `pack` 对 `runs/` 做完整性预检，缺文件直接拒（免得人跑到集群才发现少文件）。
-> ⑪ **装配侧参数化 + k 点收敛抽查**（原文档把这几项写成「硬编码」/「未做收敛测试」，现已可显式覆盖并有工具）：`scripts\assemble_dft.py` 新增 `--kpoints a b c` / `--npar N` / `--isym N` —— 不给就**逐字节**保持旧默认（`3 3 1` + `NPAR=4` + static 不写 `ISYM`），`KPOINTS` 的过期表头（"for 2x2x1 monolayer supercell"）已改成 `Gamma-centered k-mesh a b c (vacuum along c)`；驱动 `dft` 同步透传，三角薄适配层 `assemble_dft_tri.py` 走同一份渲染（`--selftest` 12/12，`assemble_dft.py --selftest` 29/29）。新增 `scripts\k_convergence.py`（`run_2d_magnet.py kconv --outdir <proj> --k-grids 3,4,6,8`，`--selftest` 29/29）：把 `runs/<序>/` 复制成 `kconv/runs/<序>@<k网格>/`（**INCAR 逐字节不变，只换 KPOINTS** —— 换的是唯一变量），OUTCAR 放回后按体积下限/`General timing and accounting`/SCF 收敛三条闸门筛文件，算每个网格相对**最密**网格的 `ΔE` (meV/atom)、判 `converged` / `not_converged`，并给出 `recommended_kpoints`（`--k-tol` 默认 1.0 meV/atom）。**边界**：它判的是**总能量**对 k 网格的收敛、**不是 J 的收敛**（J 是能量**差**；差的收敛通常更快，但那是经验不是定理），**不代提交作业**，且本仓库没有任何真实 kagome OUTCAR ⇒ 这一节没有可引用的数字（见 `P4_2_KAGOME_RUNBOOK.md` §5.3）。
+> ⑪ **装配侧参数化 + k 点收敛抽查**（原文档把这几项写成「硬编码」/「未做收敛测试」，现已可显式覆盖并有工具）：`scripts\assemble_dft.py` 新增 `--kpoints a b c` / `--npar N` / `--isym N` —— 不给就**逐字节**保持旧默认（`3 3 1` + `NPAR=4` + static 不写 `ISYM`），`KPOINTS` 的过期表头（"for 2x2x1 monolayer supercell"）已改成 `Gamma-centered k-mesh a b c (vacuum along c)`；驱动 `dft` 同步透传，三角薄适配层 `assemble_dft_tri.py` 走同一份渲染（`--selftest` 12/12，`assemble_dft.py --selftest` 29/29）。新增 `scripts\k_convergence.py`（`run_2d_magnet.py kconv --outdir <proj> --k-grids 3,4,6,8`，`--selftest` 29/29）：把 `runs/<序>/` 复制成 `kconv/runs/<序>@<k网格>/`（**INCAR 逐字节不变，只换 KPOINTS** —— 换的是唯一变量），OUTCAR 放回后按体积下限/`General timing and accounting`/SCF 收敛三条闸门筛文件，算每个网格相对**最密**网格的 `ΔE` (meV/atom)、判 `converged` / `not_converged`，并给出 `recommended_kpoints`（`--k-tol` 默认 1.0 meV/atom）。**边界**：它判的是**总能量**对 k 网格的收敛、**不是 J 的收敛**（J 是能量**差**；差的收敛通常更快，但那是经验不是定理），**不代提交作业**，且本仓库没有任何真实 kagome OUTCAR ⇒ 这一节没有可引用的数字（见 `KAGOME_RUNBOOK.md` §5.3）。
 19. `scripts\build_kagome_cases.py`（新增）：q=0 上/下三角组合 + √3×√3 120°（3 倍胞）+ 系数矩阵 + `--selftest`。→ **已落盘**：7 个磁序（`fm / q0_120 / q0_ud / q0_duu / sq3_120 / sq3_updntri / sq3_alt`），`selected = fm / q0_120 / sq3_updntri / sq3_alt`（**rank=4, cond=98.51, |det|=2.1e5**）；q=0 一族 (fm/q0_120/q0_ud/q0_duu) 的系数满足 `c1 == c2` ⇒ **rank 只有 2**（J1/J2 在 q=0 子块里不可分离，`cond≈2.3e34`），必须靠 √3×√3 序分离 —— 这条风险从「计划里的猜测」变成了**数值事实**。`--selftest` 覆盖配位数、壳距比 (√3, 2)、3x3 解析理想值、q=0 简并、设计矩阵、合成反解、规格层交叉校验、落盘产物。
-20. `scripts\solve_J_kagome.py`（新增）：**3 壳模型 J1/J2/J3 的反解 + 条件数防护**（不可解即报错，不静默出 J）。⚠ **措辞修正**：本条原写「J1/J1′/Jd 三自由度分离」，而实现里 **J1 是 J1 与 J1′ 的同距离平均**、第三个壳是 J3 而不是 Jd ⇒ **不是**三自由度分离，交付物也不许这么写（见 `P4_2_KAGOME_RUNBOOK.md` §2/§9）。→ **已落盘**：读 `cases/magnetic_orders.json` → 组装 `A` → `rank/cond` 闸门 → 读 `free energy TOTEN`（转发 `dft_energy.read_toten`）→ 写 `J_result.json`（`j_result.build/write`，`lattice="kagome"`）。无 DFT 自检入口是 `--demo --synthetic J1 J2 J3`（往返误差 < 1e-6 meV 才 PASS）—— 按仓库既有约定，builders 用 `--selftest`、solvers 用 `--demo`。
+20. `scripts\solve_J_kagome.py`（新增）：**3 壳模型 J1/J2/J3 的反解 + 条件数防护**（不可解即报错，不静默出 J）。⚠ **措辞修正**：本条原写「J1/J1′/Jd 三自由度分离」，而实现里 **J1 是 J1 与 J1′ 的同距离平均**、第三个壳是 J3 而不是 Jd ⇒ **不是**三自由度分离，交付物也不许这么写（见 `KAGOME_RUNBOOK.md` §2/§9）。→ **已落盘**：读 `cases/magnetic_orders.json` → 组装 `A` → `rank/cond` 闸门 → 读 `free energy TOTEN`（转发 `dft_energy.read_toten`）→ 写 `J_result.json`（`j_result.build/write`，`lattice="kagome"`）。无 DFT 自检入口是 `--demo --synthetic J1 J2 J3`（往返误差 < 1e-6 meV 才 PASS）—— 按仓库既有约定，builders 用 `--selftest`、solvers 用 `--demo`。
 21. `scripts\render_kagome.py`（新增）。→ **改为复用**（见偏差 ①）：driver 把 kagome 的 render 路由到 `render_tri_orders_pil.py`（matplotlib 缺席时走 Pillow 兜底）与 `render_supercell.py`，两条路径都被 smoke §20/§23 钉住。
 22. `run_2d_magnet.py`：kagome compute 分支 + 预设。→ **已落盘**：`--model fe3sn` 预设（`lattice="kagome"`、`S=1.0` 占位、`literature=None` —— 不谎称有文献锚点）、`detect_lattice` 判别分支、build/solve/render 三处分派、`ERROR_CATALOG["kagome_degenerate"]`、`--lattice` choices。
-23. 技能文档 + smoke section + ≥20 用例。→ **已完成**：smoke §23（判别 + builder `--selftest` + solver `--demo` + 驱动 render 出图 + 落盘工程 + 契约测试）、`tests\test_kagome_cases.py` **68 项全 PASS**（两套独立实现逐位一致：2 个超胞 × 7 序；手推解析理想值；q=0 简并；√3×√3 标签良定义性；跨口径不变量；四类守卫报错；mock-OUTCAR 闭环；落盘复现；驱动集成）、`WORKFLOW.md` / `README.md` / `dsh\2d-magnet\SKILL.md` 同批更新。
+23. 技能文档 + smoke section + ≥20 用例。→ **已完成**：smoke §23（判别 + builder `--selftest` + solver `--demo` + 驱动 render 出图 + 落盘工程 + 契约测试）、`tests\test_kagome_cases.py` **68 项全 PASS**（两套独立实现逐位一致：2 个超胞 × 7 序；手推解析理想值；q=0 简并；√3×√3 标签良定义性；跨口径不变量；四类守卫报错；mock-OUTCAR 闭环；落盘复现；驱动集成）、`WORKFLOW.md` / `README.md` / `skill\2d-magnet\SKILL.md` 同批更新。
 
 ### P5 交变磁体（可选，半主链）
 
@@ -129,7 +129,7 @@
 >
 > 24. `scripts\mc_2d.py`：`--order sublattice:<mask>`（逐子晶格 Néel 矢量序参量，Binder U4 同构）。→ **已完成**，且做法比计划**更省**：不改模型 JSON、不加列，只加一个符号数组构造器 `sublattice_signs(num_basis, size, mask)`（`mask = {0}` 与老的 `stag_signs` 在 `num_basis >= 2` 时**逐位一致** ⇒ 蜂窝/FGT 数值不动，是天然回归锚点；`num_basis >= 3` 时能取任意子晶格组合，而老路径只会把 basis 1..n−1 并成一组）。产物仍是 4 列 `T_Kelvin,order_param,Susceptibility,Binder_U4` ⇒ `summarize_mc` / `mc_fss` 的列契约**零破坏**；`mc_fss.py` 同步支持（并显式拒绝 `cv`：U4 是它的判据）；driver 新增 `--mc-order` 透传（默认仍按 lattice 自动选）。掩码空 / 越界 / 覆盖全部子晶格（B 组为空 ⇒ `mbx/cb` 除零）全部硬报错。
 > 25. 交变磁体**识别层检查清单**（零净磁化 + 子晶格反平行 + 晶体旋转连接）——只出报告，不下结论。→ **已完成**：新脚本 `scripts\altermagnet_check.py`（`--selftest` 15/15）：把「连接操作」定义成**必须同时是晶体对称操作**（把全部原子按元素映射回原位），再按旋转部分分类：平移 ⇒ 常规共线反铁磁、反演（非共面）⇒ 宇称禁止、旋转/镜面 ⇒ **几何候选**；报告永远带「不可判定：k 分辨自旋劈裂」一行。
-> 26. 技能文档：明确「可算 = 子晶格 Néel 的 T_N；不可算 = k 分辨自旋劈裂验证」。→ **已完成**：`dsh\2d-magnet\SKILL.md` 新增「分支：交变磁体（P5）——只做几何判别」节 + 局限追加一条；`LIMITATIONS.md` 10 + 脚本/测试清单；`WORKFLOW.md` 目录树 + 继承表 + 局限 `1g.`；smoke §25。
+> 26. 技能文档：明确「可算 = 子晶格 Néel 的 T_N；不可算 = k 分辨自旋劈裂验证」。→ **已完成**：`skill\2d-magnet\SKILL.md` 新增「分支：交变磁体（P5）——只做几何判别」节 + 局限追加一条；`LIMITATIONS.md` 10 + 脚本/测试清单；`WORKFLOW.md` 目录树 + 继承表 + 局限 `1g.`；smoke §25。
 >
 > ① 偏差（实施中发现并修掉两个**真问题**，都不在原计划里）：
 > (a) **容差语义错了**：初版判据用「分数坐标四舍六入后查元组」，而真实结构文件里同一条对称关系两侧坐标常在第 6~7 位小数上不同 —— 实测 MnPS3 / CrOCl 的 fixture 因此被**静默误报**成「没有任何晶体对称操作连接两套亚晶格」（真实残差只有 0.012 / 0.503 mÅ）。改成按**Å 距离**判定（`nearest_same_element`），并在「无连接」时报告**最接近的候选操作与残差**，让人自己判断是「真的没有」还是「弛豫/写文件精度差一点」；`--tol` 因此以 Å 为单位。
@@ -138,7 +138,7 @@
 
 ### P6 DMI / MTI（只做识别层 + 判据备忘）
 
-> **状态: ✅ 已完成（识别层 + 备忘；按用户指示跳过 P5 先做 P6）**。交付物 = `DMI_MTI_MEMO.md`（22 KB：一页结论 + G1–G6 逐关复核 + 判别判据 + 拒绝模板 + 可行性备忘）+ `dsh\2d-magnet\SKILL.md` 的判别节 + smoke §24。**没有**新增 DMI/MTI 计算子链 —— 原计划也没有，这是刻意边界。
+> **状态: ✅ 已完成（识别层 + 备忘；按用户指示跳过 P5 先做 P6）**。交付物 = `DMI_MTI_MEMO.md`（22 KB：一页结论 + G1–G6 逐关复核 + 判别判据 + 拒绝模板 + 可行性备忘）+ `skill\2d-magnet\SKILL.md` 的判别节 + smoke §24。**没有**新增 DMI/MTI 计算子链 —— 原计划也没有，这是刻意边界。
 >
 > ① 偏差（多做了一件，理由充分）：§3.2 的「把文献 D 值写成 3×3 反称交换矩阵塞进 MC」从备忘里的**手推公式**升级为落盘工具 `scripts\dmi_matrix.py`（`--selftest` 5/5，含与 `mc_2d._energy` 的实机对拍）。因为这条等价式的符号极易搞反（`J_D = -[D]_×` 对应 `H_DM = +D·(S_i×S_j)`，反号则 DMI 帮倒忙），而它又决定 MC 结果；顺带修掉 `poscar_to_mc3.py` 读壳定义**不认 UTF-16 BOM** 的坑（PowerShell 的 `python ... > x.json` 会写成 UTF-16LE）。端到端实测：文献 D + 文献 J → `--shell-def` → `poscar_to_mc3` 匹配到 kagome 的 6 键/原胞，输出的 `J` 与 `-[D]_×·S²` 逐位一致、反称性非零。
 > ② 边界（必须一致地讲）：P6 **不产生 D、不做拓扑判定**。能拿文献 D 跑「含 DMI 的格点模型」≠「本流水线算了 DMI」；MTI 侧同理（无层间 `J_c`、无能带拓扑）。§3.3 列了不许出现在结论里的输出清单。
@@ -154,7 +154,7 @@
 **交付物**
 
 1. **P2′ 系数层 + 反解器**：倾斜家族由 `scripts\build_crect_cases.py` 提供（`magnetic_orders.json` 的 cant 家族，装配走 `--soc`），反解器 `scripts\solve_J_crect_cant.py`（`--orders default|collinear|all|cant|逗号列表`、`--audit-only`、`--demo --ref/--synthetic`、`--json`、`--jfile-out`、`--no-jresult`、`--tol`）。契约测试 `tests\test_crect_cant.py`（**44 项**）+ smoke §26。**driver 已接通**（`build --cant-theta/--cant-base/--cant-azimuth` 透传，`solve` 见到 `cant_orders` 自动改派，三条守卫硬拒），smoke §26 用「驱动 build + 合成 OUTCAR + 驱动 solve」端到端钉住（J 回解误差 < 5e-4 meV）。
-2. **P4.2 手册**：[`P4_2_KAGOME_RUNBOOK.md`](P4_2_KAGOME_RUNBOOK.md)（12 节：一页速览 / 开工前必须钉死的量 / 构型集与秩条件数 / 装配与五个坑 / SCF 四条判据与失败协议 / 回收 / 反解可信度 / T_N 与验收锚点 / 机时纯估算 / 与原计划的五项偏差 / 做不到的清单 / 检查清单）。
+2. **P4.2 手册**：[`KAGOME_RUNBOOK.md`](KAGOME_RUNBOOK.md)（12 节：一页速览 / 开工前必须钉死的量 / 构型集与秩条件数 / 装配与五个坑 / SCF 四条判据与失败协议 / 回收 / 反解可信度 / T_N 与验收锚点 / 机时纯估算 / 与原计划的五项偏差 / 做不到的清单 / 检查清单）。
 
 **① 偏差（原计划没有的东西）**
 
@@ -194,7 +194,7 @@
 | **P2** | 矩形/oxyhalide（不含弱倾斜） | ~~2–3~~ → **实测 ≈8–10** | P0（P2 可与 P1 并行） | ~~低~~ → **中**（计划前提被推翻，见 §P2） | ✅ 已完成 |
 | P2′ | oxyhalide 弱 FM 倾斜（可选） | 3–5 | P3 | 高 | **✅ 已落地（实测 ≈1 人天 —— 原估偏悲观 3–5×）**：系数层 + 反解器 `scripts\solve_J_crect_cant.py` + 契约测试 `tests\test_crect_cant.py`（44 项）+ smoke §26。**边界**：θ 是**输入参数**（闭式 `sin²θ` 标度可解析验证）、一次倾斜 SCF **定不出唯一 (J, D)**、装配必须 `--soc` ⇒ 不产生 CrOCl 的 J/D 结论 |
 | P3 | 非共线 + SOC 基础设施 | 5–8 | P0 | **最高（±5）** |
-| P4 | 六角 kagome 全链 | 7.5–12 | P3 | 高 | **P4.1 ✅（纯几何 + 线性代数）；P4.2 手册 ✅**（[`P4_2_KAGOME_RUNBOOK.md`](P4_2_KAGOME_RUNBOOK.md)）——**残余工作量补估 ≈4–9 人天**（不含机时等待，见该手册 §9），物理层待真实机时 |
+| P4 | 六角 kagome 全链 | 7.5–12 | P3 | 高 | **P4.1 ✅（纯几何 + 线性代数）；P4.2 手册 ✅**（[`KAGOME_RUNBOOK.md`](KAGOME_RUNBOOK.md)）——**残余工作量补估 ≈4–9 人天**（不含机时等待，见该手册 §9），物理层待真实机时 |
 | P5 | 交变磁体序参量扩展（可选） | 3.5–5.5 | 无（可与 P3/P4 并行） | 中 |
 | P6 | DMI/MTI 判据文档 + 可行性备忘 | ~~2–2.5~~ → **实测 ≈0.5** | 无（可全程并行） | 低 | ✅ 已完成（另落盘 `scripts/dmi_matrix.py` + smoke §24） |
 
@@ -204,7 +204,7 @@
 不确定项与风险：
 1. **P3 非共线 SOC 无既有工作流**——全项目方差最大项。缓解：先用一个已知体系做最小闭环（单体系、单构型、SOC 开/关能量差量级正确）再推 kagome。
 2. **DFT 机时（不是人天，是真实瓶颈）**：非共线 + U + SOC 的 3 倍胞单点能量约为现有共线单点的 3–10 倍；构型数**以 rank/cond 为准**（本仓库 builder 的 `selected_orders` 是 **4** 个；原写的「每类 ≥6 构型」与本仓库实现不一致，已按实测口径修正），每类 ≥2 超胞。建议单列机时预算，并规定「每类最少 3 个构型」的下限，否则 G2 不可解。
-3. **kagome 的 J1 与 J1′ 在 q=0 构型下简并**，必须靠 √3×√3 分离；若该构型非共线 DFT 收敛困难，则 J 分解失败。缓解：P0.1 先用几何算出系数矩阵条件数，再决定提交哪些构型（不许先算 DFT 再发现不可解）。**实测补充**：q=0 一族的简并已被数值证实（子块 `rank=2`、`cond≈2.3e34`），含 √3×√3 的 `selected` 组合给出 `rank=4`、`cond=98.51`；而真正的 **J1/J1′ 分离本仓库做不到**（3 壳模型把它们合并成一条 J1）——原文把它与「q=0 简并」混成一件事，实际是两件（见 `P4_2_KAGOME_RUNBOOK.md` §2）。
+3. **kagome 的 J1 与 J1′ 在 q=0 构型下简并**，必须靠 √3×√3 分离；若该构型非共线 DFT 收敛困难，则 J 分解失败。缓解：P0.1 先用几何算出系数矩阵条件数，再决定提交哪些构型（不许先算 DFT 再发现不可解）。**实测补充**：q=0 一族的简并已被数值证实（子块 `rank=2`、`cond≈2.3e34`），含 √3×√3 的 `selected` 组合给出 `rank=4`、`cond=98.51`；而真正的 **J1/J1′ 分离本仓库做不到**（3 壳模型把它们合并成一条 J1）——原文把它与「q=0 简并」混成一件事，实际是两件（见 `KAGOME_RUNBOOK.md` §2）。
 4. **文献锚点缺失**：部分 oxyhalide 成员无可靠 T_C，eval 只能对标 J。须在 `J_result.json` 标注 `source` 与置信度，禁止拿 J 对标冒充 T_C 校验。
 5. **元素/参数预设污染**：smoke_test 13 节已把「`MODEL_PRESETS` 必须与 `literature_J.json` 材料专属值一致、不得与 `ELEMENT_PARAMS` 通用兜底混淆」钉死，新类型必须同构遵守。
 6. **文档能力虚高**：6 类已在文档里是「识别 + 路由」，一旦某类进主链而文档未同批更新，会出现「文档宣称能力 > 实际能力」，这是本技能最容易被误用的故障模式。缓解：文档更新并入该类的完成定义（DoD）。
@@ -218,7 +218,7 @@
 - **M2 = P1 完成**：方形类端到端（build → solve → MC → T_C）跑通并与文献锚点对齐 ⇒ 地基得到实证（这一步是「模式是否复用成功」的判据）。**已达成**（χ 峰 266.67 K vs La₂CuO₄ T_N 325 K，比值 0.82）。
 - **M2b = P2 完成**：C 心矩形（CrOCl）端到端跑通（判别 → 序枚举 → 反解 → MC → 跨口径校验）。**已达成但降级**：CrOCl 的 **J 与 T_N 均未核实**，所以端到端只用 `--synthetic` 合成 J 验证管路，产物不入库、结论不声称是 CrOCl 的物理结果；这一条同时把「计划的前提可能被实测推翻」写进流程（P2 就是先例：原以为只是复用 rect 对，实测发现是 C 心网）。
 - **M3 = P3 完成**：一个非共线 SOC 最小闭环成功 ⇒ 解锁 kagome。**已达成但降级**：闭环里的「DFT」环节是 **mock OUTCAR**（用规格层的 `coefficients_per_cell` 合成 `free energy TOTEN`，再让 `solve_J_tri.py` 回解，J 对到 1e-4 meV；见 smoke §21），**没有任何真实非共线 DFT 能量**。所以 P3 解锁的是**能力**（INCAR/MAGMOM 写对、SOC 门禁硬报错、能量口径统一），**不是**「SOC 物理已验证」：P4 的 kagome 构型现在可以设计并提交，但其 J 与 T_N 仍必须等真实机时结果，禁止把 P3 的绿灯当成物理结论。
-- **M4 = P4 完成**：kagome 三个 J 可解（条件数可控）+ T_N 与文献量级一致 ⇒ 进主链。**未达成（P4.1 只交付了左半）**：系数层已经可解（`rank=4` / `cond=98.51` / 无 DFT 往返闭环 / q=0 简并已被数值证实），但 **J 与 T_N 都还没有** —— 本机没有 VASP、从未跑过真实非共线 DFT，Fe3Sn 的文献 J 也不在 `literature_J.json` 里（预设刻意写 `literature=None`）。所以 kagome 现在是「**能力就绪、物理未验证**」，与 M3 同款降级：P4.2（提交 √3×√3 构型 → 读 OUTCAR → MC 求 T_N）必须在真实机时上做，禁止把 P4.1 的绿灯当物理结论。**本轮补上了 P4.2 的入口条件与操作手册**（[`P4_2_KAGOME_RUNBOOK.md`](P4_2_KAGOME_RUNBOOK.md)）：入口 = 真实机时 + **已核实**的文献锚点（`literature_J.json` 里 Fe3Sn 至今为空 ⇒ 这是**硬条件**，不是提醒）+ 参数表填满；手册 §8 的机时是**纯估算**，在用一个 FM 参考点替换成实测值之前**不许当预算**。
+- **M4 = P4 完成**：kagome 三个 J 可解（条件数可控）+ T_N 与文献量级一致 ⇒ 进主链。**未达成（P4.1 只交付了左半）**：系数层已经可解（`rank=4` / `cond=98.51` / 无 DFT 往返闭环 / q=0 简并已被数值证实），但 **J 与 T_N 都还没有** —— 本机没有 VASP、从未跑过真实非共线 DFT，Fe3Sn 的文献 J 也不在 `literature_J.json` 里（预设刻意写 `literature=None`）。所以 kagome 现在是「**能力就绪、物理未验证**」，与 M3 同款降级：P4.2（提交 √3×√3 构型 → 读 OUTCAR → MC 求 T_N）必须在真实机时上做，禁止把 P4.1 的绿灯当物理结论。**本轮补上了 P4.2 的入口条件与操作手册**（[`KAGOME_RUNBOOK.md`](KAGOME_RUNBOOK.md)）：入口 = 真实机时 + **已核实**的文献锚点（`literature_J.json` 里 Fe3Sn 至今为空 ⇒ 这是**硬条件**，不是提醒）+ 参数表填满；手册 §8 的机时是**纯估算**，在用一个 FM 参考点替换成实测值之前**不许当预算**。
 - **M5**：文档路由表与代码能力对齐，「可算」标签只在端到端通过后添加。
 
 并行安排：

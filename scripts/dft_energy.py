@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """dft_energy.py —— VASP 总能量提取口径的**唯一实现**（P3.17）。
 
-## 口径（NEW_TYPES_PLAN §P3.17）
+## 口径（LATTICE_ROADMAP §P3.17）
 
 一组磁构型反解 J 时，**每个构型都必须用同一个能量口径**，否则反解出的 J 会掺进
 口径差。本项目统一取：
@@ -236,7 +236,7 @@ def main():
             print(f"[warn] {x}")
         return 0 if ok else 1
     print(f"能量口径: {CONVENTION}")
-    print(__doc__.split("## 用法")[0].strip().split("## 口径（NEW_TYPES_PLAN §P3.17）")[-1].strip()[:400])
+    print(__doc__.split("## 用法")[0].strip().split("## 口径（LATTICE_ROADMAP §P3.17）")[-1].strip()[:400])
     return 0
 
 

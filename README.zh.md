@@ -20,7 +20,7 @@
 | **非共线与 SOC（支线）** | `LNONCOLLINEAR` / `LSORBIT` / `SAXIS`、倾斜 MAGMOM 磁序集，以及 CrOCl 家族的 `scripts/solve_J_crect_cant.py`；默认路线不经过这里，MAE 四态是唯一必须非共线+SOC 的支线 |
 | **不猜参数** | `--S/--moment/--U` 只对 Mn/Cr/Ni/Co/V/Gd 有内置表；Fe 被刻意排除（有效自旋本身有歧义），driver 会停下来问；`literature_J.json` 里 `null` 的条目直接报错，不静默跑 |
 | **能力边界可查询** | [`capabilities.json`](capabilities.json) 写明每类晶格与每个物理量支持到哪一层；`scripts/capabilities.py --check` 保证它与代码同步，`--show` 打印可读版 |
-| **同时是 agent skill** | `dsh/2d-magnet/SKILL.md` 把约定、闸门与驱动方式写全，Claude Code / Codex 或任何读指令文件的 agent 都能用 |
+| **同时是 agent skill** | `skill/2d-magnet/SKILL.md` 把约定、闸门与驱动方式写全，Claude Code / Codex 或任何读指令文件的 agent 都能用 |
 | **可离线复现** | `examples/` 有两份完整产物树，不用 VASP 就能检查并重跑；发布包由 `scripts/make_release.py`（仓库包）与 `scripts/make_skill_bundle.py`（skill 包）确定性打包 |
 | **交变磁体判别** | `scripts/altermagnet_check.py` 判断两套亚晶格是否由保自旋的操作联系（交变磁体几何，标量序参量） |
 
@@ -117,7 +117,7 @@ py -m pip install -e .
 
 **6. 可选：当 agent skill 用**
 
-`dsh/2d-magnet/SKILL.md` 是 skill 入口（约定 + 闸门 + 驱动方式），但它驱动的是仓库里的 `run_2d_magnet.py` 和 `scripts/`，所以**只拷 `dsh/2d-magnet/` 得到的是说明、不是流水线**。要一个能直接上传的 skill 包：
+`skill/2d-magnet/SKILL.md` 是 skill 入口（约定 + 闸门 + 驱动方式），但它驱动的是仓库里的 `run_2d_magnet.py` 和 `scripts/`，所以**只拷 `skill/2d-magnet/` 得到的是说明、不是流水线**。要一个能直接上传的 skill 包：
 
 ```powershell
 py scripts\make_skill_bundle.py . dist
@@ -219,12 +219,12 @@ python scripts/k_convergence.py --selftest    K 点规划
 | [`STRUCTURE.md`](STRUCTURE.md) | 目录约定——新内容该放哪 |
 | [`KNOWN_ISSUES.md`](knowledge/KNOWN_ISSUES.md) | 症状 → 修法表，27 个错误键；`doctor` 的输出指向这里 |
 | [`WORKFLOW.md`](knowledge/WORKFLOW.md) | 逐阶段细节：文件、选项、口径 |
-| [`dsh/2d-magnet/SKILL.md`](dsh/2d-magnet/SKILL.md) | agent skill：约定、闸门、怎么驱动流水线 |
+| [`skill/2d-magnet/SKILL.md`](skill/2d-magnet/SKILL.md) | agent skill：约定、闸门、怎么驱动流水线 |
 | [`capabilities.json`](capabilities.json) | 机器可读能力边界——晶格、物理量、支持到哪一层 |
 | [`DMI_MTI_MEMO.md`](knowledge/DMI_MTI_MEMO.md) | DMI / MTI：怎么判别、能说什么 |
 | [`LIMITATIONS.md`](knowledge/LIMITATIONS.md) | 边界说明——每个数能代表什么、不能代表什么（18 条） |
 | [`examples/`](examples/) | 两份不用 VASP 就能看的完整产物树 |
-| [`P4_2_KAGOME_RUNBOOK.md`](knowledge/P4_2_KAGOME_RUNBOOK.md) | kagome 物理层手册，等机时就能跑 |
+| [`KAGOME_RUNBOOK.md`](knowledge/KAGOME_RUNBOOK.md) | kagome 物理层手册，等机时就能跑 |
 | [`CHANGELOG.md`](CHANGELOG.md) · [`CITATION.cff`](CITATION.cff) | 版本历史 · 引用元数据 |
 
 

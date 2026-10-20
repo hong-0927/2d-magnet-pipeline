@@ -42,5 +42,5 @@ python scripts/solve_J_square.py $ex\02_supercell\cases --demo
 - **不能说的**：这不是「La₂CuO₄ 单层的 T_C 计算值」。理由三条 ——(1) J 是文献值不是本仓算的；
   (2) 12×12 有限尺寸 + 单尺寸、未做 FSS，峰位系统性偏高；(3) `J_result.json` 的
   `source=demo` ⇒ schema 自带规则把它标成 `confidence=low`，不许当结论引用。
-- 想要真实数字：走 `run_2d_magnet.py dft` → 上机 → `ingest` 回收 → `solve`（见 `../P4_2_KAGOME_RUNBOOK.md`
+- 想要真实数字：走 `run_2d_magnet.py dft` → 上机 → `ingest` 回收 → `solve`（见 `../KAGOME_RUNBOOK.md`
   的同款流程；方形晶格的装配/回收/反解命令与 kagome 完全同形）。

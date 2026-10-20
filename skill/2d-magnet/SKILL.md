@@ -16,13 +16,13 @@ description: >-
 
 **运行前提（先确认，否则相对路径全断）**：下面所有示例都假定**当前工作目录就是 `<repo>`**
 （`cd /d <repo>`）—— `tests/fixtures/...`、`scripts/...`、`run_2d_magnet.py` 一律是相对 `<repo>` 的路径。
-从别处调用时，要么先 `cd`，要么用封装脚本 `<repo>\dsh\bin\2d-magnet.cmd`（它按 `%~dp0..\..` 自己定位
+从别处调用时，要么先 `cd`，要么用封装脚本 `<repo>\skill\bin\2d-magnet.cmd`（它按 `%~dp0..\..` 自己定位
 `<repo>`，**不依赖 CWD**）。**一条自检入口**（不跑 DFT、也不依赖 CWD）：`python "<repo>\tests\smoke_test.py"`
 —— §1–§29 主回归，通过时最后一行是「全部通过」且退出码 0；只想核对某一层就用各脚本的 `--selftest` /
 `--demo`（清单见 README 的「脚本级自检」节）。
 
 **命令封装**（Windows cmd，自动带 `--quiet`）：
-`<repo>\dsh\bin\2d-magnet.cmd`
+`<repo>\skill\bin\2d-magnet.cmd`
 等价于 `python "<repo>\run_2d_magnet.py" --quiet <args>`。Python 需 numpy/numba/matplotlib/requests
 （`pip install -r requirements.txt` 即可；`.cmd` 会按 `%MAGNET_PYTHON%` → `python` → `py` 顺序找解释器）。
 
@@ -426,11 +426,11 @@ python scripts/solve_J_crect_cant.py <cases>                                   #
 加 `--include-noncollinear` 才额外生成 `q0_120`/`sq3_120`（3 分量 MAGMOM，需要非共线 DFT；**反解不需要**）。
 `solve_J_kagome.py` 反解（`--demo --synthetic 3 -0.4 0.15` 应 PASS），产物走 `j_result.py` 的 `J_result.json`。
 
-> **物理层（真实非共线 DFT → J → T_N）的手册与工具在 `P4_2_KAGOME_RUNBOOK.md`**（仓库根）：入口条件（真实机时 + 已核实的文献锚点 + 参数表填满）、装配与已知坑（`KPOINTS` 默认 `3 3 1` 可用 `--kpoints 6 6 1` 覆盖、`NPAR` 默认 4 可用 `--npar`、static 默认不写 `ISYM` 可用 `--isym 0`、`POTCAR` **不生成**、理想化胞未弛豫）、SCF 四条判据与失败协议、回收通道**已自动化**（`scripts/ingest_dft.py` 的 11 条硬闸门 + `scripts/dft_handoff.py` 的交接包，见手册 §5.0/§5.1）、**k 点收敛抽查**（`python run_2d_magnet.py kconv --outdir <proj> --k-grids 3,4,6,8`，或直调 `scripts/k_convergence.py`：生成 `<序>@<k网格>` 变体、**只换 KPOINTS**、OUTCAR 放回后判「总能量收敛到哪个网格够了」；**总能量收敛 ≠ J 收敛**，它只是必要条件）、反解可信度、机时**纯估算**、以及与原计划的偏差（含 J1/J1′ 分离被明确列为做不到）。**手册与工具都不是进度**：本仓库没有任何真实 kagome J/T_N。
+> **物理层（真实非共线 DFT → J → T_N）的手册与工具在 `KAGOME_RUNBOOK.md`**（仓库根）：入口条件（真实机时 + 已核实的文献锚点 + 参数表填满）、装配与已知坑（`KPOINTS` 默认 `3 3 1` 可用 `--kpoints 6 6 1` 覆盖、`NPAR` 默认 4 可用 `--npar`、static 默认不写 `ISYM` 可用 `--isym 0`、`POTCAR` **不生成**、理想化胞未弛豫）、SCF 四条判据与失败协议、回收通道**已自动化**（`scripts/ingest_dft.py` 的 11 条硬闸门 + `scripts/dft_handoff.py` 的交接包，见手册 §5.0/§5.1）、**k 点收敛抽查**（`python run_2d_magnet.py kconv --outdir <proj> --k-grids 3,4,6,8`，或直调 `scripts/k_convergence.py`：生成 `<序>@<k网格>` 变体、**只换 KPOINTS**、OUTCAR 放回后判「总能量收敛到哪个网格够了」；**总能量收敛 ≠ J 收敛**，它只是必要条件）、反解可信度、机时**纯估算**、以及与原计划的偏差（含 J1/J1′ 分离被明确列为做不到）。**手册与工具都不是进度**：本仓库没有任何真实 kagome J/T_N。
 
 三个**必须记住的坑**：
 1. **q=0 一族天然简并**：`fm/q0_120/q0_ud/q0_duu` 满足 **c1 == c2** 且 c3 相同 ⇒ 子块 **rank=2（cond≈2.3e34）**，
-   J1 与 J2 在那里**不可分离** —— 这正是 `NEW_TYPES_PLAN.md` 风险行警告的那条。必须上含 **√3×√3** 的序（相位 ℓ=(n0+n1) mod 3，
+   J1 与 J2 在那里**不可分离** —— 这正是 `LATTICE_ROADMAP.md` 风险行警告的那条。必须上含 **√3×√3** 的序（相位 ℓ=(n0+n1) mod 3，
    在 √3×√3 平移下不变）。反过来注意：**「cond 没超阈」不等于「三个壳都分得开」**，换序后要重算 rank/cond。
 2. **超胞 n0/n1 必须是 3 的倍数**（√3×√3 相位周期 3，默认 `--kagome-supercell 3 3 1`）；配位数必须是 (4,4,6)，否则 builder 硬报错。
 3. **J1 与 J1′ 被合并**：kagome 有两条**同距离、不同亚晶格对**的最近邻交换（J1 与 J1′），3 壳模型取**平均**并成一条 `J1`
@@ -630,5 +630,5 @@ MC 侧 `--order sublattice:<mask>` 只给**标量 |L|** 的 U4 交点，不分�
 闭式 `sin²θ` 标度可解析验证，但 **θ 是输入参数不是基态解**、**一次倾斜 SCF 定不出唯一 (J, D)**、
 装配**必须** `--soc`、CrOCl 文献 J 未核实 ⇒ 真值路径必须 `--ref`/`--synthetic`。
 ⇒ 不许报 CrOCl 的 J/D、基态倾斜角或由它推的 T_N；验收只到合成能量闭环。
-另：**kagome 的物理层（P4.2）只有操作手册**（`P4_2_KAGOME_RUNBOOK.md`），**没有任何真实 J/T_N**；
+另：**kagome 的物理层（P4.2）只有操作手册**（`KAGOME_RUNBOOK.md`），**没有任何真实 J/T_N**；
 手册 §8 的机时是纯估算（先用一个 FM 参考点替换成实测，否则不许当预算），§9 明确「J1/J1′ 分离」做不到。

@@ -6,16 +6,27 @@
 
 - **能力的权威边界**：[`capabilities.json`](capabilities.json)（机器可读）+ [`LIMITATIONS.md`](knowledge/LIMITATIONS.md)（人读）
 - **症状 → 修复**：[`KNOWN_ISSUES.md`](knowledge/KNOWN_ISSUES.md)
-- **逐脚本细节**：[`WORKFLOW.md`](knowledge/WORKFLOW.md)、[`dsh/2d-magnet/SKILL.md`](dsh/2d-magnet/SKILL.md)
+- **逐脚本细节**：[`WORKFLOW.md`](knowledge/WORKFLOW.md)、[`skill/2d-magnet/SKILL.md`](skill/2d-magnet/SKILL.md)
 
 ## [Unreleased]
+
+### Changed — 目录与文件按用途命名（不改行为）
+- `dsh/` → `skill/`：仓库直接装 skill，包根就是 `skill/2d-magnet/`，入口 `skill/bin/2d-magnet.cmd`
+  （wrapper 按 `%~dp0..\..` 定位仓库根，仓库内与 skill 包内都能跑）。
+- `tests/fixtures/legacy/` → `tests/fixtures/regression/`：这 9 套 POSCAR + 磁序规格是 `--regress` 的
+  回归夹具，不是历史遗留。
+- `knowledge/P4_2_KAGOME_RUNBOOK.md` → `knowledge/KAGOME_RUNBOOK.md`；
+  `knowledge/NEW_TYPES_PLAN.md` → `knowledge/LATTICE_ROADMAP.md`：按内容命名，公开页面不再出现阶段编号。
+- 同步改写 45 处引用（文档 / 脚本注释 / 测试 / sdist 清单 / MANIFEST），`MANIFEST.in` 改为
+  `recursive-include skill *`；`tests/check_sdist.py` 的必备清单同步为 `skill/2d-magnet/SKILL.md`。
+  历史提交信息另行重写为功能描述（不改代码）。
 
 ### Added — skill 发布包（可直接上传）
 - 新增 `scripts/make_skill_bundle.py`：产出 `dist/2d-magnet-skill-<ver>.zip` + `.sha256`。
   `SKILL.md` 在包根（harness 的 `<skills>/<name>/SKILL.md` 约定），`run_2d_magnet.py`、`scripts/`、
   `knowledge/`、`tests/`、`examples/`、`templates/` 一并内置，包内路径改写到包根，
   `bin/2d-magnet.cmd` 改用 `%~dp0..` 自定位；文件清单取自 git、时间戳取 HEAD 提交时间，重复构建字节一致。
-- **README §6 更正**：`dsh/2d-magnet/` 只拷目录**不是**自包含 skill（它驱动仓库里的 `run_2d_magnet.py`
+- **README §6 更正**：`skill/2d-magnet/` 只拷目录**不是**自包含 skill（它驱动仓库里的 `run_2d_magnet.py`
   与 `scripts/`），旧文案「把整个目录拷进技能目录」会把 skill 装成断链；现改为「用 skill 包」。
 - `scripts/magnetic_orders.py --regress` 对结构不在本包内的规格（MnI2、Fe3Sn 链路指向工作区项目目录）
   明确 `SKIP (结构不在本包内: …)` 并继续，独立分发的 skill 包里也能跑完并退出 0。
@@ -55,7 +66,7 @@ Monte Carlo 的 T_C / T_N**，八种磁性格点共用一套规格层与统一�
   （7 类晶格 / 7 个物理量 / 7 条「根本不支持」/ 5 道 fail-close 闸门；`physical_verified` 一律 `false`）。
 - **可直接看的复现样例**：[`examples/`](examples/) 两组产物快照（方形 La₂CuO₄ 全程、
   kagome Fe₃Sn 合成空跑），不需要 VASP，也不需要额外依赖。
-- **文档**：README、WORKFLOW、SKILL、KNOWN_ISSUES、NEW_TYPES_PLAN、kagome runbook、DMI memo，
+- **文档**：README、WORKFLOW、SKILL、KNOWN_ISSUES、LATTICE_ROADMAP、kagome runbook、DMI memo，
   以及两份 README 的文档索引（`README.md` 英文 / `README.zh.md` 中文）。
 - **发布工程**：[`MANIFEST.in`](MANIFEST.in) + [`tests/check_sdist.py`](tests/check_sdist.py)
   （sdist 必须项闸门，smoke §28 用合成 tar.gz 反向验证闸门本身）+ CI `package` 作业
@@ -92,7 +103,7 @@ Monte Carlo 的 T_C / T_N**，八种磁性格点共用一套规格层与统一�
 
 - **「已知局限」从 21 条收敛到 18 条**：删掉三条已失效的陈述（「T_C 取比热峰」的旧口径、
   「运行目录由 CWD 决定」、「GBK 控制台编码」），并把两条与正文重复的机制叙述压成纯边界；
-  全仓「局限 N」交叉引用（README / KNOWN_ISSUES / NEW_TYPES_PLAN / WORKFLOW / kagome runbook /
+  全仓「局限 N」交叉引用（README / KNOWN_ISSUES / LATTICE_ROADMAP / WORKFLOW / kagome runbook /
   `scripts/altermagnet_check.py`）同步改号。
 - README 新增「该读哪份（文档索引）」「打包闸门（sdist/wheel）」两段；
   可按步点击的三步（只支持「以文件夹为 vault 打开」，不支持孤立 `.md`）。

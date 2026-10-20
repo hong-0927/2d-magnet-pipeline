@@ -44,10 +44,10 @@ sys.path.insert(0, SCRIPTS)
 sys.path.insert(0, HERE)
 
 # SKILL.md 有两种合法布局：
-#   仓库里        -> dsh/2d-magnet/SKILL.md
+#   仓库里        -> skill/2d-magnet/SKILL.md
 #   独立 skill 包 -> 包根 SKILL.md（与 scripts/、run_2d_magnet.py 同级）
 # 两份内容由 scripts/make_skill_bundle.py 生成时改写路径，正文相同。
-SKILL_MD = os.path.join(HERE, "dsh", "2d-magnet", "SKILL.md")
+SKILL_MD = os.path.join(HERE, "skill", "2d-magnet", "SKILL.md")
 if not os.path.isfile(SKILL_MD):
     SKILL_MD = os.path.join(HERE, "SKILL.md")
 
@@ -1688,14 +1688,14 @@ else:
     check("alt: README 已同步 (脚本 + 交变磁体 + 边界说明链接)", _okr25)
 
     _okn25 = False
-    _plan25 = os.path.join(HERE, "knowledge", "NEW_TYPES_PLAN.md")
+    _plan25 = os.path.join(HERE, "knowledge", "LATTICE_ROADMAP.md")
     if os.path.isfile(_plan25):
         with open(_plan25, encoding="utf-8") as f:
             _tn25 = f.read()
         _i25 = _tn25.find("### P5 交变磁体")
         _okn25 = (_i25 >= 0 and "✅" in _tn25[_i25:_i25 + 400]
                   and "altermagnet_check.py" in _tn25[_i25:_i25 + 4000])
-    check("alt: NEW_TYPES_PLAN 的 P5 节标 ✅ 且点名交付物", _okn25)
+    check("alt: LATTICE_ROADMAP 的 P5 节标 ✅ 且点名交付物", _okn25)
 
     # ------------------------------------------------------------------
     # [26] 弱铁磁倾斜 (P2', CrOCl 类 oxyhalide): 构建器 cant 家族 + 闭式 θ 标度反解器
@@ -1944,7 +1944,7 @@ else:
     check("cant: ERROR_CATALOG 每个 key 都在 KNOWN_ISSUES.md 有行 (%d 条)" % len(ERROR_CATALOG),
           _kio26)
 
-    _rb26 = os.path.join(HERE, "knowledge", "P4_2_KAGOME_RUNBOOK.md")
+    _rb26 = os.path.join(HERE, "knowledge", "KAGOME_RUNBOOK.md")
     _rbo26 = False
     if os.path.isfile(_rb26) and os.path.getsize(_rb26) > 15000:
         with open(_rb26, encoding="utf-8") as _f:
@@ -1952,7 +1952,7 @@ else:
         _rbo26 = all(k in _trb26 for k in ("## 4. SCF 成功判据", "## 5. 回收", "## 8. 机时估算",
                                            "## 11. 检查清单", "## 12. 相关文件",
                                            "03_dft", "02_supercell", "POTCAR.spec"))
-    check("cant: P4.2 手册存在 (P4_2_KAGOME_RUNBOOK.md > 15 KB, 含 SCF判据/回收/机时/检查清单)", _rbo26)
+    check("cant: P4.2 手册存在 (KAGOME_RUNBOOK.md > 15 KB, 含 SCF判据/回收/机时/检查清单)", _rbo26)
 
     _sk26 = SKILL_MD
     _sko26 = False
@@ -1960,7 +1960,7 @@ else:
         with open(_sk26, encoding="utf-8") as _f:
             _tsk26 = _f.read()
         _sko26 = ("分支：弱铁磁倾斜" in _tsk26 and "solve_J_crect_cant.py" in _tsk26
-                  and "P4_2_KAGOME_RUNBOOK.md" in _tsk26)
+                  and "KAGOME_RUNBOOK.md" in _tsk26)
     check("cant: SKILL.md 有弱铁磁倾斜分支 + P4.2 手册指引", _sko26)
 
     _rd26 = os.path.join(HERE, "README.md")
@@ -1969,7 +1969,7 @@ else:
         with open(_rd26, encoding="utf-8") as _f:
             _trd26 = _f.read()
         _rdo26 = ("solve_J_crect_cant.py" in _trd26
-                  and "P4_2_KAGOME_RUNBOOK.md" in _trd26)
+                  and "KAGOME_RUNBOOK.md" in _trd26)
     check("cant: README 已同步 (反解器 + 手册)", _rdo26)
 
     _wf26 = os.path.join(HERE, "knowledge", "WORKFLOW.md")
@@ -1981,7 +1981,7 @@ else:
                   and "solve_J_crect_cant.py" in _twf26)
     check("cant: WORKFLOW 已同步 (继承表 + 局限 1h/1i)", _wfo26)
 
-    _pl26 = os.path.join(HERE, "knowledge", "NEW_TYPES_PLAN.md")
+    _pl26 = os.path.join(HERE, "knowledge", "LATTICE_ROADMAP.md")
     _plo26 = False
     if os.path.isfile(_pl26):
         with open(_pl26, encoding="utf-8") as _f:
@@ -1989,8 +1989,8 @@ else:
         _i26 = _tpl26.find("### P2′ 弱铁磁倾斜")
         _plo26 = (_i26 >= 0 and "✅" in _tpl26[_i26:_i26 + 400]
                   and "solve_J_crect_cant.py" in _tpl26[_i26:_i26 + 4000]
-                  and "P4_2_KAGOME_RUNBOOK.md" in _tpl26[_i26:_i26 + 4000])
-    check("cant: NEW_TYPES_PLAN 的 P2′/P4.2 节标 ✅ 且点名交付物", _plo26)
+                  and "KAGOME_RUNBOOK.md" in _tpl26[_i26:_i26 + 4000])
+    check("cant: LATTICE_ROADMAP 的 P2′/P4.2 节标 ✅ 且点名交付物", _plo26)
 
 # ---------------------------------------------------------------------------
 # [27] P4.2: k 点收敛抽查 (kconv) + VASP 输入参数化 (--kpoints/--npar/--isym)
@@ -2109,7 +2109,7 @@ if True:
     finally:
         shutil.rmtree(td27, ignore_errors=True)
 
-    _rb27 = os.path.join(HERE, "knowledge", "P4_2_KAGOME_RUNBOOK.md")
+    _rb27 = os.path.join(HERE, "knowledge", "KAGOME_RUNBOOK.md")
     _rbo27 = False
     if os.path.isfile(_rb27):
         with open(_rb27, encoding="utf-8") as _f:
@@ -2141,13 +2141,13 @@ if True:
         _sko27 = "kconv" in _tsk27 and "k_convergence.py" in _tsk27
     check("p42: SKILL.md 写了 k 点收敛抽查入口", _sko27)
 
-    _pl27 = os.path.join(HERE, "knowledge", "NEW_TYPES_PLAN.md")
+    _pl27 = os.path.join(HERE, "knowledge", "LATTICE_ROADMAP.md")
     _plo27 = False
     if os.path.isfile(_pl27):
         with open(_pl27, encoding="utf-8") as _f:
             _tpl27 = _f.read()
         _plo27 = "k_convergence.py" in _tpl27 or "k 点收敛" in _tpl27
-    check("p42: NEW_TYPES_PLAN 的 P4.2 残余里点名 k 点收敛抽查", _plo27)
+    check("p42: LATTICE_ROADMAP 的 P4.2 残余里点名 k 点收敛抽查", _plo27)
 
 # ---------------------------------------------------------------------------
 # [28] 发布闸门: sdist 内容 (MANIFEST.in) + CI 配置 + check_sdist 的判定逻辑
@@ -2161,9 +2161,9 @@ if True:
         with open(_man28, encoding="utf-8") as _f:
             _tman28 = _f.read()
         _mano28 = all(k in _tman28 for k in ("recursive-include examples *", "recursive-include tests *",
-                                             "recursive-include dsh *", "recursive-include templates *",
+                                             "recursive-include skill *", "recursive-include templates *",
                                              "global-exclude __pycache__/*"))
-        check("pkg: MANIFEST.in 把 examples/tests/dsh/templates 收进 sdist 且排除缓存", _mano28)
+        check("pkg: MANIFEST.in 把 examples/tests/skill/templates 收进 sdist 且排除缓存", _mano28)
     else:
         # 独立 skill 包（make_skill_bundle.py 产物）不带源码仓库的打包配置, 这四条仓库闸门在此就地跳过。
         print("SKIP pkg: MANIFEST.in 只存在于源码仓库 (独立 skill 包不含 sdist 配置)")
@@ -2193,7 +2193,7 @@ if True:
             check("pkg: check_sdist 的 REQUIRED 清单在仓库里都真实存在 (%d 项)" % len(CS28.REQUIRED),
                   not _missing28)
         else:
-            print("SKIP pkg: REQUIRED 清单含 dsh/ 等仓库专属路径, 独立 skill 包里不适用")
+            print("SKIP pkg: REQUIRED 清单含 skill/ 等仓库专属路径, 独立 skill 包里不适用")
 
         _td28 = tempfile.mkdtemp(prefix="_tmp_pkg28_")
         try:
@@ -2213,11 +2213,11 @@ if True:
             check("pkg: check_sdist 对完整 sdist 判通过 (exit 0 + [OK])",
                   _rg28.returncode == 0 and "[OK]" in _rg28.stdout)
 
-            _bad28 = _mk28("bad.tar.gz", [w for w in CS28.REQUIRED if not w.endswith("P4_2_KAGOME_RUNBOOK.md")])
+            _bad28 = _mk28("bad.tar.gz", [w for w in CS28.REQUIRED if not w.endswith("KAGOME_RUNBOOK.md")])
             _rb28 = run(sys.executable, _cs28, _bad28)
             check("pkg: check_sdist 对缺项 sdist 判失败并点名缺项",
                   _rb28.returncode == 1 and "[FAIL]" in _rb28.stdout
-                  and "P4_2_KAGOME_RUNBOOK.md" in _rb28.stdout)
+                  and "KAGOME_RUNBOOK.md" in _rb28.stdout)
 
             _dirty28 = _mk28("dirty.tar.gz", list(CS28.REQUIRED) + ["scripts/__pycache__/x.pyc"])
             _rd28 = run(sys.executable, _cs28, _dirty28)

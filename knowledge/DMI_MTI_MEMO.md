@@ -1,7 +1,7 @@
 # DMI / MTI：判据备忘 + 可行性备忘（P6）
 
 > **状态：只做识别层 + 判据备忘。** 本文件是**文档**，不含新的物理计算能力：P6 没有给流水线增加任何
-> 「算 D 矢量」或「算拓扑不变量」的代码。`NEW_TYPES_PLAN.md` 的 P6 只有两条（第 27 项技能文档、
+> 「算 D 矢量」或「算拓扑不变量」的代码。`LATTICE_ROADMAP.md` 的 P6 只有两条（第 27 项技能文档、
 > 第 28 项可行性备忘），这里把两条都落成可查的判据与数字。
 >
 > **一句话结论**：体相 DMI 与磁性拓扑绝缘体（MTI）**都不进主链**，理由是**契约对不上**（G6 ❌）而不是
@@ -18,7 +18,7 @@
 
 | | 体相 DMI（Dzyaloshinskii–Moriya） | 磁性拓扑绝缘体（MTI，MnBi₂Te₄ 类） |
 |---|---|---|
-| 判定（`NEW_TYPES_PLAN.md` §1.2 原文） | **只识别 + 路由，不进主链** | **只识别 + 路由，不进主链** |
+| 判定（`LATTICE_ROADMAP.md` §1.2 原文） | **只识别 + 路由，不进主链** | **只识别 + 路由，不进主链** |
 | 卡在哪一关 | G2 ❌（3 分量 D 拟合成本高）、G3 ❌（无自旋螺旋提取工作流）、G4 ❌（无拓扑荷序参量）、G6 ❌（产物对不上契约） | G2 ❌（需层分辨 A 型 AFM）、G3 ❌（SOC + slab + 层间）、G4 ❌（单层 MC 无意义）、G6 ❌ |
 | P3/P4.1 之后有没有变化 | **G3 部分解除**：`LNONCOLLINEAR`+`LSORBIT` 的 INCAR 层已就位、螺旋/倾斜自旋矢量已就位；仍缺**能量提取与 D 拟合** | **无变化**：层分辨/多 QL 与能带拓扑仍全缺 |
 | 今天能做的 | ① 算对称部分 `J`（若磁性格子在主链分支内）② 用 `--noncollinear --soc` 算**倾斜/螺旋构型的能量** ③ **把文献 D 值写成反称 3×3 `J_mat` 塞进 MC**（§3.2；工具已落盘 `scripts/dmi_matrix.py`，`--selftest` 5/5，端到端实测） | ① 把**单层/单个 QL** 当二维层算层内 `J`（但**层内 T_C ≠ 材料的 T_N**）② 用 `mp_fetch_2d.py` 判断层状性与层数 |
@@ -29,7 +29,7 @@
 
 ## 1. 为什么不在主链：G1–G6 逐关复核（P3 / P4.1 之后）
 
-判定门原文（`NEW_TYPES_PLAN.md` §1.1）：**G1–G4 全过 + G5 有锚点 + G6 可对位 = 进主链**；
+判定门原文（`LATTICE_ROADMAP.md` §1.1）：**G1–G4 全过 + G5 有锚点 + G6 可对位 = 进主链**；
 **G1–G3 任一需要新子链 = 只识别 + 路由**。
 
 ### 1.1 体相 DMI
@@ -64,7 +64,7 @@
    `LSORBIT` + `SAXIS` + 螺旋/倾斜自旋矢量都做出来了，所以 G3 从 ❌ 变成 ⚠（**输入侧已通，提取侧未做**）。
    **但判定不变**：G2/G4/G6 仍是 ❌ ⇒ 依旧不进主链。
 2. **`references\magnet-types.md` 不存在**：计划 §P1 第 11 项与 §三.8 都提到这个文件，仓库里
-   **从来没有 `2d_magnet_pipeline/references/`**；「可算 / 不可算」的标注实际落在 `dsh/2d-magnet/SKILL.md`
+   **从来没有 `2d_magnet_pipeline/references/`**；「可算 / 不可算」的标注实际落在 `skill/2d-magnet/SKILL.md`
    （agent 入口）与 README/WORKFLOW。本备忘录沿用这个事实，不再指向不存在的路径。
 
 ---
@@ -210,7 +210,7 @@ python scripts\poscar_to_mc3.py <POSCAR> --element Fe --S 1.5 --shell-def shell.
    → 解出逐键 `D = (D_x,D_y,D_z)`；**必须**带两道闸门：① 能量差的**信噪比**闸门（见 §5.2 的精度要求）
    ② 与螺旋法（若同时做了）的**交叉一致性**闸门；不过就报错，绝不静默出 D。
 3. **螺旋法备选路径**：`build_dmi_cases.py --spiral`（`q` 扫描）+ `solve_D_dmi.py --spiral`（取 `±q`
-   的反对称部分拟合）。两条路径互为 L2 交叉验证（对应 `NEW_TYPES_PLAN.md` §三.4 的验证阶梯）。
+   的反对称部分拟合）。两条路径互为 L2 交叉验证（对应 `LATTICE_ROADMAP.md` §三.4 的验证阶梯）。
 4. **`D_result.json`（新 schema，不复用 `j_result/1`）**：`{material, bonds:[{i,j,d, D:[x,y,z], |D|}],
    J_sym:{...}, cond, residual, source:"vasp"|"literature", convention:"H=+D·(Si×Sj)", confidence}`。
    落 `scripts/d_result.py`（镜像 `j_result.py` 的校验风格）。

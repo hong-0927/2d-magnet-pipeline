@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""交变磁体 (altermagnet) 识别层检查清单 —— P5 第 25 项 (knowledge/NEW_TYPES_PLAN.md)。
+"""交变磁体 (altermagnet) 识别层检查清单 —— P5 第 25 项 (knowledge/LATTICE_ROADMAP.md)。
 
 **只出报告, 不下结论。** 本脚本判定的是**几何清单**:
 

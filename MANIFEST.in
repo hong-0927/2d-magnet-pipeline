@@ -15,7 +15,7 @@ include CITATION.cff
 include install.sh
 include install.ps1
 recursive-include knowledge *
-recursive-include dsh *
+recursive-include skill *
 recursive-include examples *
 recursive-include tests *
 recursive-include templates *

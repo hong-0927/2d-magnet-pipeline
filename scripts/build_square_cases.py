@@ -274,7 +274,7 @@ def main():
     if cond > 1e4:
         raise SystemExit(
             f"选定的 4 个磁序设计矩阵病态: cond(A)={cond:.4g} > 1e4; 拒绝反解。\n"
-            "  提示: 先算系数矩阵条件数再决定提交哪些构型 (NEW_TYPES_PLAN §122)。")
+            "  提示: 先算系数矩阵条件数再决定提交哪些构型 (LATTICE_ROADMAP §122)。")
 
     os.makedirs(args.outdir, exist_ok=True)
     nonmag_counts = {el: atoms_sc.count(el) for el in args.nonmag}

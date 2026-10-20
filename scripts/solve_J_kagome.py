@@ -251,7 +251,7 @@ def main():
             "  J1 与 J2 只能靠 √3×√3 序 (sq3_alt 的 c1 != c2) 分开。\n"
             f"  当前选中 {ORDERS} (其中 q=0 成员: {q0_only})。\n"
             "  修法: 用 build_kagome_cases.py 生成 (它内置 selected_orders), 或换含 √3×√3 的组合。\n"
-            "  绝不允许对 rank 不足的矩阵求解后把结果当 J 报出去 (NEW_TYPES_PLAN §143)。")
+            "  绝不允许对 rank 不足的矩阵求解后把结果当 J 报出去 (LATTICE_ROADMAP §143)。")
     if cond > 1e4 or det < 1e-6:
         raise SystemExit(
             f"设计矩阵病态: cond={cond:.4g} (>1e4) 或 |det|={det:.3g} (<1e-6) ⇒ 拒绝给 J。\n"

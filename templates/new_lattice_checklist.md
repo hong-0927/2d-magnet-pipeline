@@ -3,7 +3,7 @@
 以 P1（方形 `square`）/ P2（C 心矩形 `rect_centered`）/ P3（非共线 + SOC 地基）/ P4.1（六角 kagome 系数层）四次实战为准。**每一步都有对应的验证闸门**，
 不要等最后一起测——规格层没锚定就写构建器，会让误差在下游放大且难以定位。
 
-> 总原则（`NEW_TYPES_PLAN.md` §104–117 + `dsh/2d-magnet/SKILL.md`）：**数据驱动 + 薄适配层**。新的晶格差异应该落在
+> 总原则（`LATTICE_ROADMAP.md` §104–117 + `skill/2d-magnet/SKILL.md`）：**数据驱动 + 薄适配层**。新的晶格差异应该落在
 > 规格层（`SPECS` / `ORDER_RULES`）与一个小构建器里，**不要复制粘贴**一个平行的 builder / solver / renderer。
 > 前端（driver）只做路由，不承载物理。
 
@@ -72,5 +72,5 @@
 - `LIMITATIONS.md`：新晶格的静默陷阱要写进去。
 - `WORKFLOW.md`：阶段 → 脚本 → 产物表 + **继承表**（说明新脚本复用了哪一层）+ 目录树。
 - `KNOWN_ISSUES.md`：新错误码两表各一行。
-- `NEW_TYPES_PLAN.md`：该项状态改 ✅ 并记录**偏离原计划的地方**（这类偏差记录比打勾本身更有价值）。
-- `dsh/2d-magnet/SKILL.md`：agent 的入口说明要不要新增一段分支用法。
+- `LATTICE_ROADMAP.md`：该项状态改 ✅ 并记录**偏离原计划的地方**（这类偏差记录比打勾本身更有价值）。
+- `skill/2d-magnet/SKILL.md`：agent 的入口说明要不要新增一段分支用法。

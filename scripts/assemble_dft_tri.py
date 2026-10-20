@@ -2,7 +2,7 @@
 """assemble_dft_tri.py
 三角晶格的 VASP 输入组装适配层（默认**共线**，--noncollinear 才开非共线）。
 
-P3.16 起本脚本是 **`assemble_dft.py` 的薄适配层**（NEW_TYPES_PLAN §106: 消灭复制粘贴的
+P3.16 起本脚本是 **`assemble_dft.py` 的薄适配层**（LATTICE_ROADMAP §106: 消灭复制粘贴的
 builder 模式）。它只保留「三角 = 全体磁序同一设置（可比）+ 可选 SOC」这条策略差异:
 
   * 角度/自旋生成规则  -> `mag_vectors.py`（单一来源）

@@ -37,7 +37,7 @@ python scripts/dry_run_kagome.py $ex --synthetic 5 -0.5 0.2 --mc
   `LNONCOLLINEAR/LSORBIT/ENCUT/NKPTS/VASP 版本` 都被逐序核对过。
 - **不能说的**：任何 J、T_C、T_N 数值。`J_result.dryrun.json` 的 `source=demo` 就是标记，
   MC 那两行也明确写着「伪临界点」。
-- 真实机时的下一步：`../P4_2_KAGOME_RUNBOOK.md`。要点是先把 §1 的参数表钉死（化合物 / a / S / U /
+- 真实机时的下一步：`../KAGOME_RUNBOOK.md`。要点是先把 §1 的参数表钉死（化合物 / a / S / U /
   POTCAR / k 网格 / ENCUT / 超胞），再按 §3–§5 装配、提交、回收，最后用 §6–§7 反解并对照 M4 锚点。
 - 另有两个与回收有关的工具，这里没跑但值得知道：`scripts/dft_handoff.py`（把 cases + DFT 输入打成
   交接包并附作业脚本，不代提交）与 `scripts/k_convergence.py`（只换 KPOINTS 生成 k 收敛变体，

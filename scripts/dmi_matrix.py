@@ -14,7 +14,7 @@
 推导: `S_i^T (-[D]_x) S_j = -(D x S_j)·S_i = -(S_j x S_i)·D = +D·(S_i x S_j)` ✓
 
 `--convention minus` 对应 `H_DM = -D · (S_i x S_j)` ⇒ `J_D = +[D]_x`。**符号约定必须与 J 的符号约定
-一起写在结论里**（本仓: `H = -J Σ S·S`，`J > 0 = 铁磁`，见 `dsh/2d-magnet/SKILL.md`「J 符号」）。
+一起写在结论里**（本仓: `H = -J Σ S·S`，`J > 0 = 铁磁`，见 `skill/2d-magnet/SKILL.md`「J 符号」）。
 
 ## 与 `J_mat` 的既有约定一致
 

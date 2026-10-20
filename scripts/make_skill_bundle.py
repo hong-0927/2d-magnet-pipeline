@@ -19,7 +19,7 @@
 1. **SKILL.md 必须在包根**：多数 harness 的技能目录是 ``<skills>/<name>/SKILL.md``，
    只有入口在包根，解压即被识别。
 2. **包里必须自带流水线**：SKILL.md 驱动的是 ``run_2d_magnet.py`` + ``scripts/``；
-   只拷 ``dsh/2d-magnet/`` 会得到一个指向不存在路径的说明文件。仓库里保留 ``dsh/`` 原样，
+   只拷 ``skill/2d-magnet/`` 会得到一个指向不存在路径的说明文件。仓库里保留 ``skill/`` 原样，
    包内改成根布局，因此两处的路径措辞不同（本脚本负责改写，不手改仓库那份）。
 3. **确定性**：文件清单来自 git（已跟踪 + 未忽略），时间戳取 HEAD 提交时间，
    同一棵树重复构建字节一致。
@@ -38,14 +38,14 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from make_release import commit_time, release_files, sha256, version_of  # noqa: E402
 
-# 这些不是 skill 包该带的东西：仓库专属配置、CI、旧的 dsh 布局（包内改成根布局）、构建产物。
-SKIP_TOP = (".github/", "dist/", "dsh/", "__pycache__/", ".git/")
+# 这些不是 skill 包该带的东西：仓库专属配置、CI、仓库内的 skill 目录（包内改成根布局）、构建产物。
+SKIP_TOP = (".github/", "dist/", "skill/", "__pycache__/", ".git/")
 SKIP_FILES = {".gitignore", ".gitattributes", "MANIFEST.in"}
 
 # SKILL.md 里必须改写到位、否则解压后路径全断的措辞。
 SKILL_REWRITES = (
     ("（本 SKILL.md 所在目录的\n上两级）", "（即本 SKILL.md 所在的包根目录）"),
-    ("`<repo>\\dsh\\bin\\2d-magnet.cmd`", "`<repo>\\bin\\2d-magnet.cmd`"),
+    ("`<repo>\\skill\\bin\\2d-magnet.cmd`", "`<repo>\\bin\\2d-magnet.cmd`"),
     ("（它按 `%~dp0..\\..` 自己定位", "（它按 `%~dp0..` 自己定位"),
 )
 CMD_REWRITES = (
@@ -77,8 +77,8 @@ def main():
 
     names = [n for n in release_files(root) if wants(n.replace(os.sep, "/"))]
 
-    skill_src = os.path.join(root, "dsh", "2d-magnet", "SKILL.md")
-    cmd_src = os.path.join(root, "dsh", "bin", "2d-magnet.cmd")
+    skill_src = os.path.join(root, "skill", "2d-magnet", "SKILL.md")
+    cmd_src = os.path.join(root, "skill", "bin", "2d-magnet.cmd")
     with io.open(skill_src, encoding="utf-8") as fh:
         skill = rewrite(fh.read(), SKILL_REWRITES, "SKILL.md")
     with io.open(cmd_src, encoding="utf-8") as fh:

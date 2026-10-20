@@ -12,7 +12,7 @@
 6. 误差棒用 binning 标准误；`05_mc/mc_diag.json` 给出 `n_eff`、`tau_int` 与接受率，采样不足时能看出来。峰落在温度窗口边界时，`T` 会标成未分辨，而不是照常给一个数。
 7. 有限尺寸标度用全局参照交点 + `1/L` 外推，外推值只是参考；没进标度区之前它不可信。
 8. `--order auto` 用 T = 0 候选基态（fm / Néel / 条纹）决定用哪个序参量。条纹基态没有 ±1 交错序参量，流水线会自动退回比热峰并给出说明；近简并的模型请显式给 `--order`。
-9. kagome 在系数层（P4.1），**J 不需要非共线 DFT**：默认四态（`fm/q0_ud/sq3_updntri/sq3_alt`）已满秩。物理层（P4.2）等真实 DFT 机时；只有要把 J1 与 J1′ 分开或做 120° 能量对照时才需要非共线路线——见 [`P4_2_KAGOME_RUNBOOK.md`](P4_2_KAGOME_RUNBOOK.md)。
+9. kagome 在系数层（P4.1），**J 不需要非共线 DFT**：默认四态（`fm/q0_ud/sq3_updntri/sq3_alt`）已满秩。物理层（P4.2）等真实 DFT 机时；只有要把 J1 与 J1′ 分开或做 120° 能量对照时才需要非共线路线——见 [`KAGOME_RUNBOOK.md`](KAGOME_RUNBOOK.md)。
 10. 交变磁体只做几何判别（P5），标量序参量能到子晶格掩码，但不是完整的非共线描述。
 11. 倾斜态（P2′）到系数层：`scripts/solve_J_crect_cant.py` 把 θ 当输入，不预测 θ。
 12. DMI 以你提供的 `D` 矩阵进入，流水线不从能量里提取 `D`——见 [`DMI_MTI_MEMO.md`](DMI_MTI_MEMO.md)。

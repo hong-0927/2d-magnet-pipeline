@@ -55,7 +55,7 @@
       --element Fe --nonmag Sn --moment 2.0 --spin 1.0 [--shell-tol 0.2] \
       [--include-noncollinear] [--selftest]
 
-已知局限 (NEW_TYPES_PLAN P4.1):
+已知局限 (LATTICE_ROADMAP P4.1):
   1. 只有 3 个距离壳 ⇒ 拿不到 J1/J1' 的拆分 (需要 pair= 显式壳 + 畸变结构);
   2. S 未在仓库定值: --spin 只影响 J~ 的口径, 反解出的 J 绝对值随 S² 缩放;
   3. 120° 序只在 --include-noncollinear 时才生成 (对照/复现旧工作流用), 默认不涉及;
@@ -511,13 +511,13 @@ def main():
         raise SystemExit(
             f"选定的 {SELECTED} 设计矩阵秩亏 (rank={rk} < {len(SELECTED)}): J1/J2 分不开。\n"
             "  kagome 的 q=0 一族天然分不开 J1/J2, 必须让 √3×√3 序 (sq3_*) 进入 selected; "
-            "见本文件 docstring 的简并说明与 NEW_TYPES_PLAN §122。")
+            "见本文件 docstring 的简并说明与 LATTICE_ROADMAP §122。")
     if abs(det) < 1e-6:
         raise SystemExit(f"设计矩阵接近奇异: |det(A)|={abs(det):.4g} < 1e-6; 拒绝反解。")
     if cond > 1e4:
         raise SystemExit(
             f"选定的 4 个磁序设计矩阵病态: cond(A)={cond:.4g} > 1e4; 拒绝反解。\n"
-            "  提示: 先算系数矩阵条件数再决定提交哪些构型 (NEW_TYPES_PLAN §122)。")
+            "  提示: 先算系数矩阵条件数再决定提交哪些构型 (LATTICE_ROADMAP §122)。")
 
     os.makedirs(args.outdir, exist_ok=True)
     nonmag_counts = {el: atoms_sc.count(el) for el in args.nonmag}
@@ -583,7 +583,7 @@ def main():
         "n_cells": len(atoms_sc) // len(atoms),
         "q0_degeneracy_note": ("q=0 一族 (fm/q0_120/q0_ud/q0_duu) 的设计矩阵秩只有 2: "
                                "J1 与 J2 在该族内比值恒定, 必须靠 √3×√3 序分离 "
-                               "(NEW_TYPES_PLAN P4 风险条)"),
+                               "(LATTICE_ROADMAP P4 风险条)"),
         "order_spec": order_spec,
         "model_spec": model_spec,
     }

@@ -1226,7 +1226,7 @@ def main():
     # ---- P4.2: VASP 输入的可调项（默认与 03_dft 模板一致，只有显式给了才透传）----
     ap.add_argument("--kpoints", type=int, nargs=3, default=None,
                     help="显式 k 网格 (默认用模板的 3 3 1; 上真实机时前建议先做一次 k 收敛抽查, "
-                         "见 knowledge/P4_2_KAGOME_RUNBOOK.md §1)")
+                         "见 knowledge/KAGOME_RUNBOOK.md §1)")
     ap.add_argument("--npar", type=int, default=None, help="显式 NPAR (默认 4)")
     ap.add_argument("--isym", type=int, default=None,
                     help="显式 ISYM (0 = 关对称性); 默认 static 不写、relax 用模板的 0")

@@ -8,7 +8,7 @@ right place and the release gate keeps passing.
 | Kind | Where | Rule |
 |---|---|---|
 | **Driver + tools** | `run_2d_magnet.py`, `scripts/` | Deterministic. Every script takes flags, prints machine-parseable output, exits non-zero on failure, and has `--help`; most have `--selftest`. No hidden defaults for physical quantities. |
-| **Skill / procedure** | `dsh/2d-magnet/SKILL.md` (+ `AGENTS.md`) | How a task is driven: conventions, gates, per-stage recipes, error recovery. Prose, no code. |
+| **Skill / procedure** | `skill/2d-magnet/SKILL.md` (+ `AGENTS.md`) | How a task is driven: conventions, gates, per-stage recipes, error recovery. Prose, no code. |
 | **Reference library** | `knowledge/` | Flat, tool-agnostic science and practice: workflow detail, error catalog, boundary statements, DMI memo, kagome runbook. Read it for ideas; it is not a skill and cannot be executed. |
 | **Evidence** | `tests/`, `examples/` | `tests/` holds the gates (smoke sections + contract tests + sdist check). `examples/` holds two complete artifact trees produced by the pipeline, kept so a reader can inspect real file contents without running VASP. |
 
