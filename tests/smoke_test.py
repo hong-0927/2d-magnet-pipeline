@@ -43,6 +43,14 @@ SCRIPTS = os.path.join(HERE, "scripts")
 sys.path.insert(0, SCRIPTS)
 sys.path.insert(0, HERE)
 
+# SKILL.md 有两种合法布局：
+#   仓库里        -> dsh/2d-magnet/SKILL.md
+#   独立 skill 包 -> 包根 SKILL.md（与 scripts/、run_2d_magnet.py 同级）
+# 两份内容由 scripts/make_skill_bundle.py 生成时改写路径，正文相同。
+SKILL_MD = os.path.join(HERE, "dsh", "2d-magnet", "SKILL.md")
+if not os.path.isfile(SKILL_MD):
+    SKILL_MD = os.path.join(HERE, "SKILL.md")
+
 import cluster_sites as CS  # noqa: E402
 import fetch_structure as FS  # noqa: E402
 import j_result as JR  # noqa: E402
@@ -844,9 +852,12 @@ try:
     check("gdi2: driver build --model gdi2 退出 0", r15.returncode == 0)
     check("gdi2: driver 判 [lattice] triangular", "[lattice] triangular" in r15.stdout)
     _mo = os.path.join(td15, "02_supercell", "cases", "magnetic_orders.json")
-    check("gdi2: cases 四态 fm/120deg/stripy_a/stripy_ab",
-          os.path.exists(_mo) and set(json.load(open(_mo, encoding="utf-8"))["selected_orders"])
-          == {"fm", "120deg", "stripy_a", "stripy_ab"})
+    _m15 = json.load(open(_mo, encoding="utf-8"))
+    _sel15 = set(_m15["selected_orders"])
+    check("gdi2: cases 默认共线四态 (含 fm, 无 120deg, 秩 4)",
+          os.path.exists(_mo) and len(_sel15) == 4 and "fm" in _sel15
+          and "120deg" not in _sel15
+          and _m15.get("design_rank") == 4 and float(_m15.get("design_cond", 1e99)) < 1e4)
 finally:
     shutil.rmtree(td15, ignore_errors=True)
 
@@ -1249,7 +1260,7 @@ try:
               "--poscar", GDI2, "--outdir", td20)
     check("fig: 三角 render 分派给 %s" % _rend20, _rend20 in r20.stdout)
     _png20 = os.path.join(td20, "figures", "supercell_orders.png")
-    check("fig: 三角渲染器真写出 120° 超胞图 (>10 KB)",
+    check("fig: 三角渲染器真写出共线磁序超胞图 (>10 KB)",
           os.path.isfile(_png20) and os.path.getsize(_png20) > 10000)
 
     # 簇磁体分支: 驱动没有簇磁体预设, 直接建 cases 再渲染 (渲染器与驱动走同一支)
@@ -1468,10 +1479,10 @@ else:
             with open(_jf23, encoding="utf-8") as f:
                 _d23 = json.load(f)
             _ok23 = (list(_d23.get("selected_orders") or []) ==
-                     ["fm", "q0_120", "sq3_updntri", "sq3_alt"]
+                     ["fm", "q0_ud", "sq3_updntri", "sq3_alt"]
                      and int(_d23.get("design_rank") or 0) == 4
-                     and bool(_d23.get("noncollinear")))
-        check("kag: 落盘工程含 √3×√3 选定序 + rank=4 + 非共线", _ok23)
+                     and not bool(_d23.get("noncollinear")))
+        check("kag: 落盘工程含 √3×√3 选定序 + rank=4 + 全共线", _ok23)
     finally:
         shutil.rmtree(td23, ignore_errors=True)
 
@@ -1546,7 +1557,7 @@ else:
     check("dmi: DMI_MTI_MEMO.md 存在且含判据 / 边界 / 工具", _okm24)
 
     _oks24 = False
-    _skill24 = os.path.join(HERE, "dsh", "2d-magnet", "SKILL.md")
+    _skill24 = SKILL_MD
     if os.path.isfile(_skill24):
         with open(_skill24, encoding="utf-8") as f:
             _ts24 = f.read()
@@ -1659,7 +1670,7 @@ else:
         check("alt: tests/test_altermagnet.py 存在 (跳过: 缺文件)", True)
 
     _oks25 = False
-    _skill25 = os.path.join(HERE, "dsh", "2d-magnet", "SKILL.md")
+    _skill25 = SKILL_MD
     if os.path.isfile(_skill25):
         with open(_skill25, encoding="utf-8") as f:
             _ts25 = f.read()
@@ -1943,7 +1954,7 @@ else:
                                            "03_dft", "02_supercell", "POTCAR.spec"))
     check("cant: P4.2 手册存在 (P4_2_KAGOME_RUNBOOK.md > 15 KB, 含 SCF判据/回收/机时/检查清单)", _rbo26)
 
-    _sk26 = os.path.join(HERE, "dsh", "2d-magnet", "SKILL.md")
+    _sk26 = SKILL_MD
     _sko26 = False
     if os.path.isfile(_sk26):
         with open(_sk26, encoding="utf-8") as _f:
@@ -2122,7 +2133,7 @@ if True:
         _wfo27 = "k_convergence.py" in _twf27 and "kconv" in _twf27
     check("p42: WORKFLOW 已同步 (继承表 + 目录树)", _wfo27)
 
-    _sk27 = os.path.join(HERE, "dsh", "2d-magnet", "SKILL.md")
+    _sk27 = SKILL_MD
     _sko27 = False
     if os.path.isfile(_sk27):
         with open(_sk27, encoding="utf-8") as _f:
@@ -2152,7 +2163,10 @@ if True:
         _mano28 = all(k in _tman28 for k in ("recursive-include examples *", "recursive-include tests *",
                                              "recursive-include dsh *", "recursive-include templates *",
                                              "global-exclude __pycache__/*"))
-    check("pkg: MANIFEST.in 把 examples/tests/dsh/templates 收进 sdist 且排除缓存", _mano28)
+        check("pkg: MANIFEST.in 把 examples/tests/dsh/templates 收进 sdist 且排除缓存", _mano28)
+    else:
+        # 独立 skill 包（make_skill_bundle.py 产物）不带源码仓库的打包配置, 这四条仓库闸门在此就地跳过。
+        print("SKIP pkg: MANIFEST.in 只存在于源码仓库 (独立 skill 包不含 sdist 配置)")
 
     _ci28 = os.path.join(HERE, ".github", "workflows", "ci.yml")
     _cio28 = False
@@ -2162,7 +2176,9 @@ if True:
         _cio28 = all(k in _tci28 for k in ("check_sdist.py", "build", "run_2d_magnet.py doctor",
                                            "magnetic_orders.py --regress", "tests/smoke_test.py",
                                            "tests/test_ingest.py", "tests/test_crect_cant.py"))
-    check("pkg: CI 跑 regress + smoke + 契约测试, 并有打包作业 (check_sdist)", _cio28)
+        check("pkg: CI 跑 regress + smoke + 契约测试, 并有打包作业 (check_sdist)", _cio28)
+    else:
+        print("SKIP pkg: .github/workflows/ci.yml 只存在于源码仓库 (独立 skill 包不含 CI)")
 
     _cs28 = os.path.join(HERE, "tests", "check_sdist.py")
     check("pkg: tests/check_sdist.py 存在 (发布闸门本体)", os.path.isfile(_cs28))
@@ -2173,8 +2189,11 @@ if True:
         import check_sdist as CS28  # noqa: E402
 
         _missing28 = [w for w in CS28.REQUIRED if not os.path.isfile(os.path.join(HERE, w.replace("/", os.sep)))]
-        check("pkg: check_sdist 的 REQUIRED 清单在仓库里都真实存在 (%d 项)" % len(CS28.REQUIRED),
-              not _missing28)
+        if os.path.isfile(_man28):
+            check("pkg: check_sdist 的 REQUIRED 清单在仓库里都真实存在 (%d 项)" % len(CS28.REQUIRED),
+                  not _missing28)
+        else:
+            print("SKIP pkg: REQUIRED 清单含 dsh/ 等仓库专属路径, 独立 skill 包里不适用")
 
         _td28 = tempfile.mkdtemp(prefix="_tmp_pkg28_")
         try:

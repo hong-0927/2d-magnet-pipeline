@@ -58,14 +58,14 @@ python run_2d_magnet.py --formula MnPS3 --literature MnPS3 --provider cod
 3. 或**真跑 DFT**：`03_dft` + `runs/<order>` 已备好，四磁态静态 + FM 弛豫后
    `scripts/solve_J3.py <cases> --demo` 自检 → 用真实能量反解。
 
-   **自旋模式**（`dft` 阶段可选，P3 起）：
-   - 默认 = 共线（`ISPIN=2` + 1 分量 MAGMOM）。
-   - `--noncollinear` = 非共线（`LNONCOLLINEAR=.TRUE.` + 3 分量 MAGMOM），用于 120° / 螺旋 / 倾斜。
+   **自旋模式**（`dft` 阶段可选，P3 起；**P6 起默认路线全共线，反解 J 不需要非共线**）：
+   - 默认 = 共线（`ISPIN=2` + 1 分量 MAGMOM）。三角/kagome 的默认磁序集合就是共线四态。
+   - `--noncollinear` = 非共线（`LNONCOLLINEAR=.TRUE.` + 3 分量 MAGMOM），用于 120°/q0_120 对照 / 螺旋 / 倾斜。
    - `--soc` = 在非共线上再加 `LSORBIT=.TRUE.` + `GGA_COMPAT=.FALSE.`（可配 `--saxis x y z` 指定自旋量子化轴）；
-     驱动日志与 `workflow.md` 都会写明「非共线+SOC」。**需要 SOC 的磁序（cant/spiral/tilt…）没开 `--soc`
+     驱动日志与 `workflow.md` 都会写明「非共线+SOC」。**需要 SOC 的磁序（cant/spiral/tilt/MAE…）没开 `--soc`
      会被硬拒**，不会静默降级成共线去算一个物理上不成立的能量。
-   - 三角晶格走 `assemble_dft_tri.py`，它已退化为**薄适配层**（内部转调 `assemble_dft.py --noncollinear
-     --all-orders`），两条路径共用同一份 INCAR 渲染，行为不会分叉。
+   - 三角晶格走 `assemble_dft_tri.py`，它已退化为**薄适配层**（默认转调共线路径；只有 `--noncollinear` 才转
+     `assemble_dft.py --noncollinear --all-orders`），两条路径共用同一份 INCAR 渲染，行为不会分叉。
 
    **能量口径（P3 起统一）**：所有 `solve_*` 一律读 OUTCAR 的 **`free energy  TOTEN`**、取**最后一次**出现；
    缺这一行就报错，**不会**悄悄改用 `energy(sigma->0)`——两种口径混用会让反解出的 J 差一个常数项
@@ -90,24 +90,25 @@ reorient   reorient.py              层法线对齐 z + 加真空（修 MP 单�
 standardize standardize_cell.py     紧凑胞标准化（把胞内两磁性原子变成最近邻；MP 原胞可能非紧凑，如 CrI3 的 8.05 Å）
 supercell  build_magnetic_cases3.py 2×2×1 超胞 + 四磁态 + J1/J2/J3 系数
           build_cluster_cases.py   簇磁体：fm+波矢态 + J_intra/J1/J2/J3
-          build_magnetic_cases_tri.py 三角：fm + 120°非共线 + stripy/uud + J1/J2/J3
+          build_magnetic_cases_tri.py 三角：fm + stripy/uud 共线四态 + J1/J2/J3（120° 诊断态仅 --include-noncollinear）
           build_rectangular_cases.py 矩形：fm/afm_a/afm_b/afm_diag 四共线 + J1/J2/J3 (距离壳升序)
            build_square_cases.py    方形：fm/g_type/stripe_a/stripe_b/p4_a/mix_ab 六共线枚举（DFT 只提交选定四态）+ J1/J2/J3 (a / a√2 / 2a)
            build_crect_cases.py     C 心矩形（2 磁原子/胞，如 CrOCl）：7 共线枚举（DFT 只提交选定四态）+ J1/J2/J3 (C 心 3D 键长 / a / b)
                                     + 非磁元素占位与化学计量校验（--nonmag 写错/漏写硬报错，每胞计量落盘）
-           build_kagome_cases.py    六角 kagome（3 磁原子/胞、最近邻 a/2 上 4 配位，如 Fe3Sn）：7 磁态
-                                    （fm/q0_120/q0_ud/q0_duu/sq3_120/sq3_updntri/sq3_alt，非共线 3 分量）+ J1(a/2)/J2(a√3/2)/J3(a)
+           build_kagome_cases.py    六角 kagome（3 磁原子/胞、最近邻 a/2 上 4 配位，如 Fe3Sn）：默认 5 共线磁态
+                                    （fm/q0_ud/q0_duu/sq3_updntri/sq3_alt）+ J1(a/2)/J2(a√3/2)/J3(a)；
+                                    120°（q0_120/sq3_120）仅 --include-noncollinear
                                     + 硬拒 q=0 简并（rank<4 / cond>1e4 / det≈0）；超胞 n0/n1 须为 3 的倍数（P4.1）
-dft        assemble_dft.py / assemble_dft_tri.py  生成 INCAR/KPOINTS/POTCAR.spec + runs/<order>/ (三角用非共线)
+dft        assemble_dft.py / assemble_dft_tri.py  生成 INCAR/KPOINTS/POTCAR.spec + runs/<order>/ (默认共线)
            自旋模式: 默认共线(ISPIN=2) / --noncollinear(3 分量) / --soc(+LSORBIT,GGA_COMPAT=.FALSE.,--saxis)
-           assemble_dft_tri.py 只是适配层, 转调 assemble_dft.py --noncollinear --all-orders (共用同一份 INCAR 渲染)
+           assemble_dft_tri.py 只是适配层: 默认走共线, 只有 --noncollinear 才转调 assemble_dft.py --noncollinear --all-orders
 mc         poscar_to_mc3.py + mc_2d.py  建模型 + Heisenberg MC（自写 fast kernel）
            之后 driver 自己再判一次峰位: 峰落在温度窗口首/末格点 (= 窗口截断或网格跨过窄峰)
            → 自动缩放窗口 + 加密退火重扫, 首轮留 `mc_mt_survey.csv` (避免把边界值当 T_C/T_N)
 fss        mc_fss.py (--fss 时)  多尺寸 U₄(T) 有限尺寸标度: 两两交点 + collapse 交叉验证 → T_C/T_N
 render     render_supercell.py / render_cluster_orders.py / render_tri_orders.py  磁序俯视图
            (本机缺 matplotlib 时三个分支自动改走等价的 *_pil.py: supercell/cluster/tri)
-           kagome 复用 tri 渲染器（非共线 3 分量箭头；render_supercell.py 只认共线, 会画错）
+           kagome 复用 tri 渲染器（标量 magmom 画红/蓝 ↑↓，3 分量才画箭头；render_supercell.py 只认共线会画错 kagome 的三亚晶格）
                      标题由 driver 用 --title 覆盖（tri 渲染器默认标题写死「三角晶格」）
 ship-mc    (复制) mc_2d.py + poscar_to_mc3.py + write_hamiltonian.py (簇/三角/kagome 再加对应枚举+反解脚本) -> <outdir>/05_mc/
 hamiltonian write_hamiltonian.py    生成 <outdir>/hamiltonian.md (Heisenberg 哈密顿卡片, 顶层)
@@ -139,10 +140,10 @@ driver 另支持位置参 `<command>` 分阶段运行：`fetch` / `build` / `dft
     ├── build_cluster_cases.py # 簇磁体：超胞+磁序枚举+J_intra/J1/J2/J3 映射 (含 DFT runs)
     ├── solve_cluster_J.py # 簇磁体：OUTCAR -> E0/J_intra/J1..Jk
     ├── render_cluster_orders.py # 簇磁体：簇心磁序俯视图
-    ├── build_magnetic_cases_tri.py # 三角：超胞 + 磁序枚举(含120°非共线) + J1/J2/J3 映射
-    ├── assemble_dft_tri.py # 三角：**薄适配层** —— 转调 assemble_dft.py --noncollinear --all-orders (共用 INCAR 渲染)
-    ├── solve_J_tri.py # 三角：OUTCAR -> J1/J2/J3
-    ├── render_tri_orders.py # 三角：磁序俯视图 (120° 矢量箭头)
+    ├── build_magnetic_cases_tri.py # 三角：超胞 + 磁序枚举(默认共线四态; 120° 需 --include-noncollinear) + J1/J2/J3 映射
+    ├── assemble_dft_tri.py # 三角：**薄适配层** —— 默认共线; 只有 --noncollinear 才转调 assemble_dft.py --noncollinear --all-orders
+    ├── solve_J_tri.py # 三角：OUTCAR -> J1/J2/J3（校验 rank=4 与 cond）
+    ├── render_tri_orders.py # 三角：磁序俯视图 (标量画 ↑/↓, 3 分量画矢量箭头)
     ├── build_rectangular_cases.py # 矩形(CrSBr/CrSCl)：超胞 + 四共线态(fm/afm_a/afm_b/afm_diag) + J1/J2/J3 映射
     ├── solve_J_rect.py     # 矩形：OUTCAR -> J1/J2/J3（距离壳升序, 对齐 build_rectangular_cases --selftest）
     ├── build_fgt_cases.py # **双亚晶格铁磁网络 (Fe3GeTe2/Fe3GaTe2 类)**：超胞(默认 3x3, 含别名自检)
@@ -153,7 +154,8 @@ driver 另支持位置参 `<command>` 分阶段运行：`fetch` / `build` / `dft
     │                      #   + 产物含 order_spec/model_spec/design_cond；`--selftest` 与 P0.1 规格层逐位交叉校验
     ├── solve_J_square.py  # 方形反解：OUTCAR -> J1/J2/J3 + E0 → J_result.json（`--demo`/`--ref la2cuo4` 自检, 应 PASS）
     ├── build_kagome_cases.py # **六角 kagome (Fe3Sn 类, 原胞 3 个磁原子: 最近邻 a/2 上 4 配位, 不是 FGT)**
-    │                      #   + 超胞(默认 3x3x1, 前两维须为 3 的倍数) + 七磁态 fm/q0_120/q0_ud/q0_duu/sq3_120/sq3_updntri/sq3_alt
+    │                      #   + 超胞(默认 3x3x1, 前两维须为 3 的倍数) + 默认五共线态 fm/q0_ud/q0_duu/sq3_updntri/sq3_alt
+    │                      #     (q0_120/sq3_120 仅 --include-noncollinear, 3 分量)
     │                      #   + J1(a/2)/J2(a√3/2)/J3(a) 映射; 硬拒 rank<4 (q=0 简并) / cond>1e4 / det≈0
     │                      #   + 产物含 order_spec/model_spec/design_cond/coefficients_per_mag; `--selftest` 与规格层逐位交叉校验
     ├── solve_J_kagome.py  # kagome 反解：OUTCAR -> J1/J2/J3 + E0 → J_result.json（`--demo --synthetic 3 -0.4 0.15` 自检, 应 PASS）
@@ -181,8 +183,12 @@ driver 另支持位置参 `<command>` 分阶段运行：`fetch` / `build` / `dft
     ├── assemble_dft.py  # **VASP 输入统一入口**：默认共线 / --noncollinear / --soc(+--saxis) / --all-orders
     ├── render_supercell.py / render_supercell_pil.py
     ├── render_cluster_orders.py / render_cluster_orders_pil.py   # 簇磁体: 簇心视图 (matplotlib / 纯 Pillow)
-    ├── render_tri_orders.py     / render_tri_orders_pil.py       # 三角: 120° 面内自旋箭头 (matplotlib / 纯 Pillow)
+    ├── render_tri_orders.py     / render_tri_orders_pil.py       # 三角: 共线 ↑/↓；3 分量(120°/cant)才画箭头 (matplotlib / 纯 Pillow)
     ├── pil_fig.py          # 三条 Pillow 渲染路径共用的原语 (面板变换/虚线/圆/箭头/图例); 新渲染器一律复用它
+    ├── make_release.py     # 仓库发布包: dist/2d-magnet-pipeline-<ver>.tar.gz/.zip + .sha256, 时间戳取 HEAD
+    ├── make_skill_bundle.py # **agent skill 发布包**: dist/2d-magnet-skill-<ver>.zip, SKILL.md 在包根,
+    │                        #   run_2d_magnet.py + scripts/knowledge/tests/examples/templates 一并内置,
+    │                        #   包内路径改写到包根 (dsh/bin 的 %~dp0..\.. 改成 %~dp0..), 同样确定性打包
 ```
 
 ---
@@ -196,7 +202,7 @@ driver 另支持位置参 `<command>` 分阶段运行：`fetch` / `build` / `dft
 | `render_supercell.py` | CrBr3 `render_supercell.py` | 加多非磁元素 + J1/J2/J3 壳分色/系数标注 |
 | `render_supercell_pil.py` | 新写（本仓, 2026-10） | 纯 Pillow 的等价路径：本机 matplotlib 3.11.1 缺 pyparsing/cycler/contourpy/fontTools/kiwisolver 且离线装不上 ⇒ 超胞图改由它出；几何/文本规则复用 `render_supercell.py`（该模块已改成**顶层不 import matplotlib**），CLI 与输出路径完全一致；C 心矩形还会把「MC 面内投影尺子」与「规格层 3D 键长尺子」两个壳距都标进图例 |
 | `render_cluster_orders_pil.py` | 新写（本仓, 2026-10） | 簇磁体的纯 Pillow 等价路径（同 CLI/输入/输出）；`render_cluster_orders.py` 已改成**顶层不 import matplotlib**，几何/配色/文本规则全部复用；非磁原子按 matplotlib 版 zorder 画在键之下 |
-| `render_tri_orders_pil.py` | 新写（本仓, 2026-10） | 三角的纯 Pillow 等价路径；120° 非共线自旋画成**定长方向箭头**（0.30·\|a\|，只表方向），与 matplotlib 版同步改掉了原 `quiver(scale=0.9)` 在 \|S\|=5 时画出 5.6 Å 长箭头互相纠缠的问题 |
+| `render_tri_orders_pil.py` | 新写（本仓, 2026-10） | 三角的纯 Pillow 等价路径；默认共线磁态画红/蓝 ↑/↓（标量 magmom，无箭头），只有 3 分量（120°/cant）才画**定长方向箭头**（0.30·\|a\|，只表方向），与 matplotlib 版同步改掉了原 `quiver(scale=0.9)` 在 \|S\|=5 时画出 5.6 Å 长箭头互相纠缠的问题；面板按矩形裁剪，标题带白底 |
 | `pil_fig.py` | 新写（本仓, 2026-10） | 三条 Pillow 渲染路径共用的绘图原语：面板网格/数据→像素变换/手工虚线点线/实心圆（两段画法规避 Pillow 的 `ellipse(width>1)` 十字伪影）/实心箭头（三角头）/图例排布；`render_supercell_pil.py` 早于它（自带一份拷贝），之后新写的 Pillow 渲染器一律复用它 |
 | `mag_vectors.py` | 新写（本仓, 2026-10, P3） | 自旋矢量层：共线 / 面内 120° / ±θ 倾斜 / 螺旋 → 3 分量 MAGMOM，含 `SOC_ORDERS`/`needs_soc`/`ANGLE_TABLE` 与渲染/解析/校验（从 `assemble_dft_tri.py` 里抽出，供全部 `assemble_dft*` 与 P4 kagome 复用） |
 | `dft_energy.py` | 新写（本仓, 2026-10, P3） | OUTCAR 能量口径唯一出口：一律 `free energy TOTEN` 取最后一次，缺则报错（不静默改用 `energy(sigma->0)`）；`mixed_convention()` 抓两种口径混用；六个 `solve_J*` 的 `read_toten` 全部转发到它 |
@@ -212,9 +218,9 @@ driver 另支持位置参 `<command>` 分阶段运行：`fetch` / `build` / `dft
 | `solve_cluster_J.py` | 新写 | 簇磁体：OUTCAR -> E0/J_intra/J1..Jk（对齐 build_cluster_cases --selftest） |
 | `render_cluster_orders.py` | 新写 | 簇磁体：簇心磁序俯视图 |
 | `build_magnetic_cases_tri.py` | 新写 | 三角：超胞 + 磁序枚举(含 120° 非共线) + J1/J2/J3 映射 |
-| `assemble_dft_tri.py` | 新写（P3 起改为**薄适配层**） | 三角：只拼命令行转调 `assemble_dft.py --noncollinear --all-orders`（与共线路径共用同一份 INCAR 渲染）；`--print-cmd` 可看它实际执行的命令 |
+| `assemble_dft_tri.py` | 新写（P3 起改为**薄适配层**；P6 起默认共线） | 三角：默认拼共线命令转调 `assemble_dft.py --all-orders`（标量 MAGMOM + `ISPIN=2`）；只有 `--noncollinear`/`--lsorbit` 才追加 `--noncollinear`（3 分量 + `LNONCOLLINEAR`）；`--print-cmd` 可看它实际执行的命令 |
 | `solve_J_tri.py` | 新写 | 三角：OUTCAR -> J1/J2/J3 |
-| `render_tri_orders.py` | 新写 | 三角：磁序俯视图 (120° 矢量箭头) |
+| `render_tri_orders.py` | 新写 | 三角：磁序俯视图 (共线 ↑/↓；3 分量才画矢量箭头) |
 | `build_rectangular_cases.py` / `solve_J_rect.py` | 新写（本仓, 2026-10） | 矩形晶格铁磁（CrSBr/CrSCl 类）：4 共线态 fm/afm_a/afm_b/afm_diag 枚举 + 系数矩阵 + OUTCAR 反解 J1/J2/J3（`--selftest`/`--demo` PASS）；J 按距离壳升序（J1=a 轴/J2=b 轴/J3=对角） |
 | `mc_2d.py --order cv` | 新写 | 比热 Cv 判据，受挫/非二分晶格（三角）通用定 T_N |
 | `mc_2d.py --order sublattice:<mask>` + `altermagnet_check.py` | 新写（本仓, 2026-10, **P5**） | **逐子晶格 Néel 矢量**序参量（`mask={0}` 即老的交错序参量 ⇒ 蜂窝/FGT 逐位等价，是回归锚点；`num_basis>=3` 时可取任意子晶格组合，而 `stag_signs` 只会把 basis 1..n-1 并成一组并打 warn）。产物仍是 4 列 `mc_mt.csv`（`T_Kelvin,order_param,Susceptibility,Binder_U4`）⇒ `summarize_mc`/`mc_fss` 的列契约不变；`mask` 必须留至少一个子晶格在 B 组，否则除零（脚本硬报错）。**只给标量 \|L\|，不给两套亚晶格的 Néel 矢量方向**。配套 `altermagnet_check.py` 判几何（平移/反演/旋转连接，容差以 Å 计），`--selftest` 15/15；判别结论：MnPS3 几何候选、CrOCl 宇称禁止、Fe3Sn 不适用 |

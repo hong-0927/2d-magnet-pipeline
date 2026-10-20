@@ -1,11 +1,13 @@
 #!/usr/bin/env python
 """build_kagome_cases.py
-六角 kagome 晶格 (三个磁位/胞, 最近邻 z=4) 单离子磁体: 超胞 + 磁序枚举 + J1/J2/J3 能量映射系数。
+六角 kagome 晶格 (三个磁位/胞, 最近邻 z=4) 单离子磁体: 超胞 + **全共线**磁序枚举 + J1/J2/J3
+能量映射系数。
 
 与其它晶格的区别:
   - 三角/蜂窝是 60° 晶格, 1~2 个磁位/胞; 方形/矩形是 90°, 1~2 个磁位/胞;
   - kagome 是 **3 个磁位/胞的受挫晶格**: 每个磁位 4 个最近邻, 由**上/下两种三角形**拼成,
-    低能态可以是共面 120° 非共线序 (q=0 或 √3×√3)。
+    物理低能态可以是共面 120° 非共线序 (q=0 或 √3×√3) —— 但那是**物性**,
+    不是反解 J1/J2/J3 的必要条件: 共线的 (fm, q0_ud, sq3_updntri, sq3_alt) 一样满秩。
   典型材料: Fe3Sn (S≈1, T_C≈660 K 的金属 kagome) / 以及各类 M3X 家族。
 
 模型: H = -J1 Σ_<ij> S·S - J2 Σ_<<ij>> S·S - J3 Σ_<<<ij>>> S·S   (J>0 = 铁磁)
@@ -26,7 +28,9 @@
   {e0, J1, J2} 不可分离 —— 与方形的"周期 2 序分不开 J3"同构。
   必须引入 **√3×√3** 调制 (sq3_120 / sq3_updntri / sq3_alt) 才能把 J1/J2 分开。
   实测 (3x3x1): 只取 q=0 一族 rank=2, cond≈2.3e34 (数值奇异);
-  SELECTED = (fm, q0_120, sq3_updntri, sq3_alt) -> rank=4, cond≈98.5 (< 1e4 闸门)。
+  SELECTED = (fm, q0_ud, sq3_updntri, sq3_alt) -> rank=4, cond≈100.3 (< 1e4 闸门)。
+  旧的 (fm, q0_120, sq3_updntri, sq3_alt) cond≈98.1, 两者同量级; 共线四态的优势只是
+  不需要 LNONCOLLINEAR / 三分量 MAGMOM。
   §122 纪律: 先算系数矩阵条件数, 再决定提交哪些构型。
 
 ⚠ 第二个陷阱 —— 小超胞里的最小镜像折叠:
@@ -34,7 +38,7 @@
   本脚本一律用**显式平移搜索** (nshift=1, 与矩形/蜂窝/方形同理), 规格层也必须
   policy="shift_search"; 3x3 超胞里两种策略恰好一致 (已实测), 但不要依赖这一点。
 
-七个磁序 (SELECTED 的 4 个线性无关, 恰好解 {e0, J1, J2, J3}):
+七个磁序 (默认只落盘共线的 5 个; 2 个 120° 需 --include-noncollinear):
   fm          : S = (0,0,+1)              (共线铁磁)
   q0_120      : θ = sub*120°, 面内          (q=0 共面 120° 非共线, 上/下三角同型)
   q0_ud       : σ = (+1,+1,-1) 按亚晶格      (q=0 共线 2up1down)
@@ -48,12 +52,13 @@
 
 用法:
   python build_kagome_cases.py POSCAR --supercell 3 3 1 --outdir cases \
-      --element Fe --nonmag Sn --moment 2.0 --spin 1.0 [--shell-tol 0.2] [--selftest]
+      --element Fe --nonmag Sn --moment 2.0 --spin 1.0 [--shell-tol 0.2] \
+      [--include-noncollinear] [--selftest]
 
 已知局限 (NEW_TYPES_PLAN P4.1):
   1. 只有 3 个距离壳 ⇒ 拿不到 J1/J1' 的拆分 (需要 pair= 显式壳 + 畸变结构);
   2. S 未在仓库定值: --spin 只影响 J~ 的口径, 反解出的 J 绝对值随 S² 缩放;
-  3. 从不共线的角度: q0_120/sq3_120 是**共面** 120° 序, 不需要 SOC (soc=False);
+  3. 120° 序只在 --include-noncollinear 时才生成 (对照/复现旧工作流用), 默认不涉及;
      面外倾斜/螺旋 (cant*/spiral) 才需要 LSORBIT, 那是后续阶段的事。
 """
 import argparse
@@ -65,8 +70,10 @@ from itertools import product
 import numpy as np
 
 ORDERS = ["fm", "q0_120", "q0_ud", "q0_duu", "sq3_120", "sq3_updntri", "sq3_alt"]
-# 4 个线性无关的序 (3x3x1 实测 rank=4, cond≈98.5, 远低于 1e4 闸门); 其余作对照/校验
-SELECTED = ["fm", "q0_120", "sq3_updntri", "sq3_alt"]
+NONCOLLINEAR_ORDERS = ["q0_120", "sq3_120"]
+DEFAULT_ORDERS = [o for o in ORDERS if o not in NONCOLLINEAR_ORDERS]
+# 4 个线性无关的共线序 (3x3x1 实测 rank=4, cond≈100.3, 远低于 1e4 闸门)
+SELECTED = ["fm", "q0_ud", "sq3_updntri", "sq3_alt"]
 
 RULES = {
     "fm": "S = (0,0,+1) (共线铁磁)",
@@ -274,12 +281,12 @@ def _cross_check(spec_kwargs, coeff):
     return worst <= 1e-9, f"最大逐位偏差 {worst:.3g} ({where})"
 
 
-def _order_specs(coeff):
+def _order_specs(coeff, orders=None):
     return [dict(name=nm, kind="planar120" if nm.endswith("120") else "collinear",
-                 rule=RULES[nm], coeffs=[float(x) for x in coeff[nm]]) for nm in ORDERS]
+                 rule=RULES[nm], coeffs=[float(x) for x in coeff[nm]]) for nm in (orders or ORDERS)]
 
 
-def _selftest(args, sc, n, n_atoms, coeff, shells, A, Ainv, cond, sigmas, outdir):
+def _selftest(args, sc, n, n_atoms, coeff, shells, A, Ainv, cond, sigmas, outdir, enabled):
     """无 DFT 的自检: 几何指纹 + q=0 简并 + 设计矩阵 + 合成反解 + 规格层交叉校验。"""
     bad = []
     per = lambda k, m: coeff[k][m] / n  # noqa: E731
@@ -339,13 +346,13 @@ def _selftest(args, sc, n, n_atoms, coeff, shells, A, Ainv, cond, sigmas, outdir
     if not (cond < 1e4) or not (abs(det) > 1e-6):
         bad.append(f"设计矩阵闸门不过: cond={cond:.4g}, det={det:.4g}")
 
-    # 8) 七个磁序必须两两不同
-    keys = [tuple(np.round(sigmas[k].ravel(), 9).tolist()) for k in ORDERS]
+    # 8) 落盘的磁序必须两两不同
+    keys = [tuple(np.round(sigmas[k].ravel(), 9).tolist()) for k in enabled]
     uniq = len(set(keys))
-    print(f"--selftest: 磁序互异 {uniq}/{len(ORDERS)} "
-          f"{'PASS' if uniq == len(ORDERS) else 'FAIL'}")
-    if uniq != len(ORDERS):
-        bad.append(f"磁序数组有重复: 只有 {uniq} 个不同 (期望 {len(ORDERS)})")
+    print(f"--selftest: 磁序互异 {uniq}/{len(enabled)} "
+          f"{'PASS' if uniq == len(enabled) else 'FAIL'}")
+    if uniq != len(enabled):
+        bad.append(f"磁序数组有重复: 只有 {uniq} 个不同 (期望 {len(enabled)})")
 
     # 9) √3×√3 提供 q=0 一族**没有**的两条独立信息 (这才是打破简并的机制):
     #    (a) sq3_alt 的 c1 != c2  -> 把 J1 与 J2 两列分开;
@@ -384,31 +391,32 @@ def _selftest(args, sc, n, n_atoms, coeff, shells, A, Ainv, cond, sigmas, outdir
     except ImportError as exc:
         print(f"--selftest: 跳过与规格层交叉校验 (无法 import magnetic_orders: {exc})")
 
-    # 12) 落盘产物自洽: magmom.txt 单行 + 全原子 3 分量 + 恰好 n 个磁位非零 + POSCAR 注释行
-    for nm in ORDERS:
+    # 12) 落盘产物自洽: magmom.txt 单行 + 分量数随 spin_mode + 恰好 n 个磁位非零 + POSCAR 注释行
+    ncomp = 3 if args.include_noncollinear else 1
+    for nm in enabled:
         p = os.path.join(outdir, nm, "magmom.txt")
         with open(p, encoding="utf-8") as f:
             txt = f.read()
         vals = txt.strip().split("=", 1)[1].split()
-        nz = sum(1 for k in range(0, len(vals), 3)
-                 if max(abs(float(vals[k + c])) for c in range(3)) > 1e-12)
+        nz = sum(1 for k in range(0, len(vals), ncomp)
+                 if max(abs(float(vals[k + c])) for c in range(ncomp)) > 1e-12)
         ok_txt = (txt.count("MAGMOM") == 1 and len(txt.strip().splitlines()) == 1
-                  and len(vals) == 3 * n_atoms and nz == n)
+                  and len(vals) == ncomp * n_atoms and nz == n)
         if not ok_txt:
-            bad.append(f"{nm}: magmom.txt 格式不符 (单行/值数 {len(vals)} != 3*{n_atoms}"
+            bad.append(f"{nm}: magmom.txt 格式不符 (单行/值数 {len(vals)} != {ncomp}*{n_atoms}"
                        f"/非零磁位 {nz} != {n})")
         c1 = open(os.path.join(outdir, nm, "POSCAR"), encoding="utf-8").readline().strip()
         if c1 != f"{args.element} kagome {nm}":
             bad.append(f"{nm}: POSCAR 注释行 {c1!r} 不符")
-    print(f"--selftest: 落盘产物 (magmom.txt 单行 {3 * n_atoms} 值 / {n} 个非零磁位 / "
+    print(f"--selftest: 落盘产物 (magmom.txt 单行 {ncomp * n_atoms} 值 / {n} 个非零磁位 / "
           f"POSCAR 注释行) "
           f"{'PASS' if not [b for b in bad if 'magmom.txt' in b or 'POSCAR' in b] else 'FAIL'}")
 
     # 13) 落盘 JSON 的 order_spec 系数与现场重算逐位一致
     with open(os.path.join(outdir, "magnetic_orders.json"), encoding="utf-8") as f:
         rep = json.load(f)
-    dj = max(abs(float(rep["order_spec"][i]["coeffs"][m]) - coeff[ORDERS[i]][m])
-             for i in range(len(ORDERS)) for m in range(3))
+    dj = max(abs(float(rep["order_spec"][i]["coeffs"][m]) - coeff[enabled[i]][m])
+             for i in range(len(enabled)) for m in range(3))
     print(f"--selftest: 落盘 order_spec 系数偏差 = {dj:.3g} "
           f"{'PASS' if dj < 1e-12 else 'FAIL'}")
     if dj >= 1e-12:
@@ -439,8 +447,14 @@ def main():
     ap.add_argument("--moment", type=float, default=2.0)
     ap.add_argument("--spin", type=float, default=1.0)
     ap.add_argument("--shell-tol", type=float, default=0.2)
+    ap.add_argument("--include-noncollinear", action="store_true",
+                    help="额外落盘 q0_120/sq3_120 两个共面 120° 序 (三分量 MAGMOM + LNONCOLLINEAR); "
+                         "默认只写共线 5 序, 反解只用 SELECTED 中的共线四态")
     ap.add_argument("--selftest", action="store_true")
     args = ap.parse_args()
+
+    enabled = ORDERS if args.include_noncollinear else DEFAULT_ORDERS
+    noncollinear = bool(args.include_noncollinear)
 
     sc = [int(x) for x in args.supercell]
     if sc[0] % 3 or sc[1] % 3:
@@ -514,7 +528,7 @@ def main():
     for sp in sp_order:
         blocks.append((sp, [i for i, a in enumerate(atoms_sc) if a == sp]))
     pos_in_mag = {i: k for k, i in enumerate(mag)}
-    for name in ORDERS:
+    for name in enabled:
         d = os.path.join(args.outdir, name)
         os.makedirs(d, exist_ok=True)
         write_poscar(os.path.join(d, "POSCAR"), lat_sc, atoms_sc, coords_sc,
@@ -522,21 +536,25 @@ def main():
         vals = []
         for sp, idxs in blocks:
             if sp == args.element:
-                # 全部写成 3 分量 (共线序沿 z) —— 非共线链路口径统一
-                vals += [f"{args.moment * spins[name][pos_in_mag[i]][c]:.6f}"
-                         for i in idxs for c in range(3)]
+                if noncollinear:
+                    # 非共线链路统一 3 分量 (共线序沿 z)
+                    vals += [f"{args.moment * spins[name][pos_in_mag[i]][c]:.6f}"
+                             for i in idxs for c in range(3)]
+                else:
+                    # 共线: 只写 z 标量, 与 assemble_dft 的 2 分量校验一致
+                    vals += [f"{args.moment * spins[name][pos_in_mag[i]][2]:.6f}" for i in idxs]
             else:
-                vals += ["0.0"] * (3 * len(idxs))
+                vals += ["0.0"] * (len(idxs) * (3 if noncollinear else 1))
         with open(os.path.join(d, "magmom.txt"), "w") as f:
             f.write(f"MAGMOM = {' '.join(vals)}\n")
 
     # P0.3 自描述块 (让「系数行 ↔ 磁序 ↔ 壳定义」可被下游机器复查)
-    order_spec = _order_specs(coeff)
+    order_spec = _order_specs(coeff, enabled)
     model_spec = dict(
         schema="model_spec/1", lattice="kagome", label="六角 kagome 单离子",
         element=args.element, nonmag=list(args.nonmag), spin=args.spin, S2=args.spin ** 2,
         supercell=sc, policy="shift_search", nshift=1,
-        noncollinear=True, soc=False, n_mag=n, n_basis_mag=3,
+        noncollinear=noncollinear, soc=False, n_mag=n, n_basis_mag=3,
         shells=[dict(name="J1", d=d_nn, tol=args.shell_tol, pair=None),
                 dict(name="J2", d=d_2nd, tol=args.shell_tol, pair=None),
                 dict(name="J3", d=d_3rd, tol=args.shell_tol, pair=None)],
@@ -548,8 +566,9 @@ def main():
         "moment": args.moment, "spin": args.spin, "S2": args.spin ** 2,
         "shells_angstrom": {"J1": d_nn, "J2": d_2nd, "J3": d_3rd},
         "selected_orders": SELECTED,
-        "all_orders": ORDERS,
-        "noncollinear": True,
+        "all_orders": enabled,
+        "spin_mode": "noncollinear" if noncollinear else "collinear",
+        "noncollinear": noncollinear,
         "soc": False,
         "coefficients_per_cell": {k: list(v) for k, v in coeff.items()},
         "coefficients_per_mag": {k: [c / n for c in v] for k, v in coeff.items()},
@@ -576,6 +595,8 @@ def main():
     print(f"距离壳: J1={d_nn:.4f} A (a/2)  J2={d_2nd:.4f} A (a√3/2)  J3={d_3rd:.4f} A (a)")
     print(f"配位数 z = {tuple(round(x, 6) for x in z)}")
     print(f"选定 {SELECTED}, rank={rk}, cond(A)={cond:.4g}, |det|={abs(det):.4g}")
+    print(f"自旋模式: {'非共线 (含 120°)' if noncollinear else '共线 (±z, 标量 MAGMOM)'}; "
+          f"落盘磁序 {enabled}")
     for k in ORDERS:
         tag = " *" if k in SELECTED else "  "
         print(f" {tag}{k:12s} c1={coeff[k][0]:8.3f} c2={coeff[k][1]:8.3f} c3={coeff[k][2]:8.3f}"
@@ -584,7 +605,8 @@ def main():
           "J1/J2 只能靠 √3×√3 序 (sq3_*) 分离.")
 
     if args.selftest:
-        _selftest(args, sc, n, len(atoms_sc), coeff, shells, A, Ainv, cond, spins, args.outdir)
+        _selftest(args, sc, n, len(atoms_sc), coeff, shells, A, Ainv, cond, spins, args.outdir,
+                  enabled)
 
 
 if __name__ == "__main__":

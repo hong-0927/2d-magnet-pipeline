@@ -1,6 +1,13 @@
 #!/usr/bin/env python
 """solve_J_kagome.py
-从四个磁态 (fm / q0_120 / sq3_updntri / sq3_alt) 总能量反解 **kagome** 晶格 J1/J2/J3。
+从四个**共线**磁态 (fm / q0_ud / sq3_updntri / sq3_alt) 总能量反解 **kagome** 晶格 J1/J2/J3。
+
+## 为什么是共线四态
+J 反解只要求设计矩阵 [1,c1,c2,c3] 满秩; 与磁序是否共线无关。旧的组合
+(fm/q0_120/sq3_updntri/sq3_alt) 里 q0_120 是面内 120° 非共线序, 需要 LNONCOLLINEAR。
+换成共线的 q0_ud 后 rank 仍然是 4、cond 同量级 (实测 101 vs 98), 但整个 DFT 链路
+只需要标量 MAGMOM —— 这就是默认走共线的原因。120° 序仍可由
+`build_kagome_cases.py --include-noncollinear` 生成作对照, 但不再是反解的前提。
 
 ## 这个晶格是什么 (Fe3Sn)
 kagome: 六角 (a=b, 120°), **每胞 3 个磁原子** (Fe 在 (0,1/2), (1/2,0), (1/2,1/2)),
@@ -11,10 +18,10 @@ kagome: 六角 (a=b, 120°), **每胞 3 个磁原子** (Fe 在 (0,1/2), (1/2,0),
   第四壳 = a√7/2 ≈ 1.3229a (x8) 本脚本不采用。
 
 ## ⚠ 两个坑, 都会**静默**给出错答案
-  (1) **q=0 一族对 J1/J2 是简并的**: fm / q0_120 / q0_ud / q0_duu 的系数列满足
+  (1) **q=0 一族对 J1/J2 是简并的**: fm / q0_ud / q0_duu (以及 q0_120) 的系数列满足
       c1 == c2 且 c3 相同 ⇒ 该子块 rank=2 (实测 cond=2.3e34, 即数值上完全奇异)。
       只用 q=0 序反解, 你会得到一个**看似正常**的 J1 与 J2 —— 它们只是
-      (J1+J2)/2 的任意分配。必须引入 **√3×√3** 序 (3 倍胞, 118° 非共线) 才能分离:
+      (J1+J2)/2 的任意分配。必须引入 **√3×√3** 序 才能分离:
       sq3_alt 给出 c1 != c2 (分开 J1/J2 两列), sq3_updntri 的 c3 与 q=0 一族不同
       (把 J3 与 E0 分开)。本脚本对 rank<4 **直接报错**, 不做静默近似 (§115)。
   (2) **J1 与 J1' 同距离**: 角共享三角形的两条最近邻键距离都是 a/2, 但分属不同亚晶格对。
@@ -25,10 +32,10 @@ kagome: 六角 (a=b, 120°), **每胞 3 个磁原子** (Fe 在 (0,1/2), (1/2,0),
 
 ## 为什么恰好是这四个序 (3x3x1 实测每胞系数)
     fm            c1=-54 c2=-54 c3=-81   (per mag: -2.00, -2.00, -3.00)
-    q0_120        c1=+27 c2=+27 c3=-81   (per mag: +1.00, +1.00, -3.00)
+    q0_ud         c1=+18 c2=+18 c3=-81   (per mag: +0.67, +0.67, -3.00)
     sq3_updntri   c1= -6 c2= -6 c3=+27   (per mag: -0.22, -0.22, +1.00)
     sq3_alt       c1= -6 c2=+18 c3=+27   (per mag: -0.22, +0.67, +1.00)
-  * rank=4, cond(A)=98.51, |det|=2.1e5 —— 远低于 1e4 闸门。
+  * rank=4, cond(A)≈101, |det|=1.87e5 —— 远低于 1e4 闸门。
   * q=0 一族单独 rank=2 (上面坑 1); √3×√3 两序提供两条独立信息 ⇒ 才可解。
   * 换序/换晶格必须**重算** cond/det (方形那组在 kagome 上 rank 会掉到 3)。
 
@@ -56,7 +63,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import j_result as JR  # noqa: E402
 
 # 与 build_kagome_cases.py 的 SELECTED 必须一致 (builder 把 selected_orders 写进 json)
-ORDERS = ["fm", "q0_120", "sq3_updntri", "sq3_alt"]
+ORDERS = ["fm", "q0_ud", "sq3_updntri", "sq3_alt"]
 Q0_FAMILY = ["fm", "q0_120", "q0_ud", "q0_duu"]
 
 # fm 行给出的配位数 (每磁位点的无向键数): kagome 的几何指纹 4/4/6。
@@ -143,7 +150,8 @@ def check_selected(meta):
     if list(sel) != ORDERS:
         raise SystemExit(
             f"magnetic_orders.json 的 selected_orders={list(sel)} 与本脚本期望的 {ORDERS} 不一致。\n"
-            "  kagome 的可解组合不是随便四个序: 必须含 √3×√3 序才能把 J1/J2 (q=0 简并) 分开。\n"
+            "  kagome 的可解组合不是随便四个序: 必须含 √3×√3 序才能把 J1/J2 (q=0 简并) 分开,\n"
+            "  且默认四态全部共线 (q0_ud 取代旧的 q0_120 非共线序)。\n"
             "  要么用 build_kagome_cases.py 重新生成, 要么显式改本脚本的 ORDERS 并**重算 cond/rank**。")
 
 

@@ -30,9 +30,12 @@ ALL_CHAINS = ("tri_mni2", "rect_crsbr", "sq_k2nif4", "sq_la2cuo4",
               "honeycomb_mnps3", "cluster_nb3i8", "fgt_fe3gete2", "crect_crocl",
               "kagome_fe3sn")
 
-# 每条链路喂进反解的设计矩阵行 (与旧 build_*.py 选中的构型一致)
+# 每条链路喂进反解的设计矩阵行 (与 build_*.py 的默认选中构型一致; P6 起全共线)
 DESIGN_ROWS = {
-    "tri_mni2": ("fm", "120deg", "stripy_a", "stripy_ab"),
+    # 三角 (P6): 默认不再生成 120°, 由 fm + stripy_a + stripy_ab + uud 给出 rank=4
+    # (cond≈3.7e3)。注意 stripy_a 与 stripy_b 的系数列完全相同, 两者同时入选必 rank=3,
+    # builder 对重复列有硬闸门。
+    "tri_mni2": ("fm", "stripy_a", "stripy_ab", "uud"),
     "rect_crsbr": ("fm", "afm_a", "afm_b", "afm_diag"),
     "sq_k2nif4": ("fm", "stripe_a", "p4_a", "mix_ab"),
     "sq_la2cuo4": ("fm", "stripe_a", "p4_a", "mix_ab"),
@@ -43,10 +46,11 @@ DESIGN_ROWS = {
     # (纯奇偶序组 (fm,afm_a,afm_b,afm_diag) det=-262144 cond=59.17 也能解);
     # 真正的奇异来自"序 + 它的 basis 翻倍版"同时入选 (afm_c_a == afm_a, det 精确为 0)。
     "crect_crocl": ("fm", "afm_c", "afm_a", "afm_b"),
-    # kagome (P4.1): q=0 一族 (fm/q0_120/q0_ud/q0_duu) 满足 c1 == c2 且 c3 相同
-    # ⇒ 只用 q=0 序时子块 rank=2 (cond≈2.3e34), J1/J2 不可分离。必须含 √3×√3 调制:
-    # sq3_updntri 提供 c3 ≠ q0 的信息, sq3_alt 提供 c1 ≠ c2 的信息, 合起来 rank=4 (cond=98.51)。
-    "kagome_fe3sn": ("fm", "q0_120", "sq3_updntri", "sq3_alt"),
+    # kagome (P6): q=0 一族 (fm/q0_ud/q0_duu) 满足 c1 == c2 且 c3 相同 ⇒ 只用 q=0 序时
+    # 子块 rank=2 (cond≈2.3e34), J1/J2 不可分离。必须含 √3×√3 调制: sq3_updntri 提供
+    # c3 ≠ q0 的信息, sq3_alt 提供 c1 ≠ c2 的信息, 合起来 rank=4 (cond≈1.0e2)。
+    # 默认四态全共线; q0_120/sq3_120 只在 --include-noncollinear 时生成。
+    "kagome_fe3sn": ("fm", "q0_ud", "sq3_updntri", "sq3_alt"),
 }
 COND_MAX = 1e4
 

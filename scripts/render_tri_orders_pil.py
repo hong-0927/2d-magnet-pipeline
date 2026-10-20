@@ -66,17 +66,36 @@ def main():
     rows = int(np.ceil(n / cols))
 
     W = int(round(cols * 4.2 * P.DPI))
-    H = int(round(rows * 4.0 * P.DPI))
+    # 行距放宽: 跨胞键会画到 panel 外 (min_image), 原来 4.0 的行高会让下排标题压到上排键线
+    H = int(round(rows * 4.35 * P.DPI))
     Wd, Hd = W * P.SS, H * P.SS
     img = Image.new("RGB", (Wd, Hd), "white")
     dr = ImageDraw.Draw(img)
     boxes = P.panel_grid(rows, cols, Wd, Hd)
+    # 末行不满时居中 (kagome 默认五态 -> 3+2, 不留在右下角空一块)
+    if n % cols and rows > 1:
+        pw0 = boxes[0][2]
+        gapx0 = (boxes[1][0] - boxes[0][0] - pw0) if cols > 1 else 0.0
+        cnt_last = n - (rows - 1) * cols
+        dx = (cols - cnt_last) * (pw0 + gapx0) / 2.0
+        boxes = list(boxes)
+        for idx in range((rows - 1) * cols, n):
+            bx, by, bpw, bph = boxes[idx]
+            boxes[idx] = (bx + dx, by, bpw, bph)
     LEG_Y0, LEG_Y1 = 0.855 * Hd, 0.895 * Hd
 
     resolved = None
     n_arrow = 0
+    spin_mode = None
+    _mp = os.path.join(cases_dir, "magnetic_orders.json")
+    if os.path.exists(_mp):
+        with open(_mp, encoding="utf-8") as _f:
+            spin_mode = json.load(_f).get("spin_mode")
     for k, order in enumerate(orders):
         x0, y0, pw, ph = boxes[k]
+        # Pillow 没有 axes 裁剪: 面板先画在独立图层, 只拼回面板矩形; 否则跨胞键会画进相邻面板
+        lay = Image.new("RGBA", (Wd, Hd), (0, 0, 0, 0))
+        dl = ImageDraw.Draw(lay)
         lat, symbols, coords = R.parse_poscar(os.path.join(cases_dir, order, "POSCAR"))
         lat2 = lat[:2, :2]
         with open(os.path.join(cases_dir, order, "magmom.txt"), encoding="utf-8") as f:
@@ -84,7 +103,27 @@ def main():
         mag_idx = [i for i, s in enumerate(symbols) if s == args.element]
         non_idx = [i for i, s in enumerate(symbols) if s in args.nonmag]
         n_mag = len(mag_idx)
-        spins = magmom[:3 * n_mag].reshape(n_mag, 3)   # 每磁性原子 3 分量
+        # P6: 磁矩文件按 spin_mode 解析 —— collinear 是「每原子 1 个标量」(非磁原子写 0.0,
+        # 也兼容只写磁性原子); 其余是「每磁性原子 3 分量」。不按数组长度猜: n_atoms == 3*n_mag
+        # 时 (如 MnI2 25 Mn + 50 I = 75) 两种写法长度相同, 猜必错。
+        if spin_mode == "collinear":
+            if magmom.size == len(symbols):
+                vals = magmom[mag_idx]
+            elif magmom.size == n_mag:
+                vals = magmom
+            else:
+                raise SystemExit(
+                    "magmom.txt 有 %d 个数, 但 spin_mode=collinear 期望 %d (每原子) 或 %d (每磁性原子)"
+                    % (magmom.size, len(symbols), n_mag))
+            spins = np.zeros((n_mag, 3))
+            spins[:, 2] = vals
+        else:
+            if magmom.size != 3 * n_mag:
+                raise SystemExit(
+                    "magmom.txt 有 %d 个数, 非共线模式期望 %d (每磁性原子 3 分量); "
+                    "若是共线标量文件, 请确认 magnetic_orders.json 的 spin_mode"
+                    % (magmom.size, 3 * n_mag))
+            spins = magmom.reshape(n_mag, 3)   # 每磁性原子 3 分量
 
         crf = coords[mag_idx, :2]
         if resolved is None:
@@ -112,7 +151,7 @@ def main():
             nm_xy = coords[non_idx, :2] @ lat2
             r_non = P.marker_radius(45)
             for t in range(len(non_idx)):
-                P.circle(dr, T(nm_xy[t]), r_non, fill=R.C_NON)
+                P.circle(dl, T(nm_xy[t]), r_non, fill=R.C_NON)
 
         # 壳键 (远壳先画; matplotlib 版 zorder=2, 压住非磁原子)
         for kk in range(len(resolved) - 1, -1, -1):
@@ -124,7 +163,7 @@ def main():
                     if abs(dist - resolved[kk]) <= R.SHELL_TOL:
                         p0 = mn_xy[i]
                         p1 = p0 + dd @ lat2
-                        P.draw_seg(dr, T(p0), T(p1), color, ls, lw)
+                        P.draw_seg(dl, T(p0), T(p1), color, ls, lw)
 
         # 磁性原子: 共线 -> 上/下点; 非共线 -> 面内箭头 (定长方向标记, 见 ARROW_FRAC)
         inplane = np.hypot(spins[:, 0], spins[:, 1])
@@ -134,38 +173,51 @@ def main():
         for t in range(n_mag):
             if collinear[t]:
                 if spins[t, 2] > 0:
-                    P.circle(dr, T(mn_xy[t]), r_mag, fill=R.C_UP, outline="white",
+                    P.circle(dl, T(mn_xy[t]), r_mag, fill=R.C_UP, outline="white",
                              width=P.pt2px(1.4))
                 elif spins[t, 2] < 0:
-                    P.circle(dr, T(mn_xy[t]), r_mag, fill=R.C_DN, outline="white",
+                    P.circle(dl, T(mn_xy[t]), r_mag, fill=R.C_DN, outline="white",
                              width=P.pt2px(1.4))
             else:
                 u = np.array([spins[t, 0], spins[t, 1]]) / max(float(inplane[t]), 1e-12)
-                P.arrow(dr, T(mn_xy[t]), T(mn_xy[t] + u * l_arr), C_ARROW,
+                P.arrow(dl, T(mn_xy[t]), T(mn_xy[t] + u * l_arr), C_ARROW,
                         lw_pt=1.6, head_pt=7.0)
                 n_arrow += 1
 
         # 超胞边界 (虚线黑框)
         box = [T(corners[0]), T(corners[1]), T(corners[2]), T(corners[3])]
         for i in range(4):
-            P.draw_seg(dr, box[i], box[(i + 1) % 4], "black", "--", 1.1)
+            P.draw_seg(dl, box[i], box[(i + 1) % 4], "black", "--", 1.1)
 
-        dr.multiline_text((x0 + pw / 2.0, y0 - P.pt2px(7)), R.TITLES.get(order, order),
-                          font=P.font(P.pt2px(12)), fill="black", anchor="md",
-                          align="center", spacing=P.pt2px(3))
+        # 只把面板矩形拼回画布 (等价 matplotlib 的 axes 裁剪)
+        x0i, y0i = int(round(x0)), int(round(y0))
+        x1i, y1i = int(round(x0 + pw)), int(round(y0 + ph))
+        tile = lay.crop((x0i, y0i, x1i, y1i))
+        img.paste(tile, (x0i, y0i), tile)
+
+        # 标题: 先铺白底再写字 —— 跨胞键线会伸进面板间隙, 纯文字会被压花
+        txt = R.TITLES.get(order, order)
+        f_t = P.font(P.pt2px(12))
+        tw, th = dr.textbbox((0, 0), txt, font=f_t)[2:]
+        pad = P.pt2px(4)
+        tx, ty = x0 + pw / 2.0 - tw / 2.0, y0 - P.pt2px(10)
+        dr.rectangle([tx - pad, ty - pad, tx + tw + pad, ty + th + pad], fill="white")
+        dr.text((tx, ty), txt, font=f_t, fill="black")
 
     # ---- 图例 ----
     items = P.legend_items(args.element, args.nonmag, resolved, R.SHELL_STYLES)
     if n_arrow:
-        items.append(("bond", C_ARROW, "面内自旋 (120°)", ("-", 2.0)))
+        items.append(("bond", C_ARROW, "面内自旋 (120° 等非共线)", ("-", 2.0)))
     P.draw_legend(dr, Wd, 0.03 * Wd, 0.97 * Wd, items, y0=LEG_Y0, y1=LEG_Y1)
 
     label = args.label or args.element
-    foot = ("俯视沿 c (z)。红/蓝 = 自旋 ↑/↓；箭头 = 面内自旋；键按 J1/J2/J3 壳着色。\n"
+    foot = ("俯视沿 c (z)。红/蓝 = 自旋 ↑/↓；" +
+            ("箭头 = 面内自旋；" if n_arrow else "") +
+            "键按 J1/J2/J3 壳着色。\n"
             "数据: 02_supercell/cases/*/POSCAR + magmom.txt + magnetic_orders.json\n"
             "(纯 Pillow 渲染: 本机 matplotlib 缺依赖, 由 render_tri_orders_pil.py 出图)")
     P.draw_titles(dr, Wd, Hd,
-                  args.title or f"{label} 三角晶格磁序俯视图（含 120° 非共线）", foot)
+                  args.title or f"{label} 三角晶格磁序俯视图（默认共线四态）", foot)
 
     img = img.resize((W, H), Image.LANCZOS)
     out = args.out or os.path.join(root, "figures", "supercell_orders.png")

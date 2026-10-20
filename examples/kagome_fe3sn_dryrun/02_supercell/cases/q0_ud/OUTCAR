@@ -1,0 +1,25 @@
+ vasp.6.4.2  (build date)  complex
+ running on 64 total cores
+
+ POSCAR: synth
+    ions per type = 27 9
+   NKPTS = 6   k-points in BZ
+   ENCUT  =  520.0 eV
+   ISPIN  =  1
+   LNONCOLLINEAR = T
+   LSORBIT = T
+
+ direct lattice vectors                 reciprocal lattice vectors
+   16.200000    0.000000    0.000000
+   -8.100000   14.029611    0.000000
+    0.000000    0.000000   20.000000
+
+  DAVID: aborting loop because EDIFF is reached
+  free  energy   TOTEN  =      +0.06480000 eV
+  energy  without entropy=     +0.06480000  energy(sigma->0) =     +0.06480000
+
+ General timing and accounting informations for this run:
+ ----------------------------------------------------------------
+      Total CPU time used (sec):      123.456
+
+ Voluntary context switches:  0

@@ -7,10 +7,11 @@
   2. reorient   : 层法线对齐 z + 加真空
   3. supercell  : 蜂窝 2x2x1 超胞 + 四磁态 (FM/Neel/zigzag/stripy) + J1/J2/J3 系数
                  (簇磁体: build_cluster_cases.py 枚举 fm+波矢态 + J_intra/J1/J2/J3)
-                 (三角: build_magnetic_cases_tri.py 枚举 fm+120°非共线+stripy/uud + J1/J2/J3)
-  4. dft        : 组装 INCAR/KPOINTS/POTCAR.spec + runs/<order>/ (三角用非共线 INCAR)
+                 (三角: build_magnetic_cases_tri.py 枚举 fm+stripy/uud 等共线四态 + J1/J2/J3)
+  4. dft        : 组装 INCAR/KPOINTS/POTCAR.spec + runs/<order>/ (默认共线 ISPIN=2;
+                 三角/kagome 只有显式 --noncollinear 才写 LNONCOLLINEAR)
   5. mc         : POSCAR -> MC 模型 (含 J3) -> Heisenberg MC -> T_C/T_N
-  6. render     : 磁序俯视图 (蜂窝四磁序 / 簇磁体簇心视图 / 三角 120° 矢量箭头)
+  6. render     : 磁序俯视图 (蜂窝四磁序 / 簇磁体簇心视图 / 三角共线矢量箭头)
   7. workflow   : 写出 <outdir>/workflow.md
   8. ship-mc    : 复制 mc_2d.py + poscar_to_mc3.py + write_hamiltonian.py (簇/三角再加对应枚举+反解脚本) 到 <outdir>/05_mc/
   9. hamiltonian: 生成 <outdir>/hamiltonian.md (Heisenberg 哈密顿卡片)
@@ -1215,9 +1216,11 @@ def main():
     ap.add_argument("--skip-mc", action="store_true")
     ap.add_argument("--noncollinear", action="store_true",
                     help="DFT 输入用非共线 (LNONCOLLINEAR + 每原子 3 分量 MAGMOM); "
-                         "三角晶格本来就默认非共线")
+                         "默认全共线 (J 反解只用共线磁序就够, 见 SKILL.md §2.0); "
+                         "120° 对照/弱铁磁倾斜才需要")
     ap.add_argument("--soc", action="store_true",
-                    help="非共线 + SOC (LSORBIT + GGA_COMPAT=.FALSE.); 弱铁磁倾斜/DMI/kagome 必需")
+                    help="非共线 + SOC (LSORBIT + GGA_COMPAT=.FALSE.); 弱铁磁倾斜/DMI/MAE 必需; "
+                         "J 反解不需要")
     ap.add_argument("--saxis", nargs=3, type=float, default=None,
                     help="自旋量子化轴 (SAXIS), 如 --saxis 0 0 1")
     # ---- P4.2: VASP 输入的可调项（默认与 03_dft 模板一致，只有显式给了才透传）----
@@ -1294,6 +1297,17 @@ def main():
 
     formula = args.formula or (model.get("formula") if model else None) \
         or (lit.get("formula") if lit else None)
+    if not formula and getattr(args, "poscar", None) and os.path.isfile(args.poscar):
+        # --poscar 路线没有 --formula 时, 用 POSCAR 注释行第一段当化学式,
+        # 否则 workflow.md 顶部会写成 "None 单层" (P6 重跑发现)
+        try:
+            with open(args.poscar, encoding="utf-8", errors="replace") as _fh:
+                _cmt = _fh.readline().strip()
+            _tok = _cmt.split()[0] if _cmt else ""
+            if _tok and not _tok.upper().startswith(("POSCAR", "1.0")):
+                formula = _tok
+        except OSError:
+            pass
     element = pick(args.element, "element")
     nonmag = args.nonmag or (model.get("nonmag") if model else None) \
         or (lit.get("nonmag") if lit else [])
@@ -1599,12 +1613,15 @@ def main():
         do_render = True
         render_kind = "cluster"
     elif lattice == "triangular":
-        # 三角单离子: 磁序枚举 (含 120° 非共线) + J1/J2/J3 映射 -> 02_supercell/cases + 03_dft/runs
+        # 三角单离子: 磁序枚举 (默认共线四态) + J1/J2/J3 映射 -> 02_supercell/cases + 03_dft/runs
+        # 120° 诊断态只在显式 --noncollinear / --soc 时生成 (反解不需要它)
         run("build_magnetic_cases_tri.py",
             [poscar_re, "--supercell"] + [str(x) for x in args.tri_supercell] +
             ["--outdir", os.path.join(outdir, "02_supercell", "cases"),
              "--element", element, "--nonmag"] + nonmag +
-            ["--moment", str(moment), "--spin", str(S)], cwd=outdir)
+            ["--moment", str(moment), "--spin", str(S)] +
+            (["--include-noncollinear"] if (args.noncollinear or args.soc) else []),
+            cwd=outdir)
         mc_order = "cv"
         do_dft = True
         do_render = True
@@ -1656,19 +1673,22 @@ def main():
         do_render = True
         render_kind = "rect_centered"
     elif lattice == "kagome":
-        # kagome 角共享三角形网 (六角 a=b, 3 磁原子/胞, 如 Fe3Sn): 七个磁态 + 三个壳。
+        # kagome 角共享三角形网 (六角 a=b, 3 磁原子/胞, 如 Fe3Sn): 默认五个共线磁态 + 三个壳。
         # 壳 1: J1 = a/2, 角共享三角形内的近邻 —— 但**两条键不等价** (J1 与 J1', 同距离
         #       不同亚晶格对), 本 3 壳模型取两者的**平均** (要分开需降对称超胞, P4.2);
         # 壳 2: J2 = a√3/2 跨六角环; 壳 3: J3 = a 同亚晶格对角。
-        # ⚠ q=0 一族 (fm/q0_120/q0_ud/q0_duu) 对 J1/J2 **简并** (rank=2, cond≈2.3e34):
+        # ⚠ q=0 一族 (fm/q0_ud/q0_duu/q0_120) 对 J1/J2 **简并** (rank=2, cond≈2.3e34):
         #   只用 q=0 序反解会得到一个"看似正常"的 J1/J2 —— 其实只是 (J1+J2)/2 的任意分配。
-        #   builder 的 selected = (fm, q0_120, sq3_updntri, sq3_alt) 含 √3×√3 序 ⇒ rank=4
-        #   (cond=98.51), 并把 rank/cond 落盘供 solve 端复核; solve 端 rank<4 直接报错。
+        #   默认 selected = (fm, q0_ud, sq3_updntri, sq3_alt) 含 √3×√3 序 ⇒ rank=4
+        #   (cond≈1.0e2), 并把 rank/cond 落盘供 solve 端复核; solve 端 rank<4 直接报错。
+        #   120° 共面序只在显式 --noncollinear / --soc 时生成 (反解不需要)。
         run("build_kagome_cases.py",
             [poscar_re, "--supercell"] + [str(x) for x in args.kagome_supercell] +
             ["--outdir", os.path.join(outdir, "02_supercell", "cases"),
              "--element", element, "--nonmag"] + nonmag +
-            ["--moment", str(moment), "--spin", str(S)], cwd=outdir)
+            ["--moment", str(moment), "--spin", str(S)] +
+            (["--include-noncollinear"] if (args.noncollinear or args.soc) else []),
+            cwd=outdir)
         mc_poscar = poscar_re
         mc_order = "auto"
         do_dft = True
@@ -1699,9 +1719,11 @@ def main():
         return
 
     # ---- DFT 输入 ----
-    # P3.16: 自旋模式由 --noncollinear / --soc 决定; 三角晶格恒为非共线（适配层自带该开关）。
+    # P6: 默认**全共线** (三角/kagome 的 J 反解都只需要共线四态); 只有显式 --noncollinear /
+    # --soc / --cant-theta 才开非共线链路 (120° 对照/弱铁磁倾斜/DMI)。
     _soc_flags = (["--lsorbit"] if args.soc else []) + \
                  (["--saxis"] + [str(x) for x in args.saxis] if args.saxis else [])
+    _nc_req = bool(args.noncollinear or args.soc or args.cant_theta)
     # P4.2: k 网格 / NPAR / ISYM 只有显式给了才往装配脚本传（缺省保持模板默认，快照不变）
     _kflags = []
     if args.kpoints:
@@ -1714,16 +1736,17 @@ def main():
         if render_kind == "triangular":
             run("assemble_dft_tri.py",
                 ["--root", outdir, "--element", element, "--nonmag"] + nonmag +
-                ["--U", str(U), "--moment", str(moment)] + _soc_flags + _kflags, cwd=outdir)
+                ["--U", str(U), "--moment", str(moment)]
+                + (["--noncollinear"] if _nc_req else []) + _soc_flags + _kflags, cwd=outdir)
         else:
-            _nc = ["--noncollinear"] if (args.noncollinear or args.soc or args.cant_theta) else []
+            _nc = ["--noncollinear"] if _nc_req else []
             run("assemble_dft.py",
                 ["--root", outdir, "--element", element, "--nonmag"] + nonmag +
                 ["--U", str(U), "--moment", str(moment)] + _nc + _soc_flags + _kflags, cwd=outdir)
 
     if run_dft and do_dft and not args.skip_dft:
         _dft_what = ("非共线+SOC" if args.soc else
-                     ("非共线" if (args.noncollinear or render_kind == "triangular") else "共线"))
+                     ("非共线" if _nc_req else "共线"))
         log(f"[dft] VASP 输入已导出 (03_dft/ + runs/<order>/, 自旋模式: {_dft_what}"
             + (f", k 网格 {' '.join(str(x) for x in args.kpoints)}" if args.kpoints else "")
             + (f", NPAR {args.npar}" if args.npar is not None else "")
@@ -1847,7 +1870,7 @@ def main():
                 ["--root", outdir, "--element", element, "--nonmag"] + nonmag +
                 ["--label", formula or element,
                  # 复用三角渲染器时必须覆盖标题: 默认标题写的是「三角晶格」, 对 kagome 是错的
-                 "--title", f"{formula or element} kagome (Fe3Sn 型) 磁序俯视图（含 120° 非共线）",
+                 "--title", f"{formula or element} kagome (Fe3Sn 型) 磁序俯视图（默认共线磁态）",
                  "-o", os.path.join(outdir, "figures", "supercell_orders.png")],
                 cwd=outdir)
         else:
@@ -1876,14 +1899,19 @@ def main():
 
 def write_workflow(outdir, formula, element, nonmag, S, moment, U, J1, J2, J3, MAE,
                    args, lit, lattice, mc_refine=None, lat_warn=None):
-    if lattice == "triangular":
-        gs = "120°/螺旋 (三角受挫)" if J1 < 0 else "铁磁"
+    if J1 is None:
+        gs = "未反解 (J 未给定: 需先跑 DFT + solve_J_*)"
+    elif lattice == "triangular":
+        # 默认共线路线不枚举 120°: 它只是「对照」, 不是反解 J 的必需输入
+        gs = ("120°/螺旋 (三角受挫; 需 --noncollinear 对照, 默认共线窗口内不判定)"
+              if J1 < 0 else "铁磁")
     elif lattice == "rect_centered":
         # J1 连的是胞内两个 basis ⇒ J1<0 时基态就是 C 心 Néel (afm_c), 这正是必须支持的序
         gs = "C 心 Néel 反铁磁 (afm_c, 胞内两个 basis 反平行)" if J1 < 0 else "铁磁"
     elif lattice == "kagome":
-        # 角共享三角形 ⇒ 几何受挫: J1<0 时经典基态是 q=0 的 120° 态 (与 √3×√3 态近简并)
-        gs = "q=0 120° 非共线 (kagome 受挫; √3×√3 态近简并)" if J1 < 0 else "铁磁"
+        # 角共享三角形 ⇒ 几何受挫: q=0 120° 与 √3×√3 近简并, 但默认路线只有共线四态
+        gs = ("q=0 120° 非共线 (kagome 受挫; 需 --noncollinear 对照, 默认共线窗口内不判定)"
+              if J1 < 0 else "铁磁")
     else:
         gs = "Néel 反铁磁" if J1 < 0 else "铁磁"
     src = lit.get("source") if lit else "手动给定 (未核实文献)"
@@ -1891,6 +1919,29 @@ def write_workflow(outdir, formula, element, nonmag, S, moment, U, J1, J2, J3, M
     peak_lbl = "Cv 峰" if lattice in ("triangular", "cluster", "kagome") else "χ 峰"
     if mc_refine is None:
         mc_note = "- MC 峰分辨: 未跑 MC (`--skip-mc`)"
+        # report 重跑时没有 mc 阶段的 refine 记录: 若 05_mc/mc_mt.csv 已在, 峰位由它复算,
+        # 不要把「已跑过 MC」写成「未跑」
+        _csvp = os.path.join(outdir, "05_mc", "mc_mt.csv")
+        if J1 is not None and os.path.isfile(_csvp):
+            try:
+                import csv as _csvmod
+                import statistics as _stats
+                with open(_csvp, encoding="utf-8") as _fh:
+                    _rows = [r for r in _csvmod.DictReader(_fh) if r.get("T_Kelvin")]
+                _t = [float(r["T_Kelvin"]) for r in _rows]
+                _cv = [float(r["Cv"]) for r in _rows]
+                if len(_t) >= 3:
+                    _ipk = max(range(len(_cv)), key=lambda i: _cv[i])
+                    _dT = _stats.median([_t[i + 1] - _t[i] for i in range(len(_t) - 1)])
+                    if 0 < _ipk < len(_cv) - 1:
+                        mc_note = (f"- MC 峰分辨: 由 `05_mc/mc_mt.csv` 复算, 峰在窗口 "
+                                   f"[{_t[0]:.2f}, {_t[-1]:.2f}] K 内部 (格距 {_dT:.2f} K), "
+                                   f"{peak_lbl} T ≈ {_t[_ipk]:.2f} K")
+                    else:
+                        mc_note = (f"- MC 峰分辨: ⚠ 由 `05_mc/mc_mt.csv` 复算的峰落在窗口边界 "
+                                   f"{_t[_ipk]:.2f} K → T_C/T_N **未分辨**, 需收窄窗口或加密网格")
+            except (OSError, KeyError, ValueError):
+                pass
     elif not mc_refine["rounds"]:
         s = mc_refine["final"]
         mc_note = (f"- MC 峰分辨: 峰在首轮窗口内部 (窗口 [{s['T_lo']:.1f}, {s['T_hi']:.1f}] K, "
@@ -1907,21 +1958,30 @@ def write_workflow(outdir, formula, element, nonmag, S, moment, U, J1, J2, J3, M
         mc_note = (f"- MC 峰分辨: ⚠ {peak_lbl}仍落在窗口边界 {s['T_peak']:.2f} K → "
                    f"T_C/T_N **未分辨** (已重扫 {len(mc_refine['rounds'])} 轮); "
                    f"请手动收窄 `--mc-tmin/--mc-tmax` 或加密 `--mc-nt`")
+    if J1 is None:
+        # 没有 J 就没有 MC: 别写成 "--skip-mc" (那会让人以为可以补跑)
+        mc_note = "- MC: 未跑 (J 未给定, 需先跑 DFT + `solve_J_*` 得到 J)"
+    _J_row = ("未给定 (缺 OUTCAR/J 反解; 本项不是计算值)" if J1 is None
+              else f"J1={J1}, J2={J2}, J3={J3}, MAE={MAE}")
+    _nc_req = bool(getattr(args, "noncollinear", False) or getattr(args, "soc", False)
+                   or getattr(args, "cant_theta", None))
     _dft_tag = ("非共线+SOC (LNONCOLLINEAR + LSORBIT)" if args.soc else
-                "非共线 (LNONCOLLINEAR)" if args.noncollinear else "共线 (ISPIN=2)")
+                "非共线 (LNONCOLLINEAR)" if _nc_req else "共线 (ISPIN=2)")
     _dft_line = f"- DFT 输入 ({_dft_tag}): `03_dft/` + `runs/<order>/` (未运行, 待 POTCAR)\n"
-    _dft_tag_tri = ("非共线+SOC (LNONCOLLINEAR + LSORBIT)" if args.soc else "非共线 (LNONCOLLINEAR)")
-    _dft_line_tri = f"- DFT 输入 ({_dft_tag_tri}): `03_dft/` + `runs/<order>/` (未运行, 待 POTCAR)\n"
+    _dft_tag_tri = _dft_tag
+    _dft_line_tri = _dft_line
     if lattice == "honeycomb":
         model_desc = ("蜂窝 Heisenberg 模型 H = -J1 Σ_<ij> S·S - J2 Σ_<<ij>> S·S "
                       "- J3 Σ_<<<ij>>> S·S (J>0 铁磁)")
-        mc_desc = "序参量 " + ("交错(反铁磁)" if J1 < 0 else "总磁化(铁磁)")
+        mc_desc = "序参量 " + ("J 未给定" if J1 is None else
+                              ("交错(反铁磁)" if J1 < 0 else "总磁化(铁磁)"))
         struct_desc = ("- 超胞/磁态: `02_supercell/cases/{{fm,neel,zigzag,stripy}}` "
                        "+ `magnetic_orders.json`\n- DFT 输入: `03_dft/` + `runs/<order>/` (未运行, 待 POTCAR)")
     elif lattice == "rectangular":
         model_desc = ("矩形晶格单离子 Heisenberg 模型 H = -J1 Σ_<ij> S·S - J2 Σ_<<ij>> S·S "
                       "- J3 Σ_<<<ij>>> S·S (J1=a 轴, J2=b 轴, J3=对角; J>0 铁磁)")
-        mc_desc = "序参量 " + ("总磁化(铁磁)" if J1 > 0 else "交错(反铁磁)")
+        mc_desc = "序参量 " + ("J 未给定" if J1 is None else
+                              ("总磁化(铁磁)" if J1 > 0 else "交错(反铁磁)"))
         struct_desc = ("- 磁序枚举: `02_supercell/cases/{{fm,afm_a,afm_b,afm_diag}}` "
                        "+ `magnetic_orders.json`\n"
                        + _dft_line +
@@ -1930,7 +1990,8 @@ def write_workflow(outdir, formula, element, nonmag, S, moment, U, J1, J2, J3, M
     elif lattice == "square":
         model_desc = ("方形晶格单离子 Heisenberg 模型 H = -J1 Σ_<ij> S·S - J2 Σ_<<ij>> S·S "
                       "- J3 Σ_<<<ij>>> S·S (J1=a 近邻, J2=对角 a√2, J3=2a 同轴向; J>0 铁磁)")
-        mc_desc = "序参量 " + ("总磁化(铁磁)" if J1 > 0 else "交错(反铁磁)")
+        mc_desc = "序参量 " + ("J 未给定" if J1 is None else
+                              ("总磁化(铁磁)" if J1 > 0 else "交错(反铁磁)"))
         struct_desc = ("- 磁序枚举: `02_supercell/cases/{{fm,g_type,stripe_a,stripe_b,p4_a,mix_ab}}` "
                        "+ `magnetic_orders.json` (selected = fm / stripe_a / p4_a / mix_ab)\n"
                        "- ⚠ 必须含周期 4 的 `p4_a`: 一切周期 2 的序 (fm/g_type/stripe) 给出的 J3 "
@@ -1943,7 +2004,8 @@ def write_workflow(outdir, formula, element, nonmag, S, moment, U, J1, J2, J3, M
                       "- J2 Σ_<ij>沿a S·S - J3 Σ_<ij>沿b S·S "
                       "(2 磁原子/胞; J1 = C 心矢量 x4, 连**同一胞内的两个**磁原子; "
                       "J2 = 沿 a x2; J3 = 沿 b x2; J>0 铁磁, meV)")
-        mc_desc = "序参量 " + ("总磁化(铁磁)" if J1 > 0 else "交错(反铁磁)")
+        mc_desc = "序参量 " + ("J 未给定" if J1 is None else
+                              ("总磁化(铁磁)" if J1 > 0 else "交错(反铁磁)"))
         struct_desc = ("- 磁序枚举: `02_supercell/cases/"
                        "{{fm,afm_c,afm_a,afm_b,afm_diag,afm_c_a,afm_c_diag}}` "
                        "+ `magnetic_orders.json` (selected = fm / afm_c / afm_a / afm_b)\n"
@@ -1961,20 +2023,23 @@ def write_workflow(outdir, formula, element, nonmag, S, moment, U, J1, J2, J3, M
                       "同距离不同亚晶格对, 本模型取其平均], J2 = a√3/2 x4, J3 = a x6; "
                       "J>0 铁磁, meV)")
         mc_desc = "序参量 比热 Cv (受挫/非二分晶格)"
-        struct_desc = ("- 磁序枚举: `02_supercell/cases/{{fm,q0_120,q0_ud,q0_duu,sq3_120,"
-                       "sq3_updntri,sq3_alt}}` + `magnetic_orders.json` "
-                       "(selected = fm / q0_120 / sq3_updntri / sq3_alt, rank=4, cond=98.51)\n"
-                       "- ⚠ **必须含 √3×√3 序**: q=0 一族 (fm/q0_120/q0_ud/q0_duu) 满足 "
-                       "c1 == c2 且 c3 相同 ⇒ 其子块 rank=2 (cond≈2.3e34), 只用 q=0 序反解会得到"
-                       "一个「看似正常」的 J1/J2 —— 其实只是 (J1+J2)/2 的任意分配。"
-                       "`sq3_alt` 的 c1 != c2 把 J1/J2 两列分开, `sq3_updntri` 的 c3 与 q=0 不同"
-                       "把 J3 与 E0 分开。solve 端 rank<4 直接报错 (不静默给 J)\n"
+        struct_desc = ("- 磁序枚举: `02_supercell/cases/{{fm,q0_ud,q0_duu,sq3_updntri,sq3_alt}}` "
+                       "+ `magnetic_orders.json` "
+                       "(selected = fm / q0_ud / sq3_updntri / sq3_alt, 全共线, rank=4, cond≈101)\n"
+                       "- q=0 一族 (fm/q0_ud/q0_duu) 满足 c1 == c2 且 c3 相同 ⇒ 其子块 rank=2 "
+                       "(cond≈2.3e34), 只用 q=0 序反解会得到一个「看似正常」的 J1/J2 —— 其实只是 "
+                       "(J1+J2)/2 的任意分配。`sq3_alt` 的 c1 != c2 把 J1/J2 两列分开, "
+                       "`sq3_updntri` 的 c3 与 q=0 不同把 J3 与 E0 分开。solve 端 rank<4 直接报错 "
+                       "(不静默给 J)\n"
+                       "- 120° 共面序 (`q0_120/sq3_120`) 只在 "
+                       "`build_kagome_cases.py --include-noncollinear` 时才生成, 默认不需要 "
+                       "LNONCOLLINEAR\n"
                        "- ⚠ 反解出的 J1 是三角形两条不等价最近邻键 (J1/J1') 的**平均**; "
                        "把二者分开需要降对称超胞 (P4.2)\n"
                        "- 超胞的 n0/n1 必须是 3 的倍数 (√3×√3 的定义相位要求周期 3)\n"
                        + _dft_line +
                        "- 反解: `05_mc/solve_J_kagome.py` (OUTCAR -> J1/J2/J3 + `J_result.json`)\n"
-                       "- 图: `figures/supercell_orders.png` (七磁态俯视, 含 120° 矢量箭头)")
+                       "- 图: `figures/supercell_orders.png` (五共线磁态俯视)")
     elif lattice == "cluster":
         model_desc = ("簇磁体: 磁性原子成簇 (Nb3 等), 每簇 = 1 个有效自旋, 簇中心成"
                       "三角/非二分晶格; 低能可能是单重态, 经典 Heisenberg 为近似")
@@ -1986,13 +2051,16 @@ def write_workflow(outdir, formula, element, nonmag, S, moment, U, J1, J2, J3, M
                        "- 反解: `05_mc/solve_cluster_J.py` (OUTCAR -> E0/J_intra/J1..Jk)\n"
                        "- 图: `figures/supercell_orders.png` (簇心磁序视图)")
     else:  # triangular
-        model_desc = "三角晶格单离子 Heisenberg 模型 (1 磁性原子/胞), 含非共线 120°"
+        model_desc = ("三角晶格单离子 Heisenberg 模型 (1 磁性原子/胞), 默认共线四态 "
+                      "(fm + stripy_a/stripy_ab/uud); 120° 仅在 --include-noncollinear 时生成")
         mc_desc = "序参量 比热 Cv (受挫/非二分晶格)"
-        struct_desc = ("- 磁序枚举: `02_supercell/cases/` (fm + 120° 非共线 + 共线 stripy/uud) "
-                       "+ `magnetic_orders.json`\n"
+        struct_desc = ("- 磁序枚举: `02_supercell/cases/` (fm + 共线 stripy/uud; "
+                       "120° 非共线需 builder --include-noncollinear) + `magnetic_orders.json`\n"
+                       "- selected 与 cond 由 builder 按 ranks/SVD 贪心选并写进 "
+                       "`magnetic_orders.json`; solve 端对 rank/cond 硬闸门\n"
                        + _dft_line_tri +
                        "- 反解: `05_mc/solve_J_tri.py` (OUTCAR -> J1/J2/J3)\n"
-                       "- 图: `figures/supercell_orders.png` (含 120° 矢量箭头)")
+                       "- 图: `figures/supercell_orders.png` (共线磁态俯视: 红/蓝 ↑/↓, 无箭头)")
 
     lat_note = ""
     if lat_warn:
@@ -2024,12 +2092,13 @@ def write_workflow(outdir, formula, element, nonmag, S, moment, U, J1, J2, J3, M
                     "而反解仍然收敛、残差仍然是 0 —— 唯一的防线是产物里的显式壳距离与 tol。\n")
     elif lattice == "kagome":
         # kagome 三条专属局限 (与方形局限 9 同构: 「cond 没超阈」≠「三个壳都分得开」)
-        lat_note = ("8. **q=0 一族对 J1/J2 简并**: fm / q0_120 / q0_ud / q0_duu 的系数列满足 "
+        lat_note = ("8. **q=0 一族对 J1/J2 简并**: fm / q0_ud / q0_duu 的系数列满足 "
                     "c1 == c2 且 c3 相同 ⇒ 该子块 rank=2 (cond≈2.3e34, 数值上完全奇异)。"
                     "只用 q=0 序反解**不会报错**, 会给出一个看似正常的 J1/J2 —— 它们只是 "
                     "(J1+J2)/2 的任意分配。必须含 √3×√3 序: `sq3_alt` 的 c1 != c2 分开 J1/J2 两列, "
                     "`sq3_updntri` 的 c3 与 q=0 一族不同把 J3 与 E0 分开。"
-                    "`solve_J_kagome.py` 对 rank<4 与 cond>1e4 都直接报错, 不静默给 J。\n"
+                    "`solve_J_kagome.py` 对 rank<4 与 cond>1e4 都直接报错, 不静默给 J。"
+                    "四态全共线, 不需要 LNONCOLLINEAR。\n"
                     "9. **J1 与 J1' 同距离, 本模型取其平均**: 角共享三角形的两条最近邻键都是 a/2, "
                     "但连接的是不同的亚晶格对。3 壳方案把二者并成一条 J1 ⇒ 反解值与 MC 的 T_N 只对 "
                     "(J1+J1')/2 的组合敏感; 分开二者需要降对称 (√3×√3 或 2×2) 的超胞与更多磁序 (P4.2 待做)。"
@@ -2051,7 +2120,7 @@ def write_workflow(outdir, formula, element, nonmag, S, moment, U, J1, J2, J3, M
 | 自旋 S / 磁矩 | S={S} / {moment} μB |
 | 泛函 | PBE + DFT+U (U={U} eV 加 {element} d) |
 | 基态 | {gs} |
-| 交换常数 (meV) | J1={J1}, J2={J2}, J3={J3}, MAE={MAE} |
+| 交换常数 (meV) | {_J_row} |
 
 模型: {model_desc}
 
@@ -2068,7 +2137,7 @@ J 值来源: {src}
 
 ## 局限 (通用)
 
-1. 磁性格点类型 {lattice}; 蜂窝/簇/三角/矩形/方形/C 心矩形均已支持磁序枚举 + DFT 输入 + 反解脚本 (三角用非共线 120°); J 用文献/给定, 未跑 DFT 前非本项目计算值。
+1. 磁性格点类型 {lattice}; 蜂窝/簇/三角/kagome/矩形/方形/C 心矩形均已支持磁序枚举 + DFT 输入 + 反解脚本; **默认全共线** (J 反解只需要满秩的共线四态), 120°/kagome q0_120 等非共线序只在显式 `--noncollinear` (或 builder `--include-noncollinear`) 时才生成; MAE 分支例外 (四态 MAE 固定使用 SOC 非共线)。J 用文献/给定, 未跑 DFT 前非本项目计算值。
 2. J 取自文献/给定; 未跑 DFT 前非本项目计算值。
 3. 纯 Heisenberg MAE 默认为 0 → 二维无真正相变 (Mermin-Wagner), 临界温度为有限尺寸估计。
 4. 簇磁体可能是单重态 (非磁有序), 经典 Heisenberg-MC 的 T_N **无物理意义**, 仅作机制演示 (exploratory)。

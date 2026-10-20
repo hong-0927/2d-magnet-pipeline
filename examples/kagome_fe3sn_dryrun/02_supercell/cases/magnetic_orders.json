@@ -21,20 +21,19 @@
   },
   "selected_orders": [
     "fm",
-    "q0_120",
+    "q0_ud",
     "sq3_updntri",
     "sq3_alt"
   ],
   "all_orders": [
     "fm",
-    "q0_120",
     "q0_ud",
     "q0_duu",
-    "sq3_120",
     "sq3_updntri",
     "sq3_alt"
   ],
-  "noncollinear": true,
+  "spin_mode": "collinear",
+  "noncollinear": false,
   "soc": false,
   "coefficients_per_cell": {
     "fm": [
@@ -117,33 +116,33 @@
   },
   "inversion_matrix_per_cell": [
     [
-      0.0277777777777779,
-      0.2222222222222222,
+      0.0,
+      0.25,
       0.75,
       0.0
     ],
     [
-      -0.012345679012345675,
-      0.012345679012345678,
+      -0.013888888888888888,
+      0.013888888888888888,
       0.041666666666666664,
       -0.041666666666666664
     ],
     [
-      -2.3129646346357427e-18,
+      0.0,
       0.0,
       -0.041666666666666664,
       0.041666666666666664
     ],
     [
-      -0.0037722908093278463,
-      -0.0054869684499314125,
+      -0.00308641975308642,
+      -0.006172839506172839,
       0.009259259259259259,
       0.0
     ]
   ],
-  "design_cond": 98.50725409865193,
+  "design_cond": 101.36558471949786,
   "design_rank": 4,
-  "design_det": -209952.00000000023,
+  "design_det": -186624.00000000015,
   "shell_tol": 0.2,
   "n_cells": 9,
   "q0_degeneracy_note": "q=0 \u4e00\u65cf (fm/q0_120/q0_ud/q0_duu) \u7684\u8bbe\u8ba1\u77e9\u9635\u79e9\u53ea\u6709 2: J1 \u4e0e J2 \u5728\u8be5\u65cf\u5185\u6bd4\u503c\u6052\u5b9a, \u5fc5\u987b\u9760 \u221a3\u00d7\u221a3 \u5e8f\u5206\u79bb (NEW_TYPES_PLAN P4 \u98ce\u9669\u6761)",
@@ -155,16 +154,6 @@
       "coeffs": [
         -54.0,
         -54.0,
-        -81.0
-      ]
-    },
-    {
-      "name": "q0_120",
-      "kind": "planar120",
-      "rule": "kagome q=0: theta = sub*120deg; S=(cos,sin,0)",
-      "coeffs": [
-        27.0,
-        27.0,
         -81.0
       ]
     },
@@ -186,16 +175,6 @@
         18.0,
         18.0,
         -81.0
-      ]
-    },
-    {
-      "name": "sq3_120",
-      "kind": "planar120",
-      "rule": "kagome sqrt3xsqrt3: theta = (sub + (n0+n1)%3)*120deg; S=(cos,sin,0)",
-      "coeffs": [
-        -5.551115123125783e-16,
-        2.55351295663786e-15,
-        40.5
       ]
     },
     {
@@ -236,7 +215,7 @@
     ],
     "policy": "shift_search",
     "nshift": 1,
-    "noncollinear": true,
+    "noncollinear": false,
     "soc": false,
     "n_mag": 27,
     "n_basis_mag": 3,

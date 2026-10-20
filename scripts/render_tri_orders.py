@@ -102,10 +102,12 @@ def main():
     cases_dir = os.path.join(root, "02_supercell", "cases")
 
     shells = None
+    spin_mode = None
     mp = os.path.join(cases_dir, "magnetic_orders.json")
     if os.path.exists(mp):
         with open(mp, encoding="utf-8") as f:
             meta = json.load(f)
+        spin_mode = meta.get("spin_mode")
         sa = meta.get("shells_angstrom")
         if sa:
             shells = [sa.get(k) for k in ("J1", "J2", "J3")]
@@ -131,7 +133,27 @@ def main():
         mag_idx = [i for i, s in enumerate(symbols) if s == args.element]
         non_idx = [i for i, s in enumerate(symbols) if s in args.nonmag]
         n_mag = len(mag_idx)
-        spins = magmom[:3 * n_mag].reshape(n_mag, 3)  # 每 Mn 3 分量
+        # P6: 磁矩文件按 spin_mode 解析 —— collinear 是「每原子 1 个标量」(非磁原子写 0.0,
+        # 也兼容只写磁性原子); 其余是「每磁性原子 3 分量」。不按数组长度猜: n_atoms == 3*n_mag
+        # 时 (如 MnI2 25 Mn + 50 I = 75) 两种写法长度相同, 猜必错。
+        if spin_mode == "collinear":
+            if magmom.size == len(symbols):
+                vals = magmom[mag_idx]
+            elif magmom.size == n_mag:
+                vals = magmom
+            else:
+                raise SystemExit(
+                    "magmom.txt 有 %d 个数, 但 spin_mode=collinear 期望 %d (每原子) 或 %d (每磁性原子)"
+                    % (magmom.size, len(symbols), n_mag))
+            spins = np.zeros((n_mag, 3))
+            spins[:, 2] = vals
+        else:
+            if magmom.size != 3 * n_mag:
+                raise SystemExit(
+                    "magmom.txt 有 %d 个数, 非共线模式期望 %d (每磁性原子 3 分量); "
+                    "若是共线标量文件, 请确认 magnetic_orders.json 的 spin_mode"
+                    % (magmom.size, 3 * n_mag))
+            spins = magmom.reshape(n_mag, 3)  # 每 Mn 3 分量
 
         crf = coords[mag_idx, :2]
         if resolved is None:
@@ -222,7 +244,7 @@ def main():
     fig.legend(handles=handles, loc="lower center", ncol=len(handles), frameon=False,
                fontsize=8.5, bbox_to_anchor=(0.5, 0.02))
     label = args.label or args.element
-    fig.suptitle(args.title or f"{label} 三角晶格磁序俯视图（含 120° 非共线）", fontsize=14, y=0.99)
+    fig.suptitle(args.title or f"{label} 三角晶格磁序俯视图（默认共线四态）", fontsize=14, y=0.99)
     fig.text(0.5, 0.012,
              f"俯视沿 c (z)。红/蓝 = 自旋 ↑/↓；箭头 = 面内自旋；键按 J1/J2/J3 壳着色。"
              f"数据: 02_supercell/cases/*/POSCAR + magmom.txt + magnetic_orders.json",

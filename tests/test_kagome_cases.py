@@ -362,7 +362,8 @@ if os.path.exists(_fx):
     with open(_fx, encoding="utf-8") as _fh:
         _d = json.load(_fh)
     _got = {o["name"]: o["coeffs"] for o in _d["order_spec"]}
-    _worst = max(max(abs(a - b) for a, b in zip(_got[nm], CB3[nm])) for nm in B.ORDERS)
+    _worst = max(max(abs(a - b) for a, b in zip(_got[nm], CB3[nm]))
+                 for nm in B.ORDERS if nm in _got)
     check("kag 落盘 magnetic_orders.json 与现场重算逐位一致", _worst <= 1e-9,
           "max|d|=%.3g  (%s)" % (_worst, os.path.relpath(_fx, ROOT)))
     _ps = _d.get("per_site_bonds") or {}
@@ -372,8 +373,14 @@ if os.path.exists(_fx):
     check("kag 落盘 selected_orders == builder 的 SELECTED",
           tuple(_d.get("selected_orders") or ()) == tuple(B.SELECTED),
           "selected=%s" % (_d.get("selected_orders"),))
-    check("kag 落盘 noncollinear=True (√3×√3 序必须非共线路径)",
-          bool(_d.get("noncollinear")), "noncollinear=%r" % (_d.get("noncollinear"),))
+    check("kag 落盘默认全共线 (spin_mode=collinear, noncollinear=False, 无 120° 序)",
+          (not bool(_d.get("noncollinear")))
+          and str(_d.get("spin_mode") or "").startswith("collinear")
+          and not any("120" in str(o) for o in (_d.get("all_orders") or ()))
+          and not any(os.path.isdir(os.path.join(os.path.dirname(_fx), o))
+                      and "120" in o for o in ("q0_120", "sq3_120")),
+          "noncollinear=%r spin_mode=%r all=%s"
+          % (_d.get("noncollinear"), _d.get("spin_mode"), _d.get("all_orders")))
 else:
     check("kag 落盘 fixture 存在 (跳过: %s 不在)" % _fx, True)
 

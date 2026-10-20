@@ -38,7 +38,7 @@ smoke §5d 反向守住）。要留完整证据加 `--log <文件>`：每个阶�
 ## 跑之前先定三件事
 
 1. **磁性格点类型**（`detect_lattice` 自动判：先查正交几何，再数磁性原子/原胞）：
-   - 蜂窝（原胞 2 磁原子）→ 全链；三角（1 磁原子）→ 含 120° 非共线；簇（成簇）→ 簇模型；
+   - 蜂窝（原胞 2 磁原子）→ 全链；三角（1 磁原子）→ 默认共线四态（120° 仅在 §2.0 的对照支线）；簇（成簇）→ 簇模型；
    - **矩形（正交 a≠b，1 磁原子/胞，如 CrSBr/CrSCl）→ `rectangular`**（4 共线态 fm/afm_a/afm_b/afm_diag，见专节）；
    - **方形（正交 a=b，1 磁原子/胞，如 La₂CuO₄/K₂NiF₄）→ `square`**（6 共线枚举、DFT 只提交 4 个 fm/stripe_a/p4_a/mix_ab，见专节）；
    - **C 心矩形（正交 a≠b，2 磁原子/胞，两者由 (½,½) C 心矢量相连，如 CrOCl）→ `rect_centered`**（见专节；**oxyhalide 走这条，不是 `rectangular`**）；
@@ -49,6 +49,35 @@ smoke §5d 反向守住）。要留完整证据加 `--log <文件>`：每个阶�
      **FGT 类不要套 Fe²⁺ 默认值**（不等价 Fe 位，磁矩/J 都须来自文献或自算）。
 2. **J 从哪来**：文献（`literature_J.json`；**已核实**：MnPS3 / CrSBr / Fe3GeTe2 / La₂CuO₄；CrI₃ / CrBr₃ / GdI₂ / K₂NiF₄ / **CrOCl** 留 `null`）、用户给定、或跑 DFT 反解。
 3. **MP_API_KEY**：`--formula` 下载需要（环境变量 `MP_API_KEY` 或 `--mp-key`）；已有 POSCAR 用 `--poscar` 跳过。
+
+## 2.0 反解 J 不需要非共线（默认全共线；P6）
+
+**结论先行**：本 skill 的默认路线里**没有非共线**。`J1/J2/J3` 是线性方程组
+`E_α = E0 + Σ_k J_k C_kα` 的解，只要选出的磁序让设计矩阵满秩且条件数可接受，**共线磁序完全够用**；
+非共线（120°、q=0 螺旋）只是三角/kagome 的**物理基态图像**，不是反解的数学前提。
+
+| 晶格 | 默认磁序（全共线） | rank | cond(A) |
+|---|---|---|---|
+| 三角 | `fm` + `stripy_a` + `stripy_ab` + `uud` | 4 | ≈3.7e3 |
+| kagome | `fm` + `q0_ud` + `sq3_updntri` + `sq3_alt` | 4 | ≈1.0e2 |
+
+> 上表是**集合**；`magnetic_orders.json` 的 `selected_orders` 按 builder 的贪心序落盘，
+> 三角实测为 `fm → stripy_a → uud → stripy_ab`（同一组四态，顺序不同而已）。
+
+- 三角的旧路线硬性要求 `120deg`（`build_magnetic_cases_tri.py` 曾写死 `required = ["fm","120deg"]`）；
+  实测 `120deg` 只是为了给"必须看的基态"提供能量行，**去掉它用上表的共线四态，J 照样唯一且残差为 0**。
+  注意 `stripy_a` 与 `stripy_b` 的系数列**逐位相同** ⇒ 两者同时入选必然 rank=3，builder 已加硬闸门。
+- kagome 的 `q0_120` 同理可换成 `q0_ud`（q=0 族内系数列成比例，选谁都不改变 `c1==c2` 的简并），
+  真正把 rank 提到 4 的是 √3×√3 的两个态。
+- **仍然需要非共线的三处**（都属"显式要求才走"的支线，不是默认路线）：
+  1. **120° / q0_120 对照**：要画基态自旋图、或与文献的 120° 能量对照时，
+     加 `--noncollinear`（driver 会带 `--include-noncollinear` 给 builder）；此时 MAGMOM 是 3 分量。
+  2. **弱铁磁倾斜 / DMI**：`--cant-theta`（CrOCl 的 C 心矩形）与 `--soc` 必须非共线+SOC；
+     这是**另一个物理量**（倾角 θ 是输入，能量仍要用户自算）。
+  3. **MAE 四态**（`FM_z/AF_z/FM_x/AF_x`）：各向异性能的定义就要求自旋沿不同轴，**必须 SOC + 非共线**，
+     这条支线保持原样（`06_mae/`、`--soc`）。
+- **诚实边界**：本仓库**从未真跑过非共线（或共线）DFT**；上表是线性代数事实 + 磁序枚举，
+  不是材料结论。`capabilities.json` 的 `physical_verified` 仍全为 `false`。
 
 ## 遇到没见过 / 相似但没见过的结构：自主分类并归纳完善（自我学习协议）
 
@@ -308,7 +337,7 @@ Pushkarev 那套必须转号且主导耦合差 1.4–4.6 倍。
 
 ## 分支：方形晶格（K₂NiF₄ / K₂CuF₄ / La₂CuO₄ 类）——已实现
 
-**判据**：正交 **a=b** 且原胞 1 个磁原子 → `detect_lattice` 返回 `square`（**必须**有 `_is_square_net` 判据，否则会被误路由到 `triangular` 去解 120°）。
+**判据**：正交 **a=b** 且原胞 1 个磁原子 → `detect_lattice` 返回 `square`（**必须**有 `_is_square_net` 判据，否则会被误路由到 `triangular` 分支）。
 `--model la2cuo4`（Cu, S=1/2, J 已核实于 Coldea PRL 86, 5377 (2001)）/ `--model k2nif4`（Ni, J 未核实）。
 `build_square_cases.py` 枚举 **6** 个共线态（fm/g_type/stripe_a/stripe_b/p4_a/mix_ab），**DFT 只提交选定的 4 个** `fm/stripe_a/p4_a/mix_ab`；
 J1=a / J2=a√2 / J3=2a，cond(A)≈40.41。`solve_J_square.py` 反解（`--demo` / `--ref la2cuo4` 均应 PASS）。
@@ -392,8 +421,9 @@ python scripts/solve_J_crect_cant.py <cases>                                   #
 （金属网而非角共享三角形）⇒ 两者只靠配位数区分；判别在**并簇之前**做，所以 Fe₃Sn 不会再落到 `cluster`（旧版会）。
 `--model fe3sn`（Fe / nonmag `Sn` / **S=1.0、moment=2.0、a=5.4 Å 是理想化占位** / U=4.0；**Fe₃Sn 文献 J 未核实**，预设 `literature=None`）。
 
-`build_kagome_cases.py` 枚举 **7** 个非共线磁态（`fm` / q=0 三种 `q0_120`、`q0_ud`、`q0_duu` / √3×√3 三种 `sq3_120`、`sq3_updntri`、`sq3_alt`），
-**DFT 只提交选定的 4 个** `fm/q0_120/sq3_updntri/sq3_alt`；J1 = a/2 = 2.70 Å / J2 = a√3/2 = 4.6765 / J3 = a = 5.40，cond(A)=98.51、rank=4。
+`build_kagome_cases.py` 默认枚举 **5** 个**共线**磁态（`fm` / q=0 两种 `q0_ud`、`q0_duu` / √3×√3 两种 `sq3_updntri`、`sq3_alt`），
+**DFT 只提交选定的 4 个** `fm/q0_ud/sq3_updntri/sq3_alt`；J1 = a/2 = 2.70 Å / J2 = a√3/2 = 4.6765 / J3 = a = 5.40，cond(A)≈1.0e2、rank=4。
+加 `--include-noncollinear` 才额外生成 `q0_120`/`sq3_120`（3 分量 MAGMOM，需要非共线 DFT；**反解不需要**）。
 `solve_J_kagome.py` 反解（`--demo --synthetic 3 -0.4 0.15` 应 PASS），产物走 `j_result.py` 的 `J_result.json`。
 
 > **物理层（真实非共线 DFT → J → T_N）的手册与工具在 `P4_2_KAGOME_RUNBOOK.md`**（仓库根）：入口条件（真实机时 + 已核实的文献锚点 + 参数表填满）、装配与已知坑（`KPOINTS` 默认 `3 3 1` 可用 `--kpoints 6 6 1` 覆盖、`NPAR` 默认 4 可用 `--npar`、static 默认不写 `ISYM` 可用 `--isym 0`、`POTCAR` **不生成**、理想化胞未弛豫）、SCF 四条判据与失败协议、回收通道**已自动化**（`scripts/ingest_dft.py` 的 11 条硬闸门 + `scripts/dft_handoff.py` 的交接包，见手册 §5.0/§5.1）、**k 点收敛抽查**（`python run_2d_magnet.py kconv --outdir <proj> --k-grids 3,4,6,8`，或直调 `scripts/k_convergence.py`：生成 `<序>@<k网格>` 变体、**只换 KPOINTS**、OUTCAR 放回后判「总能量收敛到哪个网格够了」；**总能量收敛 ≠ J 收敛**，它只是必要条件）、反解可信度、机时**纯估算**、以及与原计划的偏差（含 J1/J1′ 分离被明确列为做不到）。**手册与工具都不是进度**：本仓库没有任何真实 kagome J/T_N。
@@ -406,11 +436,13 @@ python scripts/solve_J_crect_cant.py <cases>                                   #
 3. **J1 与 J1′ 被合并**：kagome 有两条**同距离、不同亚晶格对**的最近邻交换（J1 与 J1′），3 壳模型取**平均**并成一条 `J1`
    ⇒ `J_result.json` 里的 `J1` 是两者平均，**不许说成「解出了 J1/J1′」**。要分离需更细的构型（属 P4.2+）。
 
-**局限**：**P4.1 只交付系数层**（纯几何 + 线性代数，`tests/test_kagome_cases.py` 68 项全绿）——**没有任何真实非共线 DFT 能量**，
-所以**不许报 J 或 T_N**；真 J 与 T_N 属 **P4.2**。渲染复用三角渲染器（`render_tri_orders*.py`，非共线 3 分量；`render_supercell.py` 只认共线会画错），
-`mc`/`report` 必须显式给 `--J1/--J2/--J3`；`literature_J.json` 里**没有** Fe₃Sn 条目。
+**局限**：**P4.1 只交付系数层**（纯几何 + 线性代数，`tests/test_kagome_cases.py` 68 项全绿）——**没有任何真实 DFT 能量（共线或非共线）**，
+所以**不许报 J 或 T_N**；真 J 与 T_N 属 **P4.2**。渲染复用三角渲染器（`render_tri_orders*.py`：标量 magmom 画 ↑/↓ 圆点，3 分量才画箭头），
+`mc`/`report` 必须显式给 `--J1/--J2/--J3`；`literature_J.json` 里**没有**可靠的 Fe₃Sn 壳分辨 J（条目只有 T_C/结构锚点）。
 
-## 分支：非共线 + SOC（自旋倾斜 / 螺旋；kagome 的 DFT 前置）——能力已实现，物理未验证
+## 支线：非共线 + SOC（自旋倾斜 / 螺旋 / MAE / 120° 对照）——默认不走，能力已实现，物理未验证
+
+> **默认路线全共线**（见 §2.0）。这里列的是**显式要求**非共线时才用的阶段；`J` 反解不需要它。
 
 **怎么开**（`dft` 阶段）：
 ```bash
@@ -424,8 +456,8 @@ python run_2d_magnet.py dft --model crocl --poscar ... --soc --saxis 0 0 1   # �
   `SOC_ORDERS` 只是 **SOC 门禁的名字表**（含尚无生成器的 `spiral`/`tilt`/`cant_a|cant_b|cant_diag`）——加新磁序要写生成器
   并把名字加进 `SOC_ORDERS`（否则 `--lsorbit` 门禁不生效），`ANGLE_TABLE` 是给人看的角度约定表、不参与分派，
   再让 `build_*_cases.py` 出 3 分量 `magmom.txt`。
-- 三角晶格走 `assemble_dft_tri.py`，它只是**薄适配层**（转调 `assemble_dft.py --noncollinear --all-orders`），
-  两条路径共用同一份 INCAR 渲染，不会分叉（`--print-cmd` 可看它实际执行的命令）。
+- 三角晶格走 `assemble_dft_tri.py`，它只是**薄适配层**（默认转调 `assemble_dft.py` 的共线路径；只有给 `--noncollinear` 才转
+  `--noncollinear --all-orders`），两条路径共用同一份 INCAR 渲染，不会分叉（`--print-cmd` 可看它实际执行的命令）。
 
 **门禁（不静默降级）**：需要 SOC 的磁序（`cant*`/`spiral`/`tilt`）没开 `--soc` ⇒ **硬报错**；
 3 分量 `magmom.txt` 配共线模式 ⇒ 硬报错；`--lsorbit` 缺 `--noncollinear` ⇒ 硬报错。理由：缺 SOC 时这些构型
@@ -442,7 +474,7 @@ python run_2d_magnet.py dft --model crocl --poscar ... --soc --saxis 0 0 1   # �
 快照回归 + mock-OUTCAR 闭环回解 J」（`tests/smoke_test.py` §21）——所以 `--soc` 的含义是**把 VASP 输入写对**，
 **不是**「SOC 物理已验证」：不许据此报 T_C/T_N 或 J。DMI 的反对称项在 MC 侧已就位，但 J 提取侧仍需自旋螺旋法；
 kagome 的 q=0 简并已按上面「分支：六角 kagome」处理（P4.1 给系数层 + 硬门禁，不许静默出 J），
-但 kagome 的真实非共线 DFT 与 J/T_N 仍属 **P4.2**。
+但 kagome 的真实 J/T_N 仍属 **P4.2**（不要求非共线 DFT，见 §2.0）。
 
 ## 分支：DMI / MTI（P6）——**只做判别，不进主链**
 
@@ -504,7 +536,8 @@ Néel 矢量方向** ⇒ 交变磁体的序参量判据仍属未覆盖。掩码�
   `scripts/capabilities.py --check` 与 smoke §5h 拒；`python scripts/capabilities.py --show` 可打印人读表。
 - **J 符号**：`H = -J Σ S·S`，**J>0=铁磁，J<0=反铁磁**。文献多用 `H = +J S·S`，转过来**要变号**。
 - **MAE 默认 0** → 二维无真正相变（Mermin-Wagner），T_C/T_N 是有限尺寸伪相变估计。
-- 三角螺旋磁体（MnI2/NiI2）的基态序与 T_N 是 J2/J3 竞争的后果，120° 枚举只用于反解 J。
+- 三角螺旋磁体（MnI2/NiI2）的基态序与 T_N 是 J2/J3 竞争的后果；默认用共线四态反解 J（§2.0），
+  120° 枚举只在显式 `--noncollinear` 时作为基态图像/对照生成。
 - 簇磁体若低温是单重态/dimer（Nb3X8），经典 MC 的 T_N **无物理意义**，仅机制演示。
 
 ## 读结果
@@ -512,6 +545,14 @@ Néel 矢量方向** ⇒ 交变磁体的序参量判据仍属未覆盖。掩码�
 - 每条 `<公式>_pipeline/`：`workflow.md`（摘要）、顶层 `hamiltonian.md`（海森堡哈密顿卡片）、
   `01_structure/`、`02_supercell/cases/`（磁序+`magnetic_orders.json`）、`03_dft/`+`runs/`、
   `figures/supercell_orders.png`（磁序俯视图）、`05_mc/`（`mc_mt.csv/.png` + 自包含脚本）。
+- **图不会自己出现**：`build` 只写数据层，`figures/` 由 `render` 产出。用 `--poscar` 直接重跑时，
+  必须再跑一次 `render --poscar ... --element <磁元素> --nonmag <非磁...> --label <公式>`，
+  否则 `figures/` 是旧的或空的（P6 重跑就漏过这一步：数据/INCAR 全对，图却没重画）。
+  共线磁态画成红/蓝 ↑/↓（无箭头）；只有 3 分量自旋才画矢量箭头；超胞尺寸从
+  `magnetic_orders.json` 的 `supercell` 读，不再假设 2×2×1。
+- **`workflow.md` / `hamiltonian.md` 需要 J**：`report` 和 `mc` 都要求 `--J1/--J2/--J3`
+  （或 `--literature` 中已核实的条目）。缺 J 时 `report` 直接报错退出，**不会**生成
+  `workflow.md`——这是门禁而不是漏跑；没有 J 的项目就该停在 `dft` 门。
 - `--quiet` 结尾只打印 `lattice / J / T_C(T_N) / 产出清单`；`mc_mt.csv` 里是序参量 vs T。
   **T_C/T_N 后面会带温度窗口和格距**——先看这个再信数值。
 - **峰判据要落在窗口内部**：峰落在首/末格点 = 窗口截断或网格跨过窄峰，那**不是** T_C/T_N。

@@ -11,16 +11,17 @@
 
 | 能力 | 带来什么 |
 |---|---|
-| **八类磁性格子，一个规格层** | honeycomb、三角（120° 非共线）、分子簇、双亚晶格铁磁网络（Fe₃GeTe₂ 类）、矩形（CrSBr 类）、C 心矩形（CrOCl 类）、方形（La₂CuO₄ / K₂NiF₄ 类）、六角 kagome（Fe₃Sn 类）——都走同一层规格、都写进同一份 `J_result.json` |
+| **八类磁性格子，一个规格层** | honeycomb、三角（默认共线四态反解）、分子簇、双亚晶格铁磁网络（Fe₃GeTe₂ 类）、矩形（CrSBr 类）、C 心矩形（CrOCl 类）、方形（La₂CuO₄ / K₂NiF₄ 类）、六角 kagome（Fe₃Sn 类）——都走同一层规格、都写进同一份 `J_result.json` |
 | **J 带着出处，不只是一个数** | `J_result.json` 记录 `source`（`literature` / `user` / `dft` / `demo`）、`cond(A)`、残差、`E0`，以及磁态是否逐位点核对过 |
 | **反解之前先核对磁态** | `scripts/verify_states.py` 把每个离子的磁矩与目标比对，并检测两个磁序塌成同一个态；不过就拒绝写 J |
 | **ingest 是硬闸门** | 每个 `OUTCAR` 过 11 道检查：格式、收敛、结构、MAGMOM 一致性、能量口径 |
 | **估计值自带误差** | Binder 累积量 `U4`、带 `1/L` 参考的有限尺寸标度，以及每个温度的 `tau_int`、`n_eff`、接受率与 binning SEM（`mc_diag.json`）；峰落在窗口边界时标成未分辨，而不是照常给数 |
-| **非共线与 SOC** | `LNONCOLLINEAR` / `LSORBIT` / `SAXIS`、倾斜 MAGMOM 磁序集，以及 CrOCl 家族的 `scripts/solve_J_crect_cant.py` |
+| **反解 J 不需要非共线** | 三角用 fm + stripy_a + stripy_ab + uud、kagome 用 fm + q0_ud + sq3_updntri + sq3_alt，全是共线态且满秩（实测 cond 3.7e3 / 100）；120°、q0_120、倾斜与 MAE 属显式 `--noncollinear`/`--soc` 支线 |
+| **非共线与 SOC（支线）** | `LNONCOLLINEAR` / `LSORBIT` / `SAXIS`、倾斜 MAGMOM 磁序集，以及 CrOCl 家族的 `scripts/solve_J_crect_cant.py`；默认路线不经过这里，MAE 四态是唯一必须非共线+SOC 的支线 |
 | **不猜参数** | `--S/--moment/--U` 只对 Mn/Cr/Ni/Co/V/Gd 有内置表；Fe 被刻意排除（有效自旋本身有歧义），driver 会停下来问；`literature_J.json` 里 `null` 的条目直接报错，不静默跑 |
 | **能力边界可查询** | [`capabilities.json`](capabilities.json) 写明每类晶格与每个物理量支持到哪一层；`scripts/capabilities.py --check` 保证它与代码同步，`--show` 打印可读版 |
 | **同时是 agent skill** | `dsh/2d-magnet/SKILL.md` 把约定、闸门与驱动方式写全，Claude Code / Codex 或任何读指令文件的 agent 都能用 |
-| **可离线复现** | `examples/` 有两份完整产物树，不用 VASP 就能检查并重跑；发布包由 `scripts/make_release.py` 确定性打包 |
+| **可离线复现** | `examples/` 有两份完整产物树，不用 VASP 就能检查并重跑；发布包由 `scripts/make_release.py`（仓库包）与 `scripts/make_skill_bundle.py`（skill 包）确定性打包 |
 | **交变磁体判别** | `scripts/altermagnet_check.py` 判断两套亚晶格是否由保自旋的操作联系（交变磁体几何，标量序参量） |
 
 ## 工作流
@@ -61,7 +62,7 @@ git clone <repo-url> 2d_magnet_pipeline
 cd 2d_magnet_pipeline
 ```
 
-没有 git：直接下载 Release 里的 `2d-magnet-pipeline-0.1.0.tar.gz` / `.zip` 解压，内容与仓库一致。
+没有 git：直接下载 Release 里的 `2d-magnet-pipeline-0.1.0.tar.gz` / `.zip` 解压，内容与仓库一致；只想要 agent skill 就用 `2d-magnet-skill-0.1.0.zip`（`SKILL.md` 在包根，见第 6 步）。
 
 第 2–4 步有脚本版。在仓库根目录：
 
@@ -116,7 +117,15 @@ py -m pip install -e .
 
 **6. 可选：当 agent skill 用**
 
-`dsh/2d-magnet/` 是自包含的 skill（约定 + 闸门 + 驱动方式）。把整个目录拷进你的 harness 技能目录——Claude Code 是 `~/.claude/skills/`，或项目内 `.claude/skills/`；`AGENTS.md` 风格的 harness 直接让 agent 读 `dsh/2d-magnet/SKILL.md`。skill 驱动的是同一个 `run_2d_magnet.py`，不需要另装东西。
+`dsh/2d-magnet/SKILL.md` 是 skill 入口（约定 + 闸门 + 驱动方式），但它驱动的是仓库里的 `run_2d_magnet.py` 和 `scripts/`，所以**只拷 `dsh/2d-magnet/` 得到的是说明、不是流水线**。要一个能直接上传的 skill 包：
+
+```powershell
+py scripts\make_skill_bundle.py . dist
+```
+
+产出 `dist/2d-magnet-skill-0.1.0.zip`（附 `.sha256`）：`SKILL.md` 在包根，`run_2d_magnet.py`、`scripts/`、`knowledge/`、`tests/`、`examples/`、`templates/` 一并内置，包内路径已改写成包根（`bin/2d-magnet.cmd` 按 `%~dp0..` 定位，不依赖 CWD）。解压后把 `2d-magnet-skill-0.1.0/` 整个放进 harness 技能目录——Claude Code 是 `~/.claude/skills/`，或项目内 `.claude/skills/`；`AGENTS.md` 风格的 harness 直接让 agent 读包根 `SKILL.md`。包里 `python tests/smoke_test.py` 可独立跑完 29 节自检（不碰 VASP、不碰网络）。
+
+包里 `scripts/magnetic_orders.py --regress` 会跳过指向工作区项目目录的两条规格（MnI2、Fe3Sn 链路的 POSCAR 不在包内），其余规格照常回归，末行仍是「全部 PASS」。
 
 **7. 可选：VASP 那一侧**
 
@@ -160,11 +169,11 @@ py scripts\solve_J_square.py C:\work\la2\02_supercell\cases --demo
 | `kconv` | K 点收敛，只变 KPOINTS |
 | `solve` | 多磁态能量映射 → `J_result.json` |
 | `mc` | Metropolis / Binder U4 → `T_C` 或 `T_N` |
-| `render` | 超胞与磁序图 |
-| `report` | 出处卡片 → `workflow.md` |
+| `render` | 超胞与磁序图（共线画 ↑/↓，3 分量才画矢量箭头；尺寸读 `magnetic_orders.json`） |
+| `report` | 出处卡片 → `workflow.md` + `hamiltonian.md`（**需要 J**，缺 J 直接拒跑） |
 | `doctor` | 环境自检，对照 `KNOWN_ISSUES.md` |
 
-预设：`la2cuo4`、`crsbr`、`crocl`、`k2nif4`、`fgt`、`mnps3`、`nio`、`gdi2`。driver 选项（`--model`、`--literature`、`--element`、`--S`、`--moment`、`--U`、`--mc-order`、`--mc-seeds`、`--quiet`、`--log`）用 `py run_2d_magnet.py <子命令> --help` 查看。
+预设：`la2cuo4`、`crsbr`、`crocl`、`k2nif4`、`fgt`、`mnps3`、`nio`、`gdi2`。driver 选项（`--model`、`--literature`、`--element`、`--S`、`--moment`、`--U`、`--mc-order`、`--mc-seeds`、`--quiet`、`--log`）用 `py run_2d_magnet.py <子命令> --help` 查看。自旋模式默认**共线**：需要 120°/q0_120/cant 才加 `--noncollinear`，需要 MAE/SOC 才加 `--soc`；builder 级对照用 `build_magnetic_cases_tri.py --include-noncollinear` / `build_kagome_cases.py --include-noncollinear`。
 
 ## 产物
 
@@ -176,8 +185,8 @@ py scripts\solve_J_square.py C:\work\la2\02_supercell\cases --demo
 03_dft/、runs/<序>/              INCAR、KPOINTS、POTCAR.spec、MAGMOM
 05_mc/mc_mt.csv、mc_mt.png       温度、序参量、磁化率、Binder U4
 05_mc/mc_diag.json               接受率、tau_int、n_eff、naive 与 binning SEM
-figures/supercell_orders.png     带交换键与磁序集的超胞图
-workflow.md                      本次运行的出处卡片
+figures/supercell_orders.png     带交换键与磁序集的超胞图（`render` 生成；只重跑 build/dft 不会更新它）
+workflow.md                      本次运行的出处卡片（需 J；`hamiltonian.md` 同为 report 产出）
 ```
 
 ## 验证（脚本级自检 / 发布闸门）

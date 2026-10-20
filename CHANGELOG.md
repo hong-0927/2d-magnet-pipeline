@@ -10,7 +10,29 @@
 
 ## [Unreleased]
 
-（暂无）
+### Added — skill 发布包（可直接上传）
+- 新增 `scripts/make_skill_bundle.py`：产出 `dist/2d-magnet-skill-<ver>.zip` + `.sha256`。
+  `SKILL.md` 在包根（harness 的 `<skills>/<name>/SKILL.md` 约定），`run_2d_magnet.py`、`scripts/`、
+  `knowledge/`、`tests/`、`examples/`、`templates/` 一并内置，包内路径改写到包根，
+  `bin/2d-magnet.cmd` 改用 `%~dp0..` 自定位；文件清单取自 git、时间戳取 HEAD 提交时间，重复构建字节一致。
+- **README §6 更正**：`dsh/2d-magnet/` 只拷目录**不是**自包含 skill（它驱动仓库里的 `run_2d_magnet.py`
+  与 `scripts/`），旧文案「把整个目录拷进技能目录」会把 skill 装成断链；现改为「用 skill 包」。
+- `scripts/magnetic_orders.py --regress` 对结构不在本包内的规格（MnI2、Fe3Sn 链路指向工作区项目目录）
+  明确 `SKIP (结构不在本包内: …)` 并继续，独立分发的 skill 包里也能跑完并退出 0。
+
+### Changed — 默认路线去非共线（P6）
+- **三角**：`build_magnetic_cases_tri.py` 默认只生成共线四态（`fm / stripy_a / stripy_ab / uud`，
+  5×5×1 实测 `rank=4, cond=3.65e3`），`--include-noncollinear` 才追加 `120deg` 诊断态；
+  `required` 不再是 `["fm","120deg"]`，改为贪心选态 + 秩/条件数硬门禁。
+- **kagome**：`build_kagome_cases.py` 默认五共线态（`fm / q0_ud / q0_duu / sq3_updntri / sq3_alt`，
+  `rank=4, cond≈100`），`--include-noncollinear` 才追加 `q0_120 / sq3_120`；**J 不再需要非共线 DFT**。
+- **DFT 装配**：共线时 `magmom.txt` 写标量（`ISPIN=2`），`assemble_dft_tri.py` 默认走共线，
+  只有 `--noncollinear` 才切 3 分量；`assemble_dft.py` 仍是唯一 INCAR 渲染出口。
+- **文档/能力**：`capabilities.json` 的 `triangular.noncollinear` 改为 `false`，新增 `spin_modes`
+  与 `mae.note`；SKILL.md 新增 §2.0「反解 J 不需要非共线」；README / WORKFLOW / LIMITATIONS 同步。
+- **不变**：MAE 四态（`FM_z/AF_z/FM_x/AF_x`）与 CrOCl 倾斜仍必须非共线 + SOC，保留为显式支线；
+  `--noncollinear` / `--soc` / `--saxis` 能力未删。
+
 
 ## [0.1.0] - 2026-10-18
 

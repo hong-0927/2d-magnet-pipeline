@@ -1,9 +1,14 @@
 #!/usr/bin/env python
 """solve_J_tri.py
-从三角晶格各磁序总能量反解 J1/J2/J3 (三角 J1-J2-J3 模型, 含非共线 120°)。
+从三角晶格各**共线**磁序总能量反解 J1/J2/J3 (三角 J1-J2-J3 模型)。
 
 读 02_supercell/cases/magnetic_orders.json 里的 coefficients_per_cell + inversion_matrix_per_cell,
 乘以各构型能量向量即可。约定 H = -J Σ S·S (J>0 = 铁磁), meV。
+
+默认四态是 {fm, stripy_a, stripy_ab, uud} (全共线, 5x5x1 实测 rank=4, cond≈3.7e3)。
+旧的 {fm, 120deg, stripy_a, stripy_ab} (cond≈5.7e3) 需要 LNONCOLLINEAR; 换成共线四态
+后设计矩阵仍然满秩、条件数更好, 所以 120° 不再是反解的前提 (见 build_magnetic_cases_tri.py)。
+反解本身只认 json 里的 selected_orders —— 换序后 builder 会连 cond 一起重算。
 
 用法:
   python solve_J_tri.py <cases_dir>          # 读 cases/<order>/OUTCAR
@@ -38,6 +43,14 @@ def main():
     c = meta["coefficients_per_cell"]
     Ainv = np.array(meta["inversion_matrix_per_cell"], dtype=float)
     A = np.array([[1.0] + c[k] for k in sel])
+    if len(sel) != 4:
+        raise SystemExit(f"selected_orders 必须是 4 个构型 (e0+3 条 J), 实际 {sel}")
+    spin_mode = meta.get("spin_mode") or ("noncollinear" if meta.get("noncollinear") else "collinear")
+    rk = int(np.linalg.matrix_rank(A))
+    cond = float(np.linalg.cond(A))
+    if rk != 4 or cond > 1e4:
+        raise SystemExit(f"设计矩阵不可解: rank={rk}/4, cond={cond:.4g} (>1e4); "
+                         f"selected={sel} —— 请用 builder 重新生成 (它会重算 cond)。")
 
     if args.demo:
         J_true = [-0.3, 0.05, -0.02]
@@ -61,8 +74,9 @@ def main():
 
     sol = Ainv @ b  # [e0, J1~, J2~, J3~] in eV
     J = [sol[1 + m] / S2 * 1000.0 for m in range(3)]
-    print(f"\n构型顺序: {sel}")
+    print(f"\n构型顺序: {sel}   自旋模式: {spin_mode}")
     print(f"系数矩阵 (行=构型):\n{A}")
+    print(f"可解性: rank={rk}/4, cond(A)={cond:.4g}")
     print(f"能量 (eV/胞): {[f'{x:+.6f}' for x in b]}")
     print(f"e0 = {sol[0]:+.6f} eV")
     print(f"J1 = {J[0]:+.4f} meV   J2 = {J[1]:+.4f} meV   J3 = {J[2]:+.4f} meV   (S^2={S2})")

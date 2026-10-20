@@ -644,7 +644,9 @@ def _basis_sign(c):
 
 REGISTRY: dict[str, Spec] = {s.key: s for s in (
 
-    # ---------------- 三角 (MnI2): 1 磁位/胞, 60° 晶格, 有 120° 非共线序 ----
+    # ---------------- 三角 (MnI2): 1 磁位/胞, 60° 晶格; 默认全共线四态 ----------------
+    # 120° 序仍保留在 orders 中 (需要非共线对照/文献复现时显式启用), 但**不再是反解必需**:
+    # fm + stripy_a + stripy_ab + uud 已给出 rank=4 (cond≈3.7e3)。
     Spec(
         key="tri_mni2",
         label="三角单离子 (MnI2)",
@@ -664,7 +666,7 @@ REGISTRY: dict[str, Spec] = {s.key: s for s in (
             Order("stripy_ab", lambda c: sign_pow(c.n0 + c.n1)),
             Order("uud", lambda c: np.where((c.n0 + c.n1) % 3 == 0, -1.0, 1.0)),
         ),
-        selected=("fm", "120deg", "stripy_a", "stripy_ab"),
+        selected=("fm", "stripy_a", "stripy_ab", "uud"),
         spin=2.5,
         fixture="MnI2_pipeline/02_supercell/cases/magnetic_orders.json",
         fixture_kind="coefficients_per_cell",
@@ -899,7 +901,8 @@ REGISTRY: dict[str, Spec] = {s.key: s for s in (
     # 理想 kagome 里 J1 == J1' (对称性), 故只有 3 个独立壳, 对应 P4 计划的三自由度。
     # **简并警告**: q=0 一族 (fm / q0_120 / q0_ud / q0_duu) 的设计矩阵秩只有 2
     # (J1 与 J2 两列在该族内比值恒定), 分不开 J1/J2; 必须靠 √3×√3 序 (sq3_*) 才能分开。
-    # selected 这一组实测秩 = 4、cond < 1e2 (见 tests/test_magnetic_orders.py 的 COND_MAX 闸门)。
+    # P6 起默认不生成 120° (q0_120/sq3_120), 由 q0_ud 充当 q=0 代表;
+    # selected 实测秩 = 4、cond≈1.0e2 (见 tests/test_magnetic_orders.py 的 COND_MAX 闸门)。
     Spec(
         key="kagome_fe3sn",
         label="六角 kagome (Fe3Sn)",
@@ -922,7 +925,7 @@ REGISTRY: dict[str, Spec] = {s.key: s for s in (
             Order("sq3_alt", lambda c: sign_pow(np.asarray(c.sub_label)
                                                 + sqrt3_label(c.n0, c.n1, 3))),
         ),
-        selected=("fm", "q0_120", "sq3_updntri", "sq3_alt"),
+        selected=("fm", "q0_ud", "sq3_updntri", "sq3_alt"),
         # S=1 占位: Fe3Sn 的 S 未在仓库定值, 反解出的 J 绝对值随 S² 缩放 (见 knowledge/LIMITATIONS.md)。
         spin=1.0,
         policy="shift_search",
@@ -1208,7 +1211,13 @@ def main(argv=None) -> int:
         bad = 0
         skipped = []
         for spec in REGISTRY.values():
-            rows, ctx, verdict = regress(spec, args.tol)
+            try:
+                rows, ctx, verdict = regress(spec, args.tol)
+            except FileNotFoundError as exc:
+                # 规格指向工作区里的项目目录时 (如 MnI2 链路), 独立分发的 skill 包里没有这些目录。
+                # 结构缺失 = 本条无法回归, 明确 SKIP, 不把整条命令判失败。
+                skipped.append(f"{spec.key}: SKIP (结构不在本包内: {exc.filename})")
+                continue
             if rows is None:
                 skipped.append(f"{spec.key}: {verdict}")
                 continue

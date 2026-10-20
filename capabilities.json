@@ -17,9 +17,9 @@
       "solver": "scripts/solve_J_tri.py",
       "shells": 3,
       "noncollinear": true,
-      "orders": "含 120° 非共线序; MC 走 --mc-order cv (比热峰)",
+      "orders": "默认四共线 (fm + stripy_a/stripy_ab/uud); 120° 非共线序仅 --noncollinear/--include-noncollinear 时生成, 反解不需要; MC 走 --mc-order cv (比热峰)",
       "physical_verified": false,
-      "why": "序参量只支持 FM/Néel; 120° 序的量热判据是 Cv 峰, 单离子各向异性必须显式给 --MAE"
+      "why": "J 反解只需要满秩共线四态 (rank 4, cond≈3.7e3); 120° 序是物理基态的图像, 只在做非共线对照时用; 序参量只支持 FM/Néel, 受挫态的量热判据是 Cv 峰, 单离子各向异性必须显式给 --MAE"
     },
     "cluster": {
       "builder": "scripts/build_cluster_cases.py",
@@ -66,11 +66,11 @@
       "solver": "scripts/solve_J_kagome.py",
       "shells": 3,
       "noncollinear": false,
-      "orders": "七磁态, selected = fm/q0_120/sq3_updntri/sq3_alt (rank 4)",
+      "orders": "默认五共线磁态 (fm/q0_ud/q0_duu/sq3_updntri/sq3_alt), selected = fm/q0_ud/sq3_updntri/sq3_alt (rank 4, cond≈1.0e2); 120° 序仅 --include-noncollinear",
       "physical_verified": false,
       "why": "角共享三角形 (如 Fe3Sn); J1 与 J1' 同距离不同亚晶格对, 3 壳模型取平均 —— 要分开需降对称超胞 (P4.2)",
       "known_limits": [
-        "q=0 一族对 J1/J2 简并; 只用 q=0 序反解会得到 (J1+J2)/2 的任意分配 —— builder 的 selected 已含 √3×√3 序把 rank 提到 4, solve 端 rank<4 直接报错",
+        "q=0 一族对 J1/J2 简并; 只用 q=0 序反解会得到 (J1+J2)/2 的任意分配 —— builder 的默认 selected 含 √3×√3 序把 rank 提到 4, solve 端 rank<4 直接报错",
         "J1/J1' 分离、k 分辨劈裂、能带、Z2 都不在能力范围内"
       ]
     }

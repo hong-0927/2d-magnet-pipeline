@@ -48,7 +48,7 @@ def check(name, cond, extra=""):
         fails.append(name)
 
 
-ORDERS = list(B.SELECTED)          # ['fm', 'q0_120', 'sq3_updntri', 'sq3_alt']
+ORDERS = list(B.SELECTED)          # ['fm', 'q0_ud', 'sq3_updntri', 'sq3_alt']
 TMP = tempfile.mkdtemp(prefix="_ingest_test_")
 
 
@@ -241,7 +241,7 @@ def _reject_case(tag, mutate=None, orders=None, **kw):
 
 
 def _mut_scf(order, path, e, kw):
-    if order == "q0_120":
+    if order == "q0_ud":
         kw["scf"] = False
 
 
@@ -287,7 +287,7 @@ check("闸门 structure: 原子数/元素块不一致 ⇒ 拒绝",
 
 
 def _mut_lattice(order, path, e, kw):
-    if order == "q0_120":
+    if order == "q0_ud":
         bad = [list(v) for v in LAT]
         bad[0][0] += 0.05                    # 0.05 Å > 1e-4 容差
         kw["lattice"] = bad

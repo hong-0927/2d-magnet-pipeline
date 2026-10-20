@@ -11,7 +11,7 @@ cd 2d_magnet_pipeline
 $ex = "$env:TEMP\kag_example"
 New-Item -ItemType Directory -Force -Path $ex\02_supercell\cases | Out-Null
 
-# 1) 构建 √3×√3 构型集（selected 4 个: fm / q0_120 / sq3_updntri / sq3_alt）
+# 1) 构建 √3×√3 构型集（selected 4 个: fm / q0_ud / sq3_updntri / sq3_alt，全共线）
 python scripts/build_kagome_cases.py tests/fixtures/Fe3Sn_POSCAR --supercell 3 3 1 `
     --outdir $ex\02_supercell\cases --element Fe --nonmag Sn --moment 2.0 --spin 1.0
 
@@ -23,12 +23,12 @@ python scripts/dry_run_kagome.py $ex --synthetic 5 -0.5 0.2 --mc
 
 | 路径 | 是什么 |
 |---|---|
-| `02_supercell/cases/magnetic_orders.json` | 规格层：3×3×1 超胞（27 个磁位点）、7 个磁序、per-site 键数 `(4,4,6)`、`rank(A)=4/4`、`cond(A)=98.51`、`\|det\|=2.1e5` |
+| `02_supercell/cases/magnetic_orders.json` | 规格层：3×3×1 超胞（27 个磁位点）、5 个共线磁序（`fm/q0_ud/q0_duu/sq3_updntri/sq3_alt`）、per-site 键数 `(4,4,6)`、`rank(A)=4/4`、`cond(A)≈101` |
 | `02_supercell/cases/J_result.dryrun.json` | 反解产物：`source=demo` ⇒ `confidence=low`；`A` 矩阵、`J_meV`、`residual` 都在里面 |
 | `02_supercell/cases/ingest_report.md` | **回收报告**：逐序能量、`ionic steps`、SCF 是否收敛、与 fm 之差、sha256 前 12 位、警告清单 |
-| `02_supercell/cases/fm/{POSCAR,magmom.txt}` | 送 DFT 的一个磁序（kagome 的 √3×√3 序是 3 分量 MAGMOM ⇒ 装配时必须 `--noncollinear`） |
+| `02_supercell/cases/fm/{POSCAR,magmom.txt}` | 送 DFT 的一个磁序（共线标量 MAGMOM，`ISPIN=2`；不需要非共线） |
 | `02_supercell/cases/mc_dryrun_mt.csv`、`mc_dryrun_mt.png` | 用**合成** J 跑的一次 MC（曲线形状可看，数值无意义） |
-| `figures/supercell_orders.png` | 3×3 超胞的磁序图（fm / q0_120 / sq3_updntri / sq3_alt） |
+| `figures/supercell_orders.png` | 3×3 超胞的磁序图（共线 ↑/↓ 着色） |
 
 ## 结果怎么读（以及不能怎么读）
 

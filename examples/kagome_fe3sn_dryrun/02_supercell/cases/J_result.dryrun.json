@@ -1,7 +1,7 @@
 {
   "schema": "j_result/1",
-  "created": "2026-10-16T12:56:00",
-  "material": null,
+  "created": "2026-10-19T21:40:08",
+  "material": "2d_magnet",
   "lattice": "kagome",
   "source": "demo",
   "confidence": "low",
@@ -15,7 +15,7 @@
   ],
   "orders": [
     "fm",
-    "q0_120",
+    "q0_ud",
     "sq3_updntri",
     "sq3_alt"
   ],
@@ -28,8 +28,8 @@
     ],
     [
       1.0,
-      27.0,
-      27.0,
+      18.0,
+      18.0,
       -81.0
     ],
     [
@@ -53,7 +53,7 @@
       "tol": 0.3,
       "sum_coeff": [
         -54.0,
-        27.0,
+        18.0,
         -6.0,
         -6.0
       ],
@@ -66,7 +66,7 @@
       "tol": 0.3,
       "sum_coeff": [
         -54.0,
-        27.0,
+        18.0,
         -6.0,
         18.0
       ],
@@ -88,11 +88,11 @@
   ],
   "E_eV": {
     "fm": -0.2592,
-    "q0_120": 0.1053,
+    "q0_ud": 0.0648,
     "sq3_updntri": -0.0216,
     "sq3_alt": -0.0336
   },
-  "E0_eV": 0.0,
+  "E0_eV": -0.0,
   "J_meV": {
     "J1": 5.0,
     "J2": -0.5,
@@ -103,15 +103,15 @@
     "J2": -0.5,
     "J3": 0.2
   },
-  "cond": 98.50725409865193,
-  "residual_eV": 2.0816681711721685e-17,
+  "cond": 101.36558471949786,
+  "residual_eV": 8.326672684688674e-17,
   "notes": [
     "⚠ dry_run_kagome.py 产物: 能量由合成 J 生成, **不是 DFT**, 不构成任何物理结论",
     "往返误差 = 0 meV"
   ],
   "dft_provenance": {
     "schema": "dft_ingest/v1",
-    "generated_utc": "2026-10-16T04:55:59+00:00",
+    "generated_utc": "2026-10-19T13:40:08+00:00",
     "source_runs": "_dryrun_runs",
     "energy_convention": "free energy TOTEN (eV)",
     "lenient": [
@@ -130,8 +130,8 @@
         "lsorbit": true,
         "vasp_version": "6.4.2"
       },
-      "q0_120": {
-        "energy_eV": 0.1053,
+      "q0_ud": {
+        "energy_eV": 0.0648,
         "n_ionic_steps": 1,
         "scf_converged": true,
         "n_ions": 36,
@@ -166,11 +166,11 @@
     },
     "outcar_sha256": {
       "fm": "99a40a1399aa7e600cb4b40d7d4fc66050a80c1931128268465208d8eea2dbeb",
-      "q0_120": "31eaf5e8aa6d83c3403e998c79a2a8aa0a04d6f627665f254b71a5a0f50ddfe5",
+      "q0_ud": "e02787fc2273feb4ec0a1060a4625123a8b8d7c525b00dfe8e5068c1cccba09a",
       "sq3_alt": "b1dcc2fb1087de325eb0b2b1be40d48eb6e9b1a290844b3b6efbff7a4a826cd7",
       "sq3_updntri": "572108faa5ec35d42bc02a961989a166caa0aa96bc2ff04ed3c94d55b6b3da81"
     },
-    "manifest": "02_supercell/cases/ingest_manifest.json",
+    "manifest": "C:\\Users\\吴\\Desktop\\项目\\2d_magnet_pipeline\\examples\\kagome_fe3sn_dryrun\\02_supercell\\cases\\ingest_manifest.json",
     "note": "凭证只证明 OUTCAR 过了格式/收敛/结构/口径闸门, **不证明 J 与 T_C 的物理正确性**"
   }
 }

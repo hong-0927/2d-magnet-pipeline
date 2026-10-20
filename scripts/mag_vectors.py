@@ -294,50 +294,66 @@ def _selftest():
     except Exception as e:  # pragma: no cover
         ck(f"与 magnetic_orders.planar120 交叉校验 (导入失败: {e})", False)
 
-    # 与真实产物 cross-check: 已提交的 MnI2 各序 magmom.txt 必须自洽
+    # 与构造器 cross-check: 现场建一套三角构型 (GdI2 夹具), 核对共线标量 vs 非共线 3 分量。
+    # 不读外部项目目录: 构造器是唯一来源, 样本也由它现场生成 (P6: 默认全共线)。
+    import json
+    import shutil
+    import subprocess
+    import sys
+    import tempfile
+
     here = os.path.dirname(os.path.abspath(__file__))
-    cases = os.path.join(os.path.dirname(here), "..", "MnI2_pipeline", "02_supercell", "cases")
-    cases = os.path.abspath(cases)
-    if os.path.isdir(cases):
-        mo_json = os.path.join(cases, "magnetic_orders.json")
-        n_mag = n_atoms = None
-        moment = 5.0
-        if os.path.exists(mo_json):
-            import json
-            meta = json.load(open(mo_json, encoding="utf-8"))
-            n_mag = meta.get("n_mag")
-            n_atoms = meta.get("n_atoms")
-            moment = float(meta.get("moment", moment))
-        bad = []
-        for name in sorted(os.listdir(cases)):
-            p = os.path.join(cases, name, "magmom.txt")
-            if not os.path.isfile(p):
-                continue
+    repo = os.path.dirname(here)
+    poscar = os.path.join(repo, "tests", "fixtures", "GdI2_POSCAR")
+    tri = os.path.join(here, "build_magnetic_cases_tri.py")
+    tmp = tempfile.mkdtemp(prefix="_mv_tri_")
+
+    def _build(tag, extra=()):
+        out = os.path.join(tmp, tag)
+        cmd = [sys.executable, tri, poscar, "--supercell", "5", "5", "1",
+               "--element", "Gd", "--nonmag", "I", "--moment", "7.0", "--spin", "3.5",
+               "--outdir", out] + list(extra)
+        r = subprocess.run(cmd, capture_output=True, text=True)
+        return out if r.returncode == 0 else None
+
+    def _read(out):
+        meta = json.load(open(os.path.join(out, "magnetic_orders.json"), encoding="utf-8"))
+        rows = {}
+        for name in meta["selected_orders"]:
+            p = os.path.join(out, name, "magmom.txt")
             text = open(p, encoding="utf-8").read()
-            v, nc = parse_magmom(text)
-            if nc != 3:
-                bad.append(f"{name}: {nc} 分量")
-                continue
-            if n_atoms and v.size != n_atoms * 3:
-                bad.append(f"{name}: {v.size} != 3*{n_atoms}")
-                continue
-            mag = np.linalg.norm(v.reshape(-1, 3), axis=1)
-            nz = mag[mag > 1e-6]
-            if nz.size and np.abs(nz - moment).max() > 1e-3:
-                bad.append(f"{name}: |m| 偏离 moment={moment}")
-        ck(f"真实产物: MnI2 各序 magmom.txt 自洽 (n_mag={n_mag}, n_atoms={n_atoms}, moment={moment})",
-           not bad, "; ".join(bad)[:80])
-        p120 = os.path.join(cases, "120deg", "magmom.txt")
-        if os.path.isfile(p120):
-            v, _ = parse_magmom(open(p120, encoding="utf-8").read())
-            m = v.reshape(-1, 3)
-            m = m[np.linalg.norm(m, axis=1) > 1e-6]
-            a = np.degrees(np.arctan2(m[:, 1], m[:, 0])) % 360.0
-            cols = sorted({int(round(x / 120.0)) % 3 for x in a})
-            ck("真实产物: MnI2 120deg 恰好只有 0/120/240 三色",
-               cols == [0, 1, 2], f"cols={cols}")
-    else:
-        ck("真实产物: MnI2 cases 存在 (跳过)", True)
+            toks = text.split("=", 1)[-1].split()
+            rows[name] = (text, len(toks))
+        return meta, rows
+
+    try:
+        out_c = _build("collinear")
+        out_n = _build("noncollinear", ["--include-noncollinear"])
+        if out_c is None or out_n is None:
+            ck("构造器交叉校验: 现场建三角构型 (构造器失败)", False)
+        else:
+            meta_c, rows_c = _read(out_c)
+            _meta_n, rows_n = _read(out_n)
+            n_atoms = int(meta_c["n_atoms"])
+            bad = [f"{k}: {n_tok} 个值" for k, (_t, n_tok) in rows_c.items()
+                   if n_tok != n_atoms]
+            ck(f"构造器交叉校验: 默认四态全共线标量 MAGMOM (n_atoms={n_atoms})",
+               not bad, "; ".join(bad)[:80])
+            text120, n_tok120 = rows_n.get("120deg", ("", 0))
+            ck("构造器交叉校验: 只有 --include-noncollinear 才给 120deg, 且为 3 分量",
+               n_tok120 == 3 * n_atoms, f"值个数={n_tok120} (应为 3*{n_atoms})")
+            if text120 and n_tok120 == 3 * n_atoms:
+                v = np.array([float(x) for x in text120.split("=", 1)[-1].split()]) * 7.0
+                m = v.reshape(-1, 3)
+                m = m[np.linalg.norm(m, axis=1) > 1e-6]
+                a = np.degrees(np.arctan2(m[:, 1], m[:, 0]))
+                cols = sorted({int(round(x / 120.0)) % 3 for x in a})
+                ck("构造器交叉校验: 120deg 恰好只有 0/120/240 三色",
+                   cols == [0, 1, 2], f"cols={cols}")
+            else:
+                ck("构造器交叉校验: 120deg 三色 (缺少 120deg 或分量不对, 跳过)", False)
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
 
     n_ok = sum(checks)
     print(f"\n--selftest: {'ALL PASS' if n_ok == len(checks) else 'FAIL'} ({n_ok}/{len(checks)} 项)")

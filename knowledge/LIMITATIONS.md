@@ -5,14 +5,14 @@
 机器可读的版本在 [`capabilities.json`](../capabilities.json)（`python scripts/capabilities.py --show` 打印可读版）；逐条症状与修法在 [`KNOWN_ISSUES.md`](KNOWN_ISSUES.md)。下面是人读版的完整清单，共 18 条。
 
 1. 仓库不带真实 DFT 数据。开箱跑出的数字都来自文献或合成能量，并且如实标注——demo 给的 `T_C`/`T_N` 不是预言。
-2. 多磁态映射假设共线态映射到 Heisenberg 模型；非共线与 SOC 情形停在系数层（P3），没有经过验证的能量。
+2. 多磁态映射假设共线态映射到 Heisenberg 模型；**默认路线全共线**（P6：三角 fm+stripy_a+stripy_ab+uud、kagome fm+q0_ud+sq3_updntri+sq3_alt 即可满秩反解 J）。非共线（120°/q0_120）与 SOC 只在显式 `--noncollinear`/`--soc` 时进入，且停在系数层（P3），没有经过验证的能量；MAE 四态是唯一必须非共线+SOC 的支线。
 3. `S`、`moment`、`U` 是输入。内置表之外的元素必须显式给值：猜一个会静默给出错的物理，所以 driver 宁可拒绝。
 4. 各向异性只通过 `--MAE`（默认 0）与 DMI 矩阵进入，两者都是输入，不是反解出来的量。
 5. 蒙特卡洛是经典、单自旋更新的 Metropolis，跑在有限团簇上。`T_C`/`T_N` 是该团簇上的估计，不是热力学极限值。
 6. 误差棒用 binning 标准误；`05_mc/mc_diag.json` 给出 `n_eff`、`tau_int` 与接受率，采样不足时能看出来。峰落在温度窗口边界时，`T` 会标成未分辨，而不是照常给一个数。
 7. 有限尺寸标度用全局参照交点 + `1/L` 外推，外推值只是参考；没进标度区之前它不可信。
 8. `--order auto` 用 T = 0 候选基态（fm / Néel / 条纹）决定用哪个序参量。条纹基态没有 ±1 交错序参量，流水线会自动退回比热峰并给出说明；近简并的模型请显式给 `--order`。
-9. kagome 在系数层（P4.1），物理层（P4.2）等真实非共线 DFT——见 [`P4_2_KAGOME_RUNBOOK.md`](P4_2_KAGOME_RUNBOOK.md)。
+9. kagome 在系数层（P4.1），**J 不需要非共线 DFT**：默认四态（`fm/q0_ud/sq3_updntri/sq3_alt`）已满秩。物理层（P4.2）等真实 DFT 机时；只有要把 J1 与 J1′ 分开或做 120° 能量对照时才需要非共线路线——见 [`P4_2_KAGOME_RUNBOOK.md`](P4_2_KAGOME_RUNBOOK.md)。
 10. 交变磁体只做几何判别（P5），标量序参量能到子晶格掩码，但不是完整的非共线描述。
 11. 倾斜态（P2′）到系数层：`scripts/solve_J_crect_cant.py` 把 θ 当输入，不预测 θ。
 12. DMI 以你提供的 `D` 矩阵进入，流水线不从能量里提取 `D`——见 [`DMI_MTI_MEMO.md`](DMI_MTI_MEMO.md)。

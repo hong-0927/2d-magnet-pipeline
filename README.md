@@ -11,16 +11,17 @@ The input is a `POSCAR`: from the Materials Project, from the public COD / OQMD 
 
 | Capability | What it gives you |
 |---|---|
-| **Eight magnetic lattices, one spec layer** | honeycomb, triangular (120° non-collinear), molecular cluster, two-sublattice ferromagnetic network (Fe₃GeTe₂-like), rectangular (CrSBr-like), C-centred rectangular (CrOCl-like), square (La₂CuO₄ / K₂NiF₄-like), hexagonal kagome (Fe₃Sn-like) — all built and solved through the same specification layer, all reporting into the same `J_result.json` |
+| **Eight magnetic lattices, one spec layer** | honeycomb, triangular (collinear four-state inversion by default), molecular cluster, two-sublattice ferromagnetic network (Fe₃GeTe₂-like), rectangular (CrSBr-like), C-centred rectangular (CrOCl-like), square (La₂CuO₄ / K₂NiF₄-like), hexagonal kagome (Fe₃Sn-like) — all built and solved through the same specification layer, all reporting into the same `J_result.json` |
+| **Inverting J does not need non-collinear states** | triangular uses fm + stripy_a + stripy_ab + uud, kagome uses fm + q0_ud + sq3_updntri + sq3_alt — all collinear and still full rank (measured cond 3.7e3 / 100); 120°, q0_120, canting and MAE live on an explicit `--noncollinear`/`--soc` branch |
 | **A documented way to J, not just a number** | `J_result.json` records `source` (`literature` / `user` / `dft` / `demo`), `cond(A)`, residual, `E0` and whether the magnetic states were verified per site |
 | **Magnetic states verified before inversion** | `scripts/verify_states.py` compares every ion's moment against its target and detects two orders collapsing into one state; `solve` refuses to write J when that check fails |
 | **Fail-closed ingestion** | 11 gates on each `OUTCAR`: format, convergence, structure, MAGMOM consistency, energy convention |
 | **Estimates with their own error bars** | Binder cumulant `U4`, finite-size scaling with a `1/L` reference, and per-temperature `tau_int`, `n_eff`, acceptance rate and binned SEM in `mc_diag.json`; a peak on the window edge is reported as unresolved instead of being trusted |
-| **Non-collinear and SOC support** | `LNONCOLLINEAR` / `LSORBIT` / `SAXIS`, canted MAGMOM sets, and `scripts/solve_J_crect_cant.py` for the canted CrOCl family |
+| **Non-collinear and SOC (side branch)** | `LNONCOLLINEAR` / `LSORBIT` / `SAXIS`, canted MAGMOM sets, and `scripts/solve_J_crect_cant.py` for the canted CrOCl family; the default route never touches this, and the MAE four-state set is the one branch that genuinely requires SOC + non-collinear |
 | **No invented parameters** | `--S/--moment/--U` fall back to a built-in table for Mn/Cr/Ni/Co/V/Gd only; Fe is deliberately absent (effective spin is ambiguous), so the driver stops and asks, and `null` literature entries raise an error instead of running |
 | **Boundaries you can query** | [`capabilities.json`](capabilities.json) states what each lattice and quantity reaches; `scripts/capabilities.py --check` keeps it in sync with the code, and `--show` prints the readable version |
 | **Also an agent skill** | `dsh/2d-magnet/SKILL.md` carries the conventions and gates for Claude Code, Codex or any agent that reads instruction files |
-| **Reproducible offline** | `examples/` holds two complete artifact trees you can inspect and regenerate without VASP; release packages are built deterministically by `scripts/make_release.py` |
+| **Reproducible offline** | `examples/` holds two complete artifact trees you can inspect and regenerate without VASP; release packages are built deterministically by `scripts/make_release.py` (repository) and `scripts/make_skill_bundle.py` (agent skill) |
 | **Altermagnet check** | `scripts/altermagnet_check.py` tests whether the two sublattices are related by a spin-preserving operation (交变磁体 geometry, scalar order parameter) |
 
 ## Workflow
@@ -61,7 +62,7 @@ git clone <repo-url> 2d_magnet_pipeline
 cd 2d_magnet_pipeline
 ```
 
-No git? Download the release archive (`2d-magnet-pipeline-0.1.0.tar.gz` / `.zip` from the Releases page) and unpack it — the archive holds the same tree.
+No git? Download the release archive (`2d-magnet-pipeline-0.1.0.tar.gz` / `.zip` from the Releases page) and unpack it — the archive holds the same tree. If you only want the agent skill, take `2d-magnet-skill-0.1.0.zip` instead (`SKILL.md` at the archive root, see step 6).
 
 Steps 2–4 are scripted. From the repository root:
 
@@ -116,7 +117,15 @@ py -m pip install -e .
 
 **6. Optional: run it as an agent skill**
 
-`dsh/2d-magnet/` is a self-contained skill (conventions, gates, driving instructions). Copy the folder into your harness skill directory — for Claude Code `~/.claude/skills/`, or `.claude/skills/` inside a project; for an `AGENTS.md`-style harness point the agent at `dsh/2d-magnet/SKILL.md`. The skill drives the same `run_2d_magnet.py`; nothing else needs installing.
+`dsh/2d-magnet/SKILL.md` is the skill entry point (conventions, gates, driving instructions), but it drives the repository's `run_2d_magnet.py` and `scripts/` — **copying `dsh/2d-magnet/` alone gives you a manual, not the pipeline**. For something you can upload to a skill registry:
+
+```powershell
+py scripts\make_skill_bundle.py . dist
+```
+
+That produces `dist/2d-magnet-skill-0.1.0.zip` (plus `.sha256`): `SKILL.md` sits at the archive root, and `run_2d_magnet.py`, `scripts/`, `knowledge/`, `tests/`, `examples/` and `templates/` ship inside it, with the in-package paths rewritten to the bundle root (`bin/2d-magnet.cmd` locates it via `%~dp0..`, so the working directory does not matter). Drop the unpacked `2d-magnet-skill-0.1.0/` into your harness skill directory — `~/.claude/skills/` for Claude Code, or `.claude/skills/` inside a project; for an `AGENTS.md`-style harness, point the agent at the bundle-root `SKILL.md`. Inside the bundle, `python tests/smoke_test.py` runs all 29 self-check sections without VASP or network.
+
+Inside the bundle, `scripts/magnetic_orders.py --regress` skips the two specs whose POSCARs live in workspace project directories (the MnI2 and Fe3Sn chains), regresses the rest, and still ends with "全部 PASS".
 
 **7. Optional: the VASP side**
 
@@ -160,11 +169,11 @@ py scripts\solve_J_square.py C:\work\la2\02_supercell\cases --demo
 | `kconv` | K-points convergence; only KPOINTS is varied |
 | `solve` | many-state energy mapping → `J_result.json` |
 | `mc` | Metropolis / Binder U4 → `T_C` or `T_N` |
-| `render` | supercell and order figures |
-| `report` | provenance card → `workflow.md` |
+| `render` | supercell and order figures (collinear ↑/↓; vector arrows only for 3-component spins; supercell size read from `magnetic_orders.json`) |
+| `report` | provenance card → `workflow.md` + `hamiltonian.md` (**requires J**; refuses to run without it) |
 | `doctor` | environment self-check against `KNOWN_ISSUES.md` |
 
-Presets: `la2cuo4`, `crsbr`, `crocl`, `k2nif4`, `fgt`, `mnps3`, `nio`, `gdi2`. Driver options (`--model`, `--literature`, `--element`, `--S`, `--moment`, `--U`, `--mc-order`, `--mc-seeds`, `--quiet`, `--log`) are listed by `py run_2d_magnet.py <subcommand> --help`.
+Presets: `la2cuo4`, `crsbr`, `crocl`, `k2nif4`, `fgt`, `mnps3`, `nio`, `gdi2`. Driver options (`--model`, `--literature`, `--element`, `--S`, `--moment`, `--U`, `--mc-order`, `--mc-seeds`, `--quiet`, `--log`) are listed by `py run_2d_magnet.py <subcommand> --help`. Spin mode is **collinear by default**: add `--noncollinear` for 120°/q0_120/cant, `--soc` for MAE/SOC; builder-level comparisons use `build_magnetic_cases_tri.py --include-noncollinear` / `build_kagome_cases.py --include-noncollinear`.
 
 ## Outputs
 
@@ -176,8 +185,8 @@ Presets: `la2cuo4`, `crsbr`, `crocl`, `k2nif4`, `fgt`, `mnps3`, `nio`, `gdi2`. D
 03_dft/, runs/<order>/           INCAR, KPOINTS, POTCAR.spec, MAGMOM
 05_mc/mc_mt.csv, mc_mt.png       T, order parameter, susceptibility, Binder U4
 05_mc/mc_diag.json               acceptance, tau_int, n_eff, naive vs binned SEM
-figures/supercell_orders.png     supercell with exchange bonds and the order set
-workflow.md                      provenance card for the run
+figures/supercell_orders.png     supercell with exchange bonds and the order set (`render` only; rebuilding build/dft does not refresh it)
+workflow.md                      provenance card for the run (needs J; `hamiltonian.md` is also a report product)
 ```
 
 ## Verification（脚本级自检 / 发布闸门）

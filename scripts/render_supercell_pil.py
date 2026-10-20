@@ -1,5 +1,8 @@
 #!/usr/bin/env python
-"""render_supercell_pil.py -- 纯 Pillow 版 2x2x1 超胞四磁序俯视图 (render_supercell.py 的离线替代)。
+"""render_supercell_pil.py -- 纯 Pillow 版超胞四磁序俯视图 (render_supercell.py 的离线替代)。
+
+超胞尺寸取自 `02_supercell/cases/magnetic_orders.json` 的 `supercell` 字段
+(此前写死 2×2×1, CrSBr 的 4×4×1 会被标错; 表头/页脚/图例都不再假设 2×2×1)。
 
 为什么存在这条路径:
   本机 matplotlib 3.11.1 已装但其依赖 (pyparsing / cycler / contourpy / fontTools /
@@ -17,6 +20,7 @@
       -o figures/supercell_orders.png [--orders fm neel zigzag stripy] [--shells 3]
 """
 import argparse
+import json
 import os
 import sys
 
@@ -160,6 +164,10 @@ def main():
         row, col = divmod(k, 2)
         x0 = L + col * (pw + gapx)
         y0 = TOPY + row * (ph + gapy)
+        # Pillow 没有 axes 裁剪: 每个面板先画在独立图层上, 只把面板矩形拼回画布。
+        # 否则跨胞键 (min_image) 与周期像会画到相邻面板/图例上 (matplotlib 版由 axes 自动裁掉)。
+        lay = Image.new("RGBA", (Wd, Hd), (0, 0, 0, 0))
+        dl = ImageDraw.Draw(lay)
 
         d = os.path.join(cases_dir, order)
         lat, symbols, coords = R.parse_poscar(os.path.join(d, "POSCAR"))
@@ -200,17 +208,8 @@ def main():
         def T(p, _ox=ox, _oy=oy, _s=scale, _xmin=xmin, _ymin=ymin):
             return (_ox + (p[0] - _xmin) * _s, _oy - (p[1] - _ymin) * _s)
 
-        # 背景周期像 (淡, 只画磁性元素)
-        r_bg = marker_radius(150)
-        for oi in (-1, 0, 1):
-            for oj in (-1, 0, 1):
-                if oi == 0 and oj == 0:
-                    continue
-                sh = oi * a1 + oj * a2
-                for t in up:
-                    circle(dr, T(crxy[t] + sh), r_bg, fill=mix(R.C_UP, 0.16))
-                for t in dn:
-                    circle(dr, T(crxy[t] + sh), r_bg, fill=mix(R.C_DN, 0.16))
+        # 不再画 ±a1/±a2 的周期背景像: 那是整格平移, 会落到面板可视区外/边上,
+        # matplotlib 版同样被 axes 裁掉 (视觉上只有噪声, 没有信息量)。
 
         # 按壳画键: 远壳先画, 最近邻最后画 (NN 压上)
         pairs_by_shell = [[] for _ in range(len(resolved))]
@@ -230,26 +229,32 @@ def main():
                 p0 = xy[mag_idx[i]]
                 p1 = p0 + dd @ lat2
                 if ls == "-":
-                    dr.line([T(p0), T(p1)], fill=color, width=max(1, int(round(width))))
+                    dl.line([T(p0), T(p1)], fill=color, width=max(1, int(round(width))))
                 else:
-                    dashed_line(dr, T(p0), T(p1), color, width, pt2px(dash), pt2px(gap))
+                    dashed_line(dl, T(p0), T(p1), color, width, pt2px(dash), pt2px(gap))
 
         # 中心胞: 非磁 + 磁性元素
         r_non = marker_radius(72)
         r_mag = marker_radius(245)
         for t in non_idx:
-            circle(dr, T(xy[t]), r_non, fill=R.C_NON)
+            circle(dl, T(xy[t]), r_non, fill=R.C_NON)
         for t in up:
-            circle(dr, T(crxy[t]), r_mag, fill=R.C_UP, outline="white", width=pt2px(1.6))
+            circle(dl, T(crxy[t]), r_mag, fill=R.C_UP, outline="white", width=pt2px(1.6))
         for t in dn:
-            circle(dr, T(crxy[t]), r_mag, fill=R.C_DN, outline="white", width=pt2px(1.6))
+            circle(dl, T(crxy[t]), r_mag, fill=R.C_DN, outline="white", width=pt2px(1.6))
 
         # 超胞边界 (虚线黑框)
         box = [T(np.array([0, 0])), T(a1), T(a1 + a2), T(a2)]
         for i in range(4):
             p0, p1 = box[i], box[(i + 1) % 4]
             dash, gap = dash_gap("--", 1.1)
-            dashed_line(dr, p0, p1, "black", pt2px(1.1), pt2px(dash), pt2px(gap))
+            dashed_line(dl, p0, p1, "black", pt2px(1.1), pt2px(dash), pt2px(gap))
+
+        # 只把面板矩形拼回画布 (等价 matplotlib 的 axes 裁剪)
+        x0i, y0i = int(round(x0)), int(round(y0))
+        x1i, y1i = int(round(x0 + pw)), int(round(y0 + ph))
+        tile = lay.crop((x0i, y0i, x1i, y1i))
+        img.paste(tile, (x0i, y0i), tile)
 
         # 面板标题 (序名 + 该序的 (J1,J2,J3) 系数)
         ttl = titles.get(order, order)
@@ -297,7 +302,16 @@ def main():
             dr.text((tx, y), label, font=f_leg, fill=(51, 51, 51), anchor="lm")
 
     # ---- 总标题 + 脚注 ----
-    dr.text((Wd / 2.0, TITLE_Y * Hd), f"{args.label} 单层 2×2×1 超胞：四种共线磁序俯视图",
+    # 超胞尺寸取自 magnetic_orders.json (此前写死 2×2×1, CrSBr 的 4×4×1 会被标错)
+    try:
+        with open(os.path.join(cases_dir, "magnetic_orders.json"), encoding="utf-8") as _fh:
+            _sc = (json.load(_fh).get("supercell") or [2, 2, 1])
+        _sc_lbl = "×".join(str(int(v)) for v in _sc[:3])
+    except (OSError, ValueError, TypeError):
+        _sc_lbl = "2×2×1"
+    _cn = {3: "三", 4: "四", 5: "五", 6: "六"}.get(min(len(args.orders), 4), str(min(len(args.orders), 4)))
+    dr.text((Wd / 2.0, TITLE_Y * Hd),
+            f"{args.label} 单层 {_sc_lbl} 超胞：{_cn}种共线磁序俯视图",
             font=font(pt2px(15)), fill="black", anchor="ma")
     foot = (f"俯视沿 c (z)。红/蓝 = {args.element} 自旋上/下；浅灰 = {'/'.join(args.nonmag)}；"
             f"键按 J1/J2/J3 近邻壳着色。副标题为该磁序 (J1,J2,J3) 系数。\n"

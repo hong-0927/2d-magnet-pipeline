@@ -1,0 +1,240 @@
+{
+  "schema": "dft_ingest/v1",
+  "ingest_version": "1.0",
+  "generated_utc": "2026-10-19T13:40:08+00:00",
+  "energy_convention": "free energy TOTEN (eV)",
+  "source_runs": "_dryrun_runs",
+  "cases_dir": "C:\\Users\\吴\\Desktop\\项目\\2d_magnet_pipeline\\examples\\kagome_fe3sn_dryrun\\02_supercell\\cases",
+  "energy_tolerance_eV": 0.001,
+  "checks": [
+    {
+      "name": "files_present",
+      "hard": true,
+      "desc": "四态 OUTCAR 齐全"
+    },
+    {
+      "name": "size",
+      "hard": true,
+      "desc": "OUTCAR 体积不小于阈值"
+    },
+    {
+      "name": "timing",
+      "hard": true,
+      "desc": "VASP 正常跑完 (有 timing 段)"
+    },
+    {
+      "name": "scf",
+      "hard": true,
+      "desc": "SCF 收敛 (EDIFF reached)"
+    },
+    {
+      "name": "ionic_steps",
+      "hard": true,
+      "desc": "恰好一个离子步 (静态)"
+    },
+    {
+      "name": "convention",
+      "hard": true,
+      "desc": "能量口径统一 (free energy TOTEN)"
+    },
+    {
+      "name": "structure",
+      "hard": true,
+      "desc": "与参考序结构一致"
+    },
+    {
+      "name": "not_shadowed",
+      "hard": true,
+      "desc": "不是 cases/ 里的旧 OUTCAR (sha256 必须变)"
+    },
+    {
+      "name": "spread",
+      "hard": true,
+      "desc": "能量离散度在阈值内"
+    },
+    {
+      "name": "accuracy",
+      "hard": false,
+      "desc": "打印了 reached required accuracy (静态可不打印)"
+    },
+    {
+      "name": "moment",
+      "hard": false,
+      "desc": "每磁位点矩与磁序类型相符 (诊断)"
+    }
+  ],
+  "files": [
+    {
+      "order": "fm",
+      "outcar": "fm\\OUTCAR",
+      "sha256": "99a40a1399aa7e600cb4b40d7d4fc66050a80c1931128268465208d8eea2dbeb",
+      "bytes": 788
+    },
+    {
+      "order": "q0_ud",
+      "outcar": "q0_ud\\OUTCAR",
+      "sha256": "e02787fc2273feb4ec0a1060a4625123a8b8d7c525b00dfe8e5068c1cccba09a",
+      "bytes": 788
+    },
+    {
+      "order": "sq3_alt",
+      "outcar": "sq3_alt\\OUTCAR",
+      "sha256": "b1dcc2fb1087de325eb0b2b1be40d48eb6e9b1a290844b3b6efbff7a4a826cd7",
+      "bytes": 788
+    },
+    {
+      "order": "sq3_updntri",
+      "outcar": "sq3_updntri\\OUTCAR",
+      "sha256": "572108faa5ec35d42bc02a961989a166caa0aa96bc2ff04ed3c94d55b6b3da81",
+      "bytes": 788
+    }
+  ],
+  "orders": {
+    "fm": {
+      "energy_eV": -0.2592,
+      "sigma0": -0.2592,
+      "without_entropy": null,
+      "n_ionic_steps": 1,
+      "scf_converged": true,
+      "accuracy_reached": false,
+      "has_timing": true,
+      "size_kb": 0.8,
+      "n_ions": 36,
+      "n_kpts": 6,
+      "encut": 520.0,
+      "noncollinear": true,
+      "lsorbit": true,
+      "ispin": 1,
+      "vasp_version": "6.4.2",
+      "has_mag_block": false,
+      "tot_moment_raw": null
+    },
+    "q0_ud": {
+      "energy_eV": 0.0648,
+      "sigma0": 0.0648,
+      "without_entropy": null,
+      "n_ionic_steps": 1,
+      "scf_converged": true,
+      "accuracy_reached": false,
+      "has_timing": true,
+      "size_kb": 0.8,
+      "n_ions": 36,
+      "n_kpts": 6,
+      "encut": 520.0,
+      "noncollinear": true,
+      "lsorbit": true,
+      "ispin": 1,
+      "vasp_version": "6.4.2",
+      "has_mag_block": false,
+      "tot_moment_raw": null
+    },
+    "sq3_alt": {
+      "energy_eV": -0.0336,
+      "sigma0": -0.0336,
+      "without_entropy": null,
+      "n_ionic_steps": 1,
+      "scf_converged": true,
+      "accuracy_reached": false,
+      "has_timing": true,
+      "size_kb": 0.8,
+      "n_ions": 36,
+      "n_kpts": 6,
+      "encut": 520.0,
+      "noncollinear": true,
+      "lsorbit": true,
+      "ispin": 1,
+      "vasp_version": "6.4.2",
+      "has_mag_block": false,
+      "tot_moment_raw": null
+    },
+    "sq3_updntri": {
+      "energy_eV": -0.0216,
+      "sigma0": -0.0216,
+      "without_entropy": null,
+      "n_ionic_steps": 1,
+      "scf_converged": true,
+      "accuracy_reached": false,
+      "has_timing": true,
+      "size_kb": 0.8,
+      "n_ions": 36,
+      "n_kpts": 6,
+      "encut": 520.0,
+      "noncollinear": true,
+      "lsorbit": true,
+      "ispin": 1,
+      "vasp_version": "6.4.2",
+      "has_mag_block": false,
+      "tot_moment_raw": null
+    }
+  },
+  "stats": {
+    "lattice_max_dev": {
+      "fm": 2.9999999995311555e-07,
+      "q0_ud": 2.9999999995311555e-07,
+      "sq3_alt": 2.9999999995311555e-07,
+      "sq3_updntri": 2.9999999995311555e-07
+    },
+    "noncollinear": {
+      "fm": true,
+      "q0_ud": true,
+      "sq3_updntri": true,
+      "sq3_alt": true
+    },
+    "lsorbit": {
+      "fm": true,
+      "q0_ud": true,
+      "sq3_updntri": true,
+      "sq3_alt": true
+    },
+    "encut": {
+      "fm": 520.0,
+      "q0_ud": 520.0,
+      "sq3_updntri": 520.0,
+      "sq3_alt": 520.0
+    },
+    "n_kpts": {
+      "fm": 6,
+      "q0_ud": 6,
+      "sq3_updntri": 6,
+      "sq3_alt": 6
+    },
+    "vasp_version": {
+      "fm": "6.4.2",
+      "q0_ud": "6.4.2",
+      "sq3_updntri": "6.4.2",
+      "sq3_alt": "6.4.2"
+    },
+    "spread_eV": 0.324,
+    "gap_vs_fm_eV": {
+      "fm": 0.0,
+      "q0_ud": 0.324,
+      "sq3_updntri": 0.2376,
+      "sq3_alt": 0.2256
+    },
+    "fm_total_moment_raw": null
+  },
+  "warnings": [
+    {
+      "order": "fm",
+      "check": "accuracy",
+      "msg": "没打印 `reached required accuracy` (静态 NSW=1 一般不打印, 属正常; 提醒确认一下)"
+    },
+    {
+      "order": "q0_ud",
+      "check": "accuracy",
+      "msg": "没打印 `reached required accuracy` (静态 NSW=1 一般不打印, 属正常; 提醒确认一下)"
+    },
+    {
+      "order": "sq3_alt",
+      "check": "accuracy",
+      "msg": "没打印 `reached required accuracy` (静态 NSW=1 一般不打印, 属正常; 提醒确认一下)"
+    },
+    {
+      "order": "sq3_updntri",
+      "check": "accuracy",
+      "msg": "没打印 `reached required accuracy` (静态 NSW=1 一般不打印, 属正常; 提醒确认一下)"
+    }
+  ],
+  "problems": [],
+  "note": "本 manifest 只证明「OUTCAR 通过了格式/收敛/结构/口径闸门」, **不证明** J 与 T_N 的物理正确性 —— 那需要真实 DFT 结果 + 文献锚点核对。"
+}
