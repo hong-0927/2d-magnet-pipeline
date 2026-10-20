@@ -60,6 +60,10 @@ jobs:
   package:
     name: 打包（sdist / wheel 可安装）
     runs-on: windows-latest
+    env:
+      # runner 默认 stdout 是 cp1252，脚本里的中文提示会 UnicodeEncodeError
+      PYTHONIOENCODING: utf-8
+      PYTHONUTF8: "1"
     steps:
       - uses: actions/checkout@v4
 
