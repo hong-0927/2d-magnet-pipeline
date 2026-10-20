@@ -18,7 +18,7 @@ Heisenberg Monte Carlo 的 T_C / T_N**。八种磁性格点共用一套规格层
 - **没有任何真实 DFT 计算结果**：J / T_C / T_N / D / 能带都只是**系数层或 MC 估算**；
   [`capabilities.json`](capabilities.json) 里 `physical_verified` 一律 `false`，谁改成 `true` 会被 `--check` 与 smoke 拒绝。
 - DMI / MTI 只到**识别层**（不给 D 值）；交变磁体只到几何判别 + 标量序参量；SOC 非共线链只到 INCAR / MAGMOM 内容与快照回归。
-- P4.2 的 k 点收敛只有手册级 `kconv` 流程，没有自动进入主链。
+- k 点收敛只有手册级 `kconv` 流程，没有自动进入主链。
 - MC 误差棒只能用 **binning SEM**（并看 `n_eff`）；只有单链，没有多副本 R̂ / 并行退火。
 
 完整清单见 [LIMITATIONS.md](knowledge/LIMITATIONS.md)；逐条症状与修法见 [KNOWN_ISSUES.md](knowledge/KNOWN_ISSUES.md)。

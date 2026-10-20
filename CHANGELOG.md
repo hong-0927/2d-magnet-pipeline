@@ -20,7 +20,7 @@
 - `scripts/magnetic_orders.py --regress` 对结构不在本包内的规格（MnI2、Fe3Sn 链路指向工作区项目目录）
   明确 `SKIP (结构不在本包内: …)` 并继续，独立分发的 skill 包里也能跑完并退出 0。
 
-### Changed — 默认路线去非共线（P6）
+### Changed — 默认路线走共线，非共线改为显式开关
 - **三角**：`build_magnetic_cases_tri.py` 默认只生成共线四态（`fm / stripy_a / stripy_ab / uud`，
   5×5×1 实测 `rank=4, cond=3.65e3`），`--include-noncollinear` 才追加 `120deg` 诊断态；
   `required` 不再是 `["fm","120deg"]`，改为贪心选态 + 秩/条件数硬门禁。
@@ -55,7 +55,7 @@ Monte Carlo 的 T_C / T_N**，八种磁性格点共用一套规格层与统一�
   （7 类晶格 / 7 个物理量 / 7 条「根本不支持」/ 5 道 fail-close 闸门；`physical_verified` 一律 `false`）。
 - **可直接看的复现样例**：[`examples/`](examples/) 两组产物快照（方形 La₂CuO₄ 全程、
   kagome Fe₃Sn 合成空跑），不需要 VASP，也不需要额外依赖。
-- **文档**：README、WORKFLOW、SKILL、KNOWN_ISSUES、NEW_TYPES_PLAN、P4.2 runbook、DMI memo，
+- **文档**：README、WORKFLOW、SKILL、KNOWN_ISSUES、NEW_TYPES_PLAN、kagome runbook、DMI memo，
   以及两份 README 的文档索引（`README.md` 英文 / `README.zh.md` 中文）。
 - **发布工程**：[`MANIFEST.in`](MANIFEST.in) + [`tests/check_sdist.py`](tests/check_sdist.py)
   （sdist 必须项闸门，smoke §28 用合成 tar.gz 反向验证闸门本身）+ CI `package` 作业
@@ -92,7 +92,7 @@ Monte Carlo 的 T_C / T_N**，八种磁性格点共用一套规格层与统一�
 
 - **「已知局限」从 21 条收敛到 18 条**：删掉三条已失效的陈述（「T_C 取比热峰」的旧口径、
   「运行目录由 CWD 决定」、「GBK 控制台编码」），并把两条与正文重复的机制叙述压成纯边界；
-  全仓「局限 N」交叉引用（README / KNOWN_ISSUES / NEW_TYPES_PLAN / WORKFLOW / P4.2 runbook /
+  全仓「局限 N」交叉引用（README / KNOWN_ISSUES / NEW_TYPES_PLAN / WORKFLOW / kagome runbook /
   `scripts/altermagnet_check.py`）同步改号。
 - README 新增「该读哪份（文档索引）」「打包闸门（sdist/wheel）」两段；
   可按步点击的三步（只支持「以文件夹为 vault 打开」，不支持孤立 `.md`）。
@@ -103,5 +103,5 @@ Monte Carlo 的 T_C / T_N**，八种磁性格点共用一套规格层与统一�
   `capabilities.json` 的 `physical_verified` 一律 `false`。
 - DMI / MTI 只到**识别层**（不给 D 值）；交变磁体只到几何判别 + 标量序参量；SOC 非共线链只到
   INCAR / MAGMOM 内容与快照回归。
-- P4.2 的 k 点收敛只有手册级 `kconv` 流程，没有「自动进入主链」。
+- k 点收敛只有手册级 `kconv` 流程，没有「自动进入主链」。
 - MC 误差棒只能用 binning SEM（并看 `n_eff`）；只有单链，没有多副本 R̂ / 并行退火。
